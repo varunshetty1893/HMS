@@ -18,6 +18,7 @@ import apiSpecDoc from '../docs/05-api-specification.md?raw';
 import dbDesignDoc from '../docs/04-database-design.md?raw';
 import sysArchDoc from '../docs/03-system-architecture.md?raw';
 import reqScopeDoc from '../docs/02-requirements-and-scope.md?raw';
+import projOverviewDoc from '../docs/01-project-overview.md?raw';
 import vol1 from '../docs/01_ARCHITECTURE_AND_ROLES.md?raw';
 import vol2 from '../docs/02_ORDER_LIFECYCLE_AND_FINANCIAL_RULES.md?raw';
 import vol3 from '../docs/03_SECURITY_AND_DATABASE_SCHEMA.md?raw';
@@ -130,6 +131,14 @@ const VOLUMES: SpecVolume[] = [
     fullTitle: 'Software Requirements & Scope Specification (docs/02-requirements-and-scope.md)',
     filePath: '/docs/02-requirements-and-scope.md',
     content: reqScopeDoc,
+  },
+  {
+    id: 'ovw01',
+    number: 'OVW',
+    shortTitle: '01-Project Overview & Governance',
+    fullTitle: 'Project Overview & Canonical Documentation Governance (docs/01-project-overview.md)',
+    filePath: '/docs/01-project-overview.md',
+    content: projOverviewDoc,
   },
   {
     id: 'vol1',
@@ -555,24 +564,24 @@ export default function App() {
               Master Source-of-Truth Specification
             </h2>
             <p className="text-xs text-stone-600 leading-relaxed">
-              No application source code has been generated. All 6 volumes are stored in <code className="font-mono-code">/docs/*.md</code> and <code className="font-mono-code">/SPECIFICATION.md</code> for Antigravity implementation.
+              Normalized repository &amp; documentation suite (<code className="font-mono-code">docs/01..13</code> + <code className="font-mono-code">Volumes 1..6</code>) governing <code className="font-mono-code">backend/</code>, <code className="font-mono-code">customer-web/</code>, <code className="font-mono-code">admin-web/</code>, <code className="font-mono-code">waiter-app/</code>, and <code className="font-mono-code">kitchen-app/</code>.
             </p>
             <div className="pt-2 border-t border-stone-200/80 flex flex-col gap-1.5 text-xs text-stone-600 tabular-nums">
               <div className="flex justify-between">
+                <span>Canonical Spec Suite</span>
+                <span className="font-mono-code font-semibold text-stone-900">13 Docs + 6 Vols</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Normalized DB Entities</span>
-                <span className="font-mono-code font-semibold text-stone-900">17 Tables</span>
+                <span className="font-mono-code font-semibold text-stone-900">20 Tables</span>
               </div>
               <div className="flex justify-between">
                 <span>UI Screen Specifications</span>
                 <span className="font-mono-code font-semibold text-stone-900">46 Screens</span>
               </div>
               <div className="flex justify-between">
-                <span>Documented Edge Cases</span>
-                <span className="font-mono-code font-semibold text-stone-900">33 Scenarios</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Decisions Requiring Approval</span>
-                <span className="font-mono-code font-semibold text-[#9A3412]">8 Items (DR-01..08)</span>
+                <span>Canonical Policy Switches</span>
+                <span className="font-mono-code font-semibold text-[#14532D]">8 Seeded (OD-01..08)</span>
               </div>
             </div>
           </div>

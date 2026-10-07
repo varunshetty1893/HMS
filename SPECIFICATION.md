@@ -6,6 +6,11 @@
 
 ## Specification Volumes (`./docs/`)
 
+> **Canonical Governance & Precedence Rule:**
+> - **Artifacts 01–13 (`docs/01-project-overview.md` through `docs/13-final-implementation-blueprint.md`)** are the primary, authoritative implementation contracts.
+> - **Foundational Volumes 1–6 (`docs/01_ARCHITECTURE_AND_ROLES.md` through `docs/06_TESTING_DEPLOYMENT_AND_GOVERNANCE.md`)** are preserved below for architectural continuity; where any early shorthand differs, the detailed contracts in **`docs/04` through `docs/13`** take strict precedence.
+> - **Canonical Top-Level Application Directories:** `backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, `kitchen-app/`, and `docs/`.
+
 - **[Artifact 13: Final Implementation Blueprint (`docs/13-final-implementation-blueprint.md`)](./docs/13-final-implementation-blueprint.md)**
   - Complete 27-section Final Implementation Blueprint bridging documentation (`docs/01`–`docs/12`) to phase-by-phase execution: cross-document normalization rules, final system & architecture summary, 7-entity domain distinction, 7 state machines, unified business rules & permission matrix, implementation dependency graph, 15 sequential implementation phases (`Phase 0`–`Phase 14`), testable `Given/When/Then` acceptance criteria, 20-table foreign-key build order, 12-group API build order, 4-app frontend build order, Antigravity AI agent `MUST`/`MUST NOT` rules, 12-domain Cross-Document Consistency Audit, 20-item Risk Register, Zero-Cost (`₹0`) audit table, Milestone Roadmap (`M0`–`M12`), Master Implementation Checklist, exact "First Implementation Task", and Readiness Score (`98.4/100 — READY FOR IMPLEMENTATION`).
 - **[Artifact 12: End-to-End Business Workflow Specification (`docs/12-end-to-end-business-workflows.md`)](./docs/12-end-to-end-business-workflows.md)**
@@ -34,6 +39,13 @@
 
 - **[Artifact 02: Software Requirements & Scope Specification (`docs/02-requirements-and-scope.md`)](./docs/02-requirements-and-scope.md)**
   - Complete 24-section Software Requirements & Scope Specification with strict Zero-Cost / Free-Tier-First architecture, role & permission matrices, customer/waiter/kitchen/admin requirements, ₹5,000 limit math, testable acceptance criteria, and final governance checks (A–H).
+
+- **[Artifact 01: Project Overview & Canonical Documentation Governance (`docs/01-project-overview.md`)](./docs/01-project-overview.md)**
+  - Executive vision, single-restaurant scope boundaries, 10 non-negotiable business invariants, canonical application directory map (`backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, `kitchen-app/`), and documentation hierarchy precedence rules.
+
+---
+
+### Foundational Architectural Baseline Volumes (`docs/01_...` – `docs/06_...`)
 
 1. **[Volume 1: System Architecture, Roles, QR Security & Menu Model](./docs/01_ARCHITECTURE_AND_ROLES.md)**
    - Executive Summary & Single-Restaurant Scope Boundaries

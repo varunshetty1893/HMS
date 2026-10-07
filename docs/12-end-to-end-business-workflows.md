@@ -11,6 +11,8 @@
 
 ## 1. WORKFLOW NOTATION & ARCHITECTURAL AUTHORITY
 
+> **Canonical Schema & Endpoint Binding (`docs/04` & `docs/05`):** Every workflow in this document binds to the **20 normalized PostgreSQL tables** in `docs/04-database-design.md` (`table_sessions.status = 'ACTIVE' | 'CLOSED_PAID' | 'CLOSED_CANCELLED' | 'CLOSED_ADMIN_OVERRIDE'`, `table_sessions.current_outstanding_amount <= custom_outstanding_limit`, `menu_items.item_code`, `menu_price_variants.variant_code`, `orders.source = 'CUSTOMER_QR' | 'WAITER'`, `orders.has_unacknowledged_mods`, `bills.status = 'ISSUED' | 'PAID' | 'VOIDED_FOR_REVISION'`) and the **REST API endpoints** in `docs/05-api-specification.md` (`GET /api/v1/public/qr/{qr_token}` [+ alias `POST /api/v1/public/qr/resolve`], `GET /api/v1/waiter/menu/code-search`, `PATCH /api/v1/waiter/orders/{order_id}`, `POST /api/v1/kitchen/orders/{order_id}/modifications/ack`, `POST /api/v1/waiter/bills`, `POST /api/v1/waiter/payments`).
+
 Every business workflow in this document traces the complete lifecycle of an action from user intent to database persistence and real-time synchronization using a uniform 9-stage notation:
 
 ```text

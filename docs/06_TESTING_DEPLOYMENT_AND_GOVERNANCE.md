@@ -1,6 +1,7 @@
 # Volume 6: Testing Strategy, Deployment Architecture & Final Governance Checklist
 
-> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)
+> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
+> **Canonical Cross-Reference Notice:** This foundational volume is complemented and governed by **`docs/09-testing-and-qa-specification.md`**, **`docs/10-deployment-and-devops-specification.md`**, **`docs/11-project-structure-and-coding-standards.md`**, and **`docs/13-final-implementation-blueprint.md`**. All 8 policy decisions (`DR-01`–`DR-08` / `OD-01`–`OD-08`) are resolved with configurable defaults in `restaurant_settings` (`docs/13`, Section 20.1), and the canonical top-level application directories are `backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, and `kitchen-app/`.
 
 ---
 

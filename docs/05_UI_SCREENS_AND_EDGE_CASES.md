@@ -1,6 +1,7 @@
 # Volume 5: Complete UI / Screen Inventory & Comprehensive Edge-Case Catalog
 
-> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)
+> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
+> **Canonical Cross-Reference Notice:** This foundational volume is expanded into the authoritative screen, workflow, and concurrency specifications in **`docs/07-ui-ux-screen-specification.md`**, **`docs/09-testing-and-qa-specification.md`**, and **`docs/12-end-to-end-business-workflows.md`**.
 
 ---
 

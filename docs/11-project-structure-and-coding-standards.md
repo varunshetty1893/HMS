@@ -15,7 +15,7 @@
 Before establishing the repository structure and coding standards, all ten existing specification documents were audited for consistency:
 
 1. **Architecture & Module Alignment (`docs/03` & `docs/10`):** The monorepo layout (`docs/`, `backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, `kitchen-app/`) and the single-process modular-monolith FastAPI backend (`Uvicorn` + `SQLAlchemy 2.0 Async` + `Alembic` + `PostgreSQL 16`) match `docs/03` and `docs/10` with zero contradictions.
-2. **Database & Financial Integrity Alignment (`docs/04`):** All model conventions preserve the 14+ core normalized PostgreSQL tables, `NUMERIC(10,2)` / Python `Decimal` monetary arithmetic, historical price snapshots (`unit_price_snapshot`, `item_name_snapshot`, `variant_name_snapshot`), and trigger-protected immutable `audit_logs` and `order_modification_events`.
+2. **Database & Financial Integrity Alignment (`docs/04`):** All model conventions preserve the **20 normalized PostgreSQL tables**, `NUMERIC(10,2)` / Python `Decimal` monetary arithmetic, historical price snapshots (`unit_price_snapshot`, `item_code_snapshot`, `item_name_snapshot`, `variant_code_snapshot`, `variant_name_snapshot`, `quantity_value_snapshot`, `unit_snapshot`, `tax_rate_snapshot`), and trigger-protected immutable `audit_logs` and `order_modification_events`.
 3. **API & Realtime Alignment (`docs/05` & `docs/08`):** Router prefixes (`/api/v1/...`), the standard JSON error envelope, post-commit WebSocket emission, the 16 canonical domain events, and client-side sequence/version reconciliation match `docs/05` and `docs/08`.
 4. **Security & Testing Alignment (`docs/06` & `docs/09`):** Server-authoritative pricing, the `₹5,000.00` unpaid table exposure lock (`SELECT ... FOR UPDATE`), 10-layer photographed-QR protection, and test directory layouts (`unit`, `integration`, `api`, `security`, `realtime`, `concurrency`) align 100% with `docs/06` and `docs/09`.
 
@@ -429,15 +429,15 @@ All REST endpoints are mounted under `/api/v1` and organized by actor/domain bou
 | Router File | Base Prefix | Primary Actor / Auth Guard | Responsibility |
 | :--- | :--- | :--- | :--- |
 | **`health.py`** | `/api/v1/health` | Public (Unauthenticated) | Liveness (`/live`) and readiness (`/ready`) probes. |
-| **`public_qr.py`** | `/api/v1/public/qr` | Public (Rate-limited) | `POST /resolve` — validates physical QR token and issues `X-Customer-Session-Token`. |
+| **`public_qr.py`** | `/api/v1/public/qr` | Public (Rate-limited) | `GET /{qr_token}` *(+ alias `POST /resolve`)* — validates physical QR token and issues `X-Customer-Session-Token`. |
 | **`auth.py`** | `/api/v1/auth` | Public (`login`) / Staff JWT | Staff login, token refresh, current profile (`/me`), and logout. |
 | **`customer.py`** | `/api/v1/customer` | `Depends(get_customer_session)` | Customer menu browsing, current table-session status, order creation, and session order tracking. |
-| **`waiter.py`** | `/api/v1/waiter` | `Depends(require_roles(WAITER, ADMIN))` | Floor table list/details, short-code & name menu search, manual order entry, order editing, marking `SERVED`, bill generation, and payment recording. |
-| **`kitchen.py`** | `/api/v1/kitchen` | `Depends(require_roles(KITCHEN, ADMIN))` | Active KDS queue, order accept/reject, `PREPARING`/`READY` transitions, and recent completed queue. |
+| **`waiter.py`** | `/api/v1/waiter` | `Depends(require_roles(WAITER, ADMIN))` | Floor table list/details, short-code (`/menu/code-search`) & name (`/menu/search`) menu search, manual order entry, order editing, marking `SERVED`, bill generation, and payment recording. |
+| **`kitchen.py`** | `/api/v1/kitchen` | `Depends(require_roles(KITCHEN, ADMIN))` | Active KDS queue, order accept/reject, `PREPARING`/`READY` transitions, modification acknowledgment (`/modifications/ack`), and recent completed queue. |
 | **`admin.py`** | `/api/v1/admin` | `Depends(require_roles(ADMIN))` | Menu CRUD, table CRUD, QR generation/regeneration, staff CRUD, order/bill monitoring & overrides, sales reports, settings, and audit logs. |
 | **`ws.py`** | `/api/v1/ws` | Staff JWT or Customer Session Token | Unified WebSocket connection endpoint with automatic role/session room routing. |
 
-> **Zero Duplicated Logic Rule:** `customer.py` (`POST /api/v1/customer/orders`) and `waiter.py` (`POST /api/v1/waiter/orders`) are thin wrappers that both call `OrderService.create_order(...)` with the authenticated `OrderSource` (`CUSTOMER_QR` vs `WAITER_MANUAL`).
+> **Zero Duplicated Logic Rule:** `customer.py` (`POST /api/v1/customer/orders`) and `waiter.py` (`POST /api/v1/waiter/orders`) are thin wrappers that both call `OrderService.create_order(...)` with the authenticated `OrderSource` (`CUSTOMER_QR` vs `WAITER`).
 
 ---
 

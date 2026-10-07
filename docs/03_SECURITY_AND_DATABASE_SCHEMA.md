@@ -1,6 +1,7 @@
 # Volume 3: Security Architecture & Normalized PostgreSQL Data Model
 
-> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)
+> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
+> **Canonical Cross-Reference Notice:** The 17 conceptual entities in this baseline volume are expanded to the authoritative **20-entity PostgreSQL schema** in **`docs/04-database-design.md`** (adding `staff_refresh_tokens`, `order_status_history`, and `idempotency_keys`, and standardizing `customer_sessions`, `table_qr_tokens`, and exact column names) and **`docs/06-security-specification.md`**. Where any column or table name differs, **`docs/04-database-design.md` takes strict precedence**.
 
 ---
 

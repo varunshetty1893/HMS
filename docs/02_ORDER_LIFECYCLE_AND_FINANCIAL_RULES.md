@@ -1,6 +1,7 @@
 # Volume 2: Order Lifecycle, Order Editing, Financial Guardrails & Billing
 
-> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)
+> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
+> **Canonical Cross-Reference Notice:** This foundational volume is expanded and governed by **`docs/02-requirements-and-scope.md`**, **`docs/04-database-design.md`**, **`docs/05-api-specification.md`**, **`docs/12-end-to-end-business-workflows.md`**, and **`docs/13-final-implementation-blueprint.md`**.
 
 ---
 

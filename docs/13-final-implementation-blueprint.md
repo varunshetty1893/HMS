@@ -26,21 +26,42 @@
 All twelve specification documents (`docs/01` through `docs/12`) were analyzed together to uncover cross-document dependencies, subtle terminology drifts, potential implementation traps, and edge cases that could cause an AI coding agent to guess or implement conflicting code.
 
 ### 1.1 Key Cross-Document Normalizations (Canonical Rules for Coding)
-To ensure **zero ambiguity** when Antigravity writes SQLAlchemy models, Alembic migrations, FastAPI routes, and WebSocket handlers, the following 6 cross-document nuances are canonically locked:
+To ensure **zero ambiguity** when Antigravity writes SQLAlchemy models, Alembic migrations, FastAPI routes, and WebSocket handlers, the following 9 cross-document normalizations are canonically locked and govern the entire repository:
 
-1. **Database Table Count & Naming (`17` vs `20` Tables in `docs/03` vs `docs/04`):**
-   - `docs/03` summarized 17 core tables conceptually, while `docs/04-database-design.md` (the canonical Database Design Specification) expanded the schema to **20 normalized PostgreSQL tables** by explicitly adding `staff_refresh_tokens`, `idempotency_keys`, and `notifications`.
-   - **Canonical Rule:** **`docs/04-database-design.md` (20 tables)** is the authoritative schema. Specifically, the QR token table is named **`table_qr_tokens`** (referred to shorthand as `qr_tokens` in some narrative paragraphs).
-2. **RBAC Schema Simplicity (`users.role` vs Join Tables):**
-   - Because this system is strictly for **one physical restaurant** with 4 fixed roles (`CUSTOMER` via session token, and staff roles `WAITER`, `KITCHEN`, `ADMIN` in `users.role`), the database does **not** use enterprise multi-tenant `roles`, `permissions`, or `user_roles` tables (`docs/04`, Section 1). Staff role is stored directly on `users.role` (`VARCHAR(20)` with `CHECK (role IN ('ADMIN', 'WAITER', 'KITCHEN'))`).
-3. **WebSocket Event Naming Normalization (`menu.updated` vs `menu.availability_changed`):**
-   - `docs/08-realtime-and-event-specification.md` (Section 5) defines the 16 canonical WebSocket event strings. Menu availability changes and menu price/item updates emit **`menu.updated`** (carrying `change_type: "AVAILABILITY_CHANGED" | "ITEM_UPDATED" | "PRICE_UPDATED"` in `data`), ensuring clients only need one unified menu-sync listener.
-4. **Order `SERVED -> COMPLETED` Transition Trigger:**
-   - As reconciled in `docs/12` (Section 57), waiters manually transition an order from `READY -> SERVED` when placing dishes on the table (`POST /api/v1/waiter/orders/{id}/served`). When the table's bill is paid in full (`POST /api/v1/waiter/bills/{id}/payments`), `BillingService.record_payment` atomically transitions all `SERVED` orders in that `table_session_id` to **`COMPLETED`**.
-5. **Customer Post-Submission Order Cancellation / Modification:**
-   - Across `docs/02`, `docs/05`, `docs/07`, and `docs/12`, customers **cannot** self-cancel or self-edit an order via Customer Web once `"Place Order"` has succeeded. Only `WAITER` or `ADMIN` can modify or cancel a placed order (on the customer's verbal request).
-6. **Single-Worker Uvicorn for In-Memory WebSocket Consistency:**
-   - Because `WebSocketManager` maintains room subscriptions and monotonic `sequence` counters in-process without requiring a paid Redis instance (`docs/08`, `docs/10`), Uvicorn runs as a single async worker process (`--workers 1`), which effortlessly handles single-restaurant load while guaranteeing 100% WebSocket fan-out delivery.
+1. **Canonical Documentation Precedence (`docs/01`–`docs/13` vs. `docs/01_...`–`docs/06_...`):**
+   - The 13 hyphenated specification documents (`docs/01-project-overview.md` through `docs/13-final-implementation-blueprint.md`) are the authoritative implementation contracts. The 6 earlier baseline volumes (`docs/01_ARCHITECTURE_AND_ROLES.md` through `docs/06_TESTING_DEPLOYMENT_AND_GOVERNANCE.md`) and `SPECIFICATION.md` are preserved as architectural reference volumes.
+   - Importantly, `docs/13-final-implementation-blueprint.md` normalizes across documents and defines the build sequence, **without replacing or simplifying the detailed schemas, API payloads, security controls, UI screens, or test matrices in `docs/04` through `docs/12`**.
+2. **Canonical Top-Level Repository Structure (`docs/10` & `docs/11`):**
+   - Top-level application directories are strictly: `backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, `kitchen-app/`, and `docs/` (replacing early shorthand names like `web-customer` or `mobile-waiter`).
+3. **Database Table Count & Naming (`20` Canonical Tables in `docs/04-database-design.md`):**
+   - `docs/04-database-design.md` (Section 32.A — **20 normalized PostgreSQL tables**) is the authoritative database schema: `users`, `staff_refresh_tokens`, `restaurant_tables`, `table_qr_tokens`, `customer_sessions`, `table_sessions`, `menu_categories`, `menu_items`, `menu_price_variants`, `orders`, `order_items`, `order_status_history`, `order_modification_events`, `bills`, `bill_items`, `payments`, `idempotency_keys`, `notifications`, `audit_logs`, and `restaurant_settings`.
+4. **Canonical Column & Snapshot Names (`docs/04-database-design.md`):**
+   - **Menu Short Codes:** `menu_items.item_code` (e.g., `'CB'`, `'CK'`) and `menu_price_variants.variant_code` (e.g., `'CB-H'`, `'CB-F'`, `'CK-2'`), alongside `quantity_value` (`NUMERIC(8,2)`) and `unit` (`'PORTION'`, `'PIECE'`, `'ML'`, etc.).
+   - **Historical Snapshots on `order_items`:** `item_code_snapshot`, `item_name_snapshot`, `variant_code_snapshot`, `variant_name_snapshot`, `quantity_value_snapshot`, `unit_snapshot`, `unit_price_snapshot`, and `tax_rate_snapshot`, plus `original_quantity`, `active_quantity`, `cancelled_quantity`, and `line_subtotal`.
+   - **Table Session Exposure Columns:** `table_sessions.current_outstanding_amount` (`NUMERIC(10,2)`) and `table_sessions.custom_outstanding_limit` (`NUMERIC(10,2)`, default `5000.00` seeded from `restaurant_settings.default_session_outstanding_limit`).
+   - **QR Token Storage Columns:** `table_qr_tokens.token_hash` (`CHAR(64)` SHA-256), `token_prefix` (`VARCHAR(10)`), and `printable_token_ciphertext` (`TEXT` encrypted with `QR_TOKEN_ENCRYPTION_KEY`).
+   - **Order Modification Flag:** `orders.has_unacknowledged_mods` (`BOOLEAN`) and `order_modification_events.kitchen_ack_required` (`BOOLEAN`).
+5. **Canonical Status Enums (`docs/04-database-design.md` & `docs/05-api-specification.md`):**
+   - **Physical Table (`restaurant_tables`):** `operational_status IN ('ENABLED', 'MAINTENANCE', 'DISABLED')`; dynamic occupancy state **`AVAILABLE`** vs. **`OCCUPIED`** is derived authoritatively from whether an `ACTIVE` `table_sessions` row exists for `table_id` (`UNIQUE(table_id) WHERE status = 'ACTIVE'`).
+   - **QR Token (`table_qr_tokens.status`):** `'ACTIVE'`, `'SUPERSEDED'`, `'REVOKED'`, `'DISABLED'`.
+   - **Customer Session (`customer_sessions.status`):** `'ACTIVE'`, `'LOCKED_SUSPICIOUS'`, `'EXPIRED'`, `'CLOSED_BY_PAYMENT'`, `'REVOKED'`.
+   - **Table Dining Session (`table_sessions.status`):** `'ACTIVE'`, `'CLOSED_PAID'`, `'CLOSED_CANCELLED'`, `'CLOSED_ADMIN_OVERRIDE'`.
+   - **Order Source (`orders.source`):** `'CUSTOMER_QR'`, `'WAITER'`.
+   - **Order Status (`orders.status`):** `'PLACED'`, `'ACCEPTED'`, `'PREPARING'`, `'READY'`, `'SERVED'`, `'COMPLETED'`, `'REJECTED'`, `'CANCELLED'`.
+   - **Bill Status (`bills.status`):** `'ISSUED'`, `'PAID'`, `'VOIDED_FOR_REVISION'`.
+   - **Payment (`payments`):** `status IN ('PENDING', 'COMPLETED', 'FAILED', 'VOIDED')`; `payment_method IN ('CASH', 'UPI', 'CARD', 'OTHER')`.
+6. **Canonical REST API Endpoints & Headers (`docs/05-api-specification.md` & `docs/06-security-specification.md`):**
+   - **Customer QR Resolution:** `GET /api/v1/public/qr/{qr_token}` is the primary endpoint defined in `docs/04` and `docs/05` (`POST /api/v1/public/qr/resolve` may also be mounted as a thin alias calling the same `QrService.resolve_qr_token` method).
+   - **Customer Session Header:** `X-Customer-Session-Token` (stored in `sessionStorage` and hashed with SHA-256 against `customer_sessions.session_token_hash`).
+   - **Waiter Menu Search:** `GET /api/v1/waiter/menu/code-search?code=` (instant code lookup) and `GET /api/v1/waiter/menu/search?q=` (combined code + trigram name search).
+   - **Waiter Order Edit & Kitchen Ack:** `PATCH /api/v1/waiter/orders/{order_id}` and `POST /api/v1/kitchen/orders/{order_id}/modifications/ack`.
+   - **Billing & Payment Endpoints:** `POST /api/v1/waiter/bills`, `GET /api/v1/waiter/tables/{table_id}/bill`, `POST /api/v1/waiter/payments` (`docs/05` Sections 14–15).
+7. **RBAC Schema Simplicity (`users.role` vs Join Tables):**
+   - Because this system is strictly for **one physical restaurant** with 4 fixed roles (`CustomerSession`, and staff roles `WAITER`, `KITCHEN`, `ADMIN` in `users.role`), the database stores staff role directly on `users.role` (`VARCHAR(20)` with `CHECK (role IN ('ADMIN', 'WAITER', 'KITCHEN'))`).
+8. **WebSocket Event Naming Normalization (`docs/08-realtime-and-event-specification.md`):**
+   - `docs/08` (Section 5) defines the 16 canonical WebSocket event strings over `WSS /api/v1/ws` (`connection.authenticated`, `order.created`, `order.accepted`, `order.rejected`, `order.preparing`, `order.ready`, `order.served`, `order.modified`, `order.cancelled`, `table.status_changed`, `table.session_opened`, `table.session_closed`, `bill.generated`, `payment.completed`, `menu.updated`, `qr.regenerated`).
+9. **Canonical Resolution of Open Policy Decisions (`OD-01` – `OD-08` / `DR-01` – `DR-08`):**
+   - All 8 configurable policy switches from `docs/02`, `docs/04`, `docs/05`, and `docs/06` are stored in `restaurant_settings` with safe, zero-friction defaults (detailed in Section 20.1).
 
 ---
 
@@ -136,26 +157,26 @@ This document (`docs/13-final-implementation-blueprint.md`) is the **Master Impl
 
 ```text
 Restaurant (Single Physical Location — `restaurant_settings`)
- ├── Physical Tables (`restaurant_tables`: T-01..T-XX, status: AVAILABLE | OCCUPIED)
- │    └── QR Tokens (`table_qr_tokens`: 1 ACTIVE token_hash per table, prior tokens REVOKED)
+ ├── Physical Tables (`restaurant_tables`: table_number 1..N, operational_status: ENABLED | MAINTENANCE | DISABLED; occupancy: AVAILABLE | OCCUPIED)
+ │    └── QR Tokens (`table_qr_tokens`: 1 ACTIVE token_hash per table, prior tokens SUPERSEDED | REVOKED | DISABLED)
  │
- ├── Table Dining Sessions (`table_sessions`: 0 or 1 OPEN per table; created ONLY on 1st valid order)
- │    └── Customer Sessions (`customer_sessions`: temporary browser tokens bound to table_id & session)
+ ├── Table Dining Sessions (`table_sessions`: 0 or 1 ACTIVE per table; created ONLY on 1st valid order; tracks current_outstanding_amount <= custom_outstanding_limit)
+ │    └── Customer Sessions (`customer_sessions`: temporary browser tokens bound to table_id & qr_token_id; status: ACTIVE | LOCKED_SUSPICIOUS | EXPIRED | CLOSED_BY_PAYMENT | REVOKED)
  │
  ├── Menu Catalog
  │    ├── Categories (`menu_categories`: Biryani, Starters, Breads...)
- │    ├── Items (`menu_items`: Chicken Biryani [short_code: CB], Chicken Kebab [CK]...)
- │    └── Price Variants (`menu_price_variants`: Half [CB-H: ₹100], Full [CB-F: ₹180], 2pcs [CK-2: ₹120])
+ │    ├── Items (`menu_items`: Chicken Biryani [item_code: CB], Chicken Kebab [CK]...)
+ │    └── Price Variants (`menu_price_variants`: Half [variant_code: CB-H, 0.50 PORTION: ₹100], Full [CB-F, 1.00 PORTION: ₹180], 2pcs [CK-2, 2.00 PIECE: ₹120])
  │
- ├── Orders (`orders`: unified CUSTOMER_QR & WAITER_MANUAL orders under TableSession)
- │    ├── Order Items (`order_items`: immutable name, variant, short_code & unit_price_snapshot)
+ ├── Orders (`orders`: unified CUSTOMER_QR & WAITER orders under TableSession)
+ │    ├── Order Items (`order_items`: immutable item_code_snapshot, item_name_snapshot, variant_code_snapshot, variant_name_snapshot, quantity_value_snapshot, unit_snapshot, unit_price_snapshot, tax_rate_snapshot)
  │    ├── Status History (`order_status_history`: append-only state transition log)
- │    └── Modification Events (`order_modification_events`: append-only pre/post-accept item diff log)
+ │    └── Modification Events (`order_modification_events`: append-only pre/post-accept item diff log with kitchen_ack_required)
  │
  ├── Billing & Settlement
- │    ├── Bills (`bills`: 1 active UNPAID/PAID bill per TableSession; GST snapshots)
- │    ├── Bill Items (`bill_items`: consolidated line snapshots)
- │    └── Payments (`payments`: COMPLETED / VOIDED records for CASH, UPI, CARD)
+ │    ├── Bills (`bills`: 1 active ISSUED/PAID bill per TableSession; CGST/SGST snapshots; VOIDED_FOR_REVISION history)
+ │    ├── Bill Items (`bill_items`: consolidated invoice line snapshots)
+ │    └── Payments (`payments`: PENDING | COMPLETED | FAILED | VOIDED records for CASH, UPI, CARD, OTHER)
  │
  ├── Staff (`users`: ADMIN, WAITER, KITCHEN + `staff_refresh_tokens`)
  │
@@ -164,81 +185,87 @@ Restaurant (Single Physical Location — `restaurant_settings`)
 
 ### 5.1 Critical Distinction Between the 7 Core Entities
 An AI coding agent must **never** conflate these 7 distinct concepts:
-1. **`RestaurantTable` (Physical Table):** The permanent physical table on the floor (`T-01`). Exists forever unless deactivated by Admin.
-2. **`TableQrToken` (QR Token):** The revocable cryptographic secret printed on the standee for `T-01`. Can be rotated (`REVOKED` $\rightarrow$ new `ACTIVE`) without deleting the table or cancelling active orders.
-3. **`CustomerSession` (Customer Browser Session):** A temporary 2-hour token issued to one diner's mobile browser when they scan `T-01`'s QR code. Multiple diners at `T-01` each get their own `CustomerSession`. Creating a `CustomerSession` **does not** occupy the table.
-4. **`TableSession` (Table Dining Session):** The shared dining sitting for `T-01` (`OPEN` $\rightarrow$ `CLOSED`). Created **strictly when the first valid order is placed** on an `AVAILABLE` table, and closed atomically when the bill is paid (or if the only order is rejected/cancelled).
-5. **`Order`:** A single batch of food items submitted by a customer or waiter during an open `TableSession`. A single `TableSession` can have multiple sequential `Order`s (e.g., Starters order, Main course order, Dessert order).
-6. **`Bill`:** The consolidated financial invoice generated at the end of the meal across all fulfilled orders in that `TableSession`.
-7. **`Payment`:** The recorded settlement transaction (`CASH`, `UPI`, `CARD`) against a `Bill` that completes the session and returns the `RestaurantTable` to `AVAILABLE`.
+1. **`RestaurantTable` (Physical Table):** The permanent physical table on the floor (`Table 1` / `T-01`, `table_number`). Exists forever unless deactivated by Admin (`is_active = false` or `operational_status = 'DISABLED'`).
+2. **`TableQrToken` (QR Token):** The revocable cryptographic 256-bit token printed on the standee for `Table 1` (`token_hash`, `printable_token_ciphertext`). Can be rotated (`SUPERSEDED` / `REVOKED` $\rightarrow$ new `ACTIVE`) without deleting the table or cancelling active orders.
+3. **`CustomerSession` (Customer Browser Session):** A temporary browser session token (`X-Customer-Session-Token`) issued when a diner scans `Table 1`'s QR code (`GET /api/v1/public/qr/{qr_token}`). Multiple diners at `Table 1` each get their own `CustomerSession`. Creating a `CustomerSession` **does not** occupy the table.
+4. **`TableSession` (Table Dining Session):** The shared dining sitting for `Table 1` (`ACTIVE` $\rightarrow$ `CLOSED_PAID` / `CLOSED_CANCELLED` / `CLOSED_ADMIN_OVERRIDE`). Created **strictly when the first valid order is placed** on an `AVAILABLE` table, and closed atomically when the bill is paid (or if all orders in the session are rejected/cancelled).
+5. **`Order`:** A single batch of food items (`source IN ('CUSTOMER_QR', 'WAITER')`) submitted by a customer or waiter during an `ACTIVE` `TableSession`. A single `TableSession` can have multiple sequential `Order`s, all sharing the session's `₹5,000.00` unpaid exposure cap.
+6. **`Bill`:** The consolidated financial invoice (`status IN ('ISSUED', 'PAID', 'VOIDED_FOR_REVISION')`) generated at the end of the meal across all active billable orders in that `TableSession`.
+7. **`Payment`:** The recorded settlement transaction (`CASH`, `UPI`, `CARD`, `OTHER` with `status = 'COMPLETED'`) against an `ISSUED` `Bill` that completes the session and returns the `RestaurantTable` to `AVAILABLE`.
 
 ---
 
 ## 6. FINAL STATE MACHINES
 
-### 6.1 Physical Table (`restaurant_tables.status`)
+### 6.1 Physical Table Occupancy (Derived from `table_sessions` + `restaurant_tables.operational_status`)
 ```text
-AVAILABLE (Default)
+AVAILABLE (Default when operational_status == 'ENABLED' and 0 ACTIVE TableSessions exist)
    │
-   │ Trigger: First valid Order committed (Customer QR or Waiter Manual)
-   │          which atomically opens a TableSession
+   │ Trigger: First valid Order committed (CUSTOMER_QR or WAITER)
+   │          which atomically creates an ACTIVE TableSession
    ▼
-OCCUPIED
+OCCUPIED (Exactly 1 ACTIVE TableSession exists for table_id)
    │
-   │ Trigger A: Full Payment recorded on Session Bill (closes TableSession)
-   │ Trigger B: The ONLY order(s) in the Session are REJECTED or CANCELLED
-   │            (leaving 0 active orders and 0 bills)
+   │ Trigger A: Full Payment recorded on Session Bill (TableSession -> CLOSED_PAID)
+   │ Trigger B: All orders in the Session are REJECTED or CANCELLED
+   │            (TableSession -> CLOSED_CANCELLED)
+   │ Trigger C: Audited Admin Force-Close (TableSession -> CLOSED_ADMIN_OVERRIDE)
    ▼
 AVAILABLE
 ```
-*(Note: Admin can also toggle `restaurant_tables.is_active = FALSE` when a table is removed from service, which is only allowed when `status == 'AVAILABLE'`).*
+*(Note: Admin can set `restaurant_tables.operational_status` to `'MAINTENANCE'` or `'DISABLED'` or `is_active = FALSE` only when no `ACTIVE` `TableSession` exists on that table).*
 
 ### 6.2 Order (`orders.status`)
 ```text
-                  ┌───► REJECTED (Terminal — by Kitchen/Admin from PLACED with reason)
+                  ┌───► REJECTED (Terminal — by Kitchen/Admin from PLACED with mandatory rejection_reason)
                   │
 PLACED ───────────┼───► ACCEPTED ───► PREPARING ───► READY ───► SERVED ───► COMPLETED (Terminal)
   │               │        │              │            ▲          ▲             ▲
   │               │        │              │            │          │             │
   │               │        ▼              ▼            │          │             │
   └───────────────┴───► CANCELLED (Terminal)           │          │             │
-                        (From PLACED by Waiter/Admin;  │          │             │
-                         From ACCEPTED/PREPARING by    │          │             │
-                         Waiter/Admin with mandatory   │       Waiter/Admin   Atomic on
-                         reason & KDS alert)        Kitchen      Marks        Bill Payment
-                                                    Marks        Served       Completion
+                        (From PLACED/ACCEPTED by       │          │             │
+                         Waiter/Admin with reason;     │       Waiter/Admin   Atomic on
+                         From PREPARING/READY/SERVED   │          Marks        Bill Payment
+                         by Admin override [OD-03]) Kitchen      Served       Completion
 ```
 
 ### 6.3 Bill (`bills.status`)
 ```text
-UNPAID (Created when Waiter/Admin generates bill for OPEN TableSession)
-   ├───► PAID (Terminal — when full payment is recorded; closes TableSession)
-   └───► VOIDED (Terminal — if voided/superseded before payment with mandatory reason & audit log)
+ISSUED (Created when Waiter/Admin generates bill for ACTIVE TableSession)
+   ├───► PAID (Terminal — when COMPLETED payment is recorded; closes TableSession as CLOSED_PAID)
+   └───► VOIDED_FOR_REVISION (Terminal — when unpaid ISSUED bill is voided/superseded with mandatory void_reason)
 ```
 
 ### 6.4 Payment (`payments.status`)
 ```text
-COMPLETED (Created when Waiter/Admin records CASH, UPI, or CARD settlement)
-   └───► VOIDED (Terminal — only via audited Admin payment correction workflow with mandatory reason)
+PENDING / COMPLETED (Created when Waiter/Admin records CASH, UPI, CARD, or OTHER settlement)
+   └───► FAILED / VOIDED (Terminal — failed attempt or audited Admin payment void with failure_or_void_reason)
 ```
 
 ### 6.5 QR Token (`table_qr_tokens.status`)
 ```text
-ACTIVE (At most 1 ACTIVE token per table; created on Generate / Regenerate)
-   ├───► REVOKED (Terminal — immediately upon QR Regeneration or Admin revocation)
-   └───► DISABLED (Can be temporarily paused by Admin if table is closed)
+ACTIVE (At most 1 ACTIVE token per table; UNIQUE(table_id) WHERE status = 'ACTIVE')
+   ├───► SUPERSEDED (Terminal — automatically set when Admin clicks Regenerate QR for that table)
+   ├───► REVOKED (Terminal — when explicitly revoked by Admin with revocation_reason)
+   └───► DISABLED (When QR ordering is paused for the table by Admin)
 ```
 
-### 6.6 Customer Session (`customer_sessions.is_active`)
+### 6.6 Customer Session (`customer_sessions.status`)
 ```text
-ACTIVE (Created on valid QR scan; unbound until 1st order, then linked to table_session_id)
-   └───► CLOSED / EXPIRED (Terminal — when TableSession closes on payment, QR is rotated, or 2h TTL expires)
+ACTIVE (Created on valid QR scan; table_session_id is NULL until 1st order, then linked)
+   ├───► CLOSED_BY_PAYMENT (Terminal — atomically set when TableSession Bill is PAID)
+   ├───► LOCKED_SUSPICIOUS (When rate-limit/abuse thresholds are tripped)
+   ├───► EXPIRED (Terminal — when idle browse TTL expires)
+   └───► REVOKED (Terminal — when QR token is rotated/revoked or session is cancelled)
 ```
 
 ### 6.7 Table Dining Session (`table_sessions.status`)
 ```text
-OPEN (Created atomically on 1st valid order for an AVAILABLE table; max 1 OPEN per table)
-   └───► CLOSED (Terminal — when Bill is PAID, or when sole order is REJECTED/CANCELLED, or Admin force-close)
+ACTIVE (Created atomically on 1st valid order for an AVAILABLE table; UNIQUE(table_id) WHERE status = 'ACTIVE')
+   ├───► CLOSED_PAID (Terminal — when Bill is PAID)
+   ├───► CLOSED_CANCELLED (Terminal — when all orders in the session are REJECTED or CANCELLED)
+   └───► CLOSED_ADMIN_OVERRIDE (Terminal — when Admin performs an audited force-close)
 ```
 
 ---
@@ -602,49 +629,49 @@ And when the Waiter records `UPI` payment for the bill's `grand_total`, the tran
 
 All **20 PostgreSQL tables** defined in `docs/04-database-design.md` must be created in this exact **foreign-key topological order** so every parent table exists before any child table references it:
 
-| Order | Table Name (`PostgreSQL`) | SQLAlchemy Model | Foreign Key Dependencies (`Parent Tables`) | Purpose & Key Constraints |
+| Order | Table Name (`PostgreSQL`) | SQLAlchemy Model | Foreign Key Dependencies (`Parent Tables`) | Purpose & Key Canonical Columns (`docs/04-database-design.md`) |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | `restaurant_settings` | `RestaurantSettings` | *None* | Single-row (`CHECK (id = 1)`) config: `max_unpaid_table_limit` (`5000.00`), `cgst_rate`, `sgst_rate`, rate limits. |
-| **2** | `users` | `User` | *None* | Staff accounts (`role IN ('ADMIN', 'WAITER', 'KITCHEN')`), Argon2id `password_hash`, `is_active`, `token_version`. |
-| **3** | `staff_refresh_tokens` | `StaffRefreshToken` | `users(id)` | Hashed 7-day refresh tokens (`token_hash`), device metadata, `revoked_at`. |
-| **4** | `restaurant_tables` | `RestaurantTable` | `users(id)` *(nullable)* | Physical tables (`table_code` unique `T-01`, `status IN ('AVAILABLE', 'OCCUPIED')`, `is_active`). |
-| **5** | `table_qr_tokens` | `TableQrToken` | `restaurant_tables(id)`, `users(id)` | SHA-256 `token_hash`, `status IN ('ACTIVE', 'REVOKED', 'DISABLED')`, partial unique index `1 ACTIVE per table`. |
-| **6** | `table_sessions` | `TableSession` | `restaurant_tables(id)`, `users(id)` | Shared dining session (`status IN ('OPEN', 'CLOSED')`), partial unique index `1 OPEN per table`. |
-| **7** | `customer_sessions` | `CustomerSession` | `restaurant_tables(id)`, `table_qr_tokens(id)`, `table_sessions(id)` *(nullable until 1st order)* | Temporary customer browser token (`session_token_hash`, `is_active`, `expires_at`). |
-| **8** | `menu_categories` | `MenuCategory` | *None* | Menu sections (`name`, `display_order`, `is_active`). |
-| **9** | `menu_items` | `MenuItem` | `menu_categories(id)` | Dishes (`name`, unique `short_code` e.g. `CB`, `dietary_type`, `is_available`, `is_active`, `image_url`). |
-| **10** | `menu_price_variants` | `MenuPriceVariant` | `menu_items(id)` | Portions & prices (`variant_name` e.g. `Half`/`Full`, unique `short_code` e.g. `CB-H`, `price NUMERIC(10,2)`). |
-| **11** | `orders` | `Order` | `restaurant_tables(id)`, `table_sessions(id)`, `customer_sessions(id)`, `users(id)` | Unified orders (`order_number`, `source`, 8-state `status`, `subtotal`, `tax_amount`, `total_amount`, `version`). |
-| **12** | `order_items` | `OrderItem` | `orders(id)`, `menu_items(id)`, `menu_price_variants(id)` | Line items with immutable snapshots: `item_name_snapshot`, `variant_name_snapshot`, `short_code_snapshot`, `unit_price_snapshot`. |
-| **13** | `order_status_history` | `OrderStatusHistory` | `orders(id)`, `users(id)` | Append-only state transition log (`from_status`, `to_status`, `changed_at`, `reason`). |
-| **14** | `order_modification_events` | `OrderModificationEvent` | `orders(id)`, `order_items(id)`, `users(id)` | Append-only pre/post-acceptance edit diff log (`event_type`, `old_quantity`, `new_quantity`, `price_delta`, `reason`). |
-| **15** | `bills` | `Bill` | `restaurant_tables(id)`, `table_sessions(id)`, `users(id)` | Consolidated session invoice (`bill_number`, `status IN ('UNPAID', 'PAID', 'VOIDED')`, GST snapshots, `grand_total`, `1 active per session`). |
-| **16** | `bill_items` | `BillItem` | `bills(id)`, `orders(id)`, `order_items(id)` | Immutable billed item snapshots (`item_name_snapshot`, `variant_name_snapshot`, `unit_price_snapshot`, `quantity`, `line_total`). |
-| **17** | `payments` | `Payment` | `bills(id)`, `table_sessions(id)`, `users(id)` | Recorded settlements (`payment_method IN ('CASH', 'UPI', 'CARD')`, `amount`, `status IN ('COMPLETED', 'VOIDED')`). |
-| **18** | `idempotency_keys` | `IdempotencyKey` | *None* | Deduplication store (`idempotency_key`, `actor_scope`, `request_hash`, `response_status`, `response_body`, `expires_at`). |
-| **19** | `notifications` | `Notification` | `restaurant_tables(id)`, `orders(id)`, `users(id)` | Persistent operational alerts (`target_role`, `type`, `is_read`). |
-| **20** | `audit_logs` | `AuditLog` | `users(id)` *(nullable)* | Trigger-protected append-only audit trail (`action`, `entity_type`, `entity_id`, `before_state`, `after_state`, `reason`, `request_id`). |
+| **1** | `restaurant_settings` | `RestaurantSettings` | `users(id)` *(nullable `updated_by_user_id`)* | Singleton (`CHECK (id = 1)`) config: `default_session_outstanding_limit` (`5000.00`), `cgst_percentage`, `sgst_percentage`, `service_charge_percentage`, rate-limit thresholds, `OD-01..OD-08` policy flags. |
+| **2** | `users` | `User` | `users(id)` *(self-FK `created_by_user_id`)* | Staff accounts (`username` CI-unique, `full_name`, `role IN ('ADMIN', 'WAITER', 'KITCHEN')`, Argon2id `password_hash`, `is_active`, `token_version`, `failed_login_attempts`, `locked_until`). |
+| **3** | `staff_refresh_tokens` | `StaffRefreshToken` | `users(id)`, `staff_refresh_tokens(id)` | Hashed 7-day refresh tokens (`token_hash` CHAR(64), `device_info`, `ip_hash`, `expires_at`, `revoked_at`, `replaced_by_token_id`). |
+| **4** | `restaurant_tables` | `RestaurantTable` | *None* | Physical tables (`table_number` unique `> 0`, `display_name` CI-unique, `seating_capacity`, `floor_section`, `operational_status IN ('ENABLED', 'MAINTENANCE', 'DISABLED')`, `is_active`). *(Occupancy `AVAILABLE` vs `OCCUPIED` derived from active `table_sessions`)*. |
+| **5** | `table_qr_tokens` | `TableQrToken` | `restaurant_tables(id)`, `users(id)` | `token_hash` (CHAR(64) SHA-256), `token_prefix`, `printable_token_ciphertext`, `token_version`, `status IN ('ACTIVE', 'SUPERSEDED', 'REVOKED', 'DISABLED')`, partial unique index `UNIQUE(table_id) WHERE status = 'ACTIVE'`. |
+| **6** | `table_sessions` | `TableSession` | `restaurant_tables(id)`, `users(id)` | Shared dining visit (`session_code` unique, `status IN ('ACTIVE', 'CLOSED_PAID', 'CLOSED_CANCELLED', 'CLOSED_ADMIN_OVERRIDE')`, `opened_by_source IN ('CUSTOMER_QR', 'WAITER')`, `current_outstanding_amount`, `custom_outstanding_limit` default `5000.00`, `UNIQUE(table_id) WHERE status = 'ACTIVE'`). |
+| **7** | `customer_sessions` | `CustomerSession` | `restaurant_tables(id)`, `table_qr_tokens(id)`, `table_sessions(id)` *(nullable until 1st order)* | Customer browser session (`session_token_hash` CHAR(64), `status IN ('ACTIVE', 'LOCKED_SUSPICIOUS', 'EXPIRED', 'CLOSED_BY_PAYMENT', 'REVOKED')`, `client_fingerprint_hash`, `expires_at`). |
+| **8** | `menu_categories` | `MenuCategory` | *None* | Menu sections (`name` CI-unique, `description`, `display_order`, `is_active`). |
+| **9** | `menu_items` | `MenuItem` | `menu_categories(id)` | Conceptual dishes (`item_code` CI-unique e.g. `CB`, `name`, `description`, `dietary_type`, `spice_level`, `image_url`, `tax_rate_override`, `is_available`, `is_active`). *(No single price column)*. |
+| **10** | `menu_price_variants` | `MenuPriceVariant` | `menu_items(id)` | Portions & prices (`variant_code` CI-unique e.g. `CB-H`, `variant_name` e.g. `Half`/`Full`, `quantity_value NUMERIC(8,2)`, `unit`, `price NUMERIC(10,2)`, `is_default`, `is_available`, `is_active`). |
+| **11** | `orders` | `Order` | `table_sessions(id)`, `restaurant_tables(id)`, `customer_sessions(id)`, `users(id)` | Unified orders (`order_number` unique, `source IN ('CUSTOMER_QR', 'WAITER')`, 8-state `status`, `order_subtotal NUMERIC(10,2)`, `special_instructions`, `is_first_qr_order_of_session`, `has_unacknowledged_mods`, `version`, lifecycle timestamps & actor FKs). |
+| **12** | `order_items` | `OrderItem` | `orders(id)`, `menu_items(id)`, `menu_price_variants(id)` | Line items with full snapshots (`item_code_snapshot`, `item_name_snapshot`, `variant_code_snapshot`, `variant_name_snapshot`, `quantity_value_snapshot`, `unit_snapshot`, `unit_price_snapshot`, `tax_rate_snapshot`), `original_quantity`, `active_quantity`, `cancelled_quantity`, `line_subtotal`, `item_status`. |
+| **13** | `order_status_history` | `OrderStatusHistory` | `orders(id)`, `users(id)`, `customer_sessions(id)` | Append-only state transition timeline (`previous_status`, `new_status`, `changed_by_role`, `reason`, `changed_at`). |
+| **14** | `order_modification_events` | `OrderModificationEvent` | `orders(id)`, `order_items(id)`, `users(id)` | Append-only edit ledger (`modification_type`, `previous_quantity`, `new_quantity`, `price_delta`, `reason`, `kitchen_ack_required`, `kitchen_acknowledged_by_user_id`, `kitchen_acknowledged_at`). |
+| **15** | `bills` | `Bill` | `table_sessions(id)`, `restaurant_tables(id)`, `users(id)` | Consolidated session invoice (`bill_number` unique, `status IN ('ISSUED', 'PAID', 'VOIDED_FOR_REVISION')`, `subtotal_amount`, `discount_amount`, `taxable_amount`, `cgst_rate_snapshot`, `cgst_amount`, `sgst_rate_snapshot`, `sgst_amount`, `service_charge_amount`, `rounding_adjustment`, `grand_total`, `UNIQUE(table_session_id) WHERE status IN ('ISSUED', 'PAID')`). |
+| **16** | `bill_items` | `BillItem` | `bills(id)`, `orders(id)`, `order_items(id)` | Frozen invoice line snapshots (`item_code_snapshot`, `item_name_snapshot`, `variant_code_snapshot`, `variant_name_snapshot`, `quantity_value_snapshot`, `unit_snapshot`, `unit_price_snapshot`, `billed_quantity`, `line_total`). |
+| **17** | `payments` | `Payment` | `bills(id)`, `table_sessions(id)`, `users(id)` | Recorded settlements (`payment_method IN ('CASH', 'UPI', 'CARD', 'OTHER')`, `amount_paid`, `status IN ('PENDING', 'COMPLETED', 'FAILED', 'VOIDED')`, `reference_number`, `UNIQUE(bill_id) WHERE status = 'COMPLETED'`). |
+| **18** | `idempotency_keys` | `IdempotencyKey` | *None* | Deduplication store (`idempotency_key`, `actor_scope`, `endpoint_path`, `request_hash`, `response_status_code`, `response_body_json`, `expires_at`, `UNIQUE(idempotency_key, actor_scope)`). |
+| **19** | `notifications` | `Notification` | `restaurant_tables(id)`, `table_sessions(id)`, `orders(id)`, `users(id)` | Persistent operational alerts (`event_type`, `target_channel`, `severity`, `title`, `message`, `payload_json`, `requires_acknowledgment`, `is_acknowledged`). |
+| **20** | `audit_logs` | `AuditLog` | `users(id)`, `customer_sessions(id)` | Trigger-protected append-only audit trail (`actor_user_id`, `actor_customer_session_id`, `actor_role`, `action_type`, `entity_type`, `entity_id`, `reason`, `old_value_json`, `new_value_json`, `metadata_json`, `ip_hash`, `created_at`). |
 
 ---
 
 ## 13. IMPLEMENTATION ORDER FOR APIs
 
-Implement the 58 REST endpoints and 1 WebSocket endpoint (`docs/05-api-specification.md`) in these **12 logical groups**:
+Implement the REST endpoints and WebSocket endpoint (`docs/05-api-specification.md`) in these **12 logical groups**:
 
-| Group | Prerequisite Modules | Key Endpoints (`/api/v1/...`) | Auth Requirement | Critical Business Rules | Required Tests |
+| Group | Prerequisite Modules | Key Endpoints (`/api/v1/...` per `docs/05-api-specification.md`) | Auth Requirement | Critical Business Rules | Required Tests |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| **1. Health & System** | Config, DB Pool | `GET /health/live`<br>`GET /health/ready` | Public | Readiness executes `SELECT 1` with 2s timeout; exposes zero secrets. | Liveness 200, Readiness 200/503. |
-| **2. Authentication** | `User`, `StaffRefreshToken`, `passwords.py`, `jwt.py` | `POST /auth/login`<br>`POST /auth/refresh`<br>`POST /auth/logout`<br>`GET /auth/me` | Public (`login`) / Staff JWT | 5-attempt / 15m brute-force lockout; Argon2id verify; active user check. | Valid/invalid login, lockout `429`, refresh rotation, logout. |
-| **3. Public QR & Session** | `RestaurantTable`, `TableQrToken`, `CustomerSession` | `POST /public/qr/resolve`<br>`GET /customer/session` | Public (`resolve`, rate-limited `10/1m`) / `CustomerSession` | SHA-256 token lookup; **never occupies table**; issues `X-Customer-Session-Token`. | Active QR, revoked QR `403`, inactive table `422`, table stays `AVAILABLE`. |
-| **4. Menu Catalog** | `MenuCategory`, `MenuItem`, `MenuPriceVariant` | `GET /customer/menu`<br>`GET /waiter/menu/search`<br>`/admin/menu/*` CRUD + image | Customer / Staff / Admin | Short-code priority search (`CB-H`, `CB`); Pillow magic-byte image re-encoding. | Menu tree, short-code search, duplicate code `409`, image upload security. |
-| **5. Customer Ordering** | `OrderService`, `TableSession`, `IdempotencyKey` | `POST /customer/orders`<br>`GET /customer/session/orders`<br>`GET /customer/orders/{id}` | `CustomerSession` | Opens `TableSession` & marks `OCCUPIED` on 1st order; locks row `FOR UPDATE`; enforces `₹5,000` cap & `3/5m` rate limit; snapshots prices. | 1st order occupancy, `LIM-T01..T10`, price snapshot, IDOR cross-table `403`, idempotency replay. |
-| **6. Kitchen KDS** | `OrderService` | `GET /kitchen/orders/active`<br>`POST /kitchen/orders/{id}/accept`<br>`.../reject`, `.../preparing`, `.../ready`, `.../acknowledge-updates`<br>`GET /kitchen/orders/recent` | `KITCHEN`, `ADMIN` | Strict state transition matrix; mandatory rejection reason; sole-order rejection resets table to `AVAILABLE`; zero prices returned. | Valid/invalid transitions (`409`), rejection frees `₹5,000` cap, zero price fields in JSON. |
-| **7. Waiter Operations** | `TableService`, `OrderService` | `GET /waiter/tables`<br>`GET /waiter/tables/{id}`<br>`POST /waiter/orders`<br>`PATCH /waiter/orders/{id}/items`<br>`POST /waiter/orders/{id}/cancel`<br>`POST /waiter/orders/{id}/served` | `WAITER`, `ADMIN` | Unified `OrderService`; pre- vs post-accept edits record `OrderModificationEvent` and alert Kitchen; `READY -> SERVED`. | Manual order creation, post-accept edit + KDS flag, optimistic lock `409`, mark `SERVED`. |
-| **8. Billing & Payments** | `BillingService` | `POST /waiter/tables/{id}/bills`<br>`GET /waiter/bills/{id}`<br>`POST /waiter/bills/{id}/payments`<br>`POST /waiter/bills/{id}/void` | `WAITER`, `ADMIN` | Uses historical `unit_price_snapshot`; `Decimal` `CGST`/`SGST`; payment marks bill `PAID`, orders `COMPLETED`, closes session, resets table `AVAILABLE`. | Historical price invariance, tax rounding, duplicate payment race `409`, table reset to `AVAILABLE`. |
-| **9. Admin Management** | `TableService`, `QrService`, `StaffService`, `SettingsService` | `/admin/tables/*`<br>`/admin/tables/{id}/qr/*`<br>`/admin/staff/*`<br>`/admin/orders/*` (overrides)<br>`/admin/settings` | `ADMIN` (+ CSRF) | Atomic QR regeneration revokes old token; staff deactivation immediately revokes JWT/WS; audited `₹5,000` override. | Admin CRUD, non-admin `403`, staff instant revocation, QR rotation. |
-| **10. Reports** | `ReportService` | `GET /admin/reports/daily`<br>`GET /admin/reports/sales`<br>`GET /admin/reports/items`<br>`GET /admin/reports/export-csv` | `ADMIN` | IST business-day aggregation; excludes `REJECTED`/`CANCELLED` orders and `VOIDED` bills. | Revenue sum accuracy, payment method breakdown, CSV export. |
-| **11. Audit Logs** | `AuditService` | `GET /admin/audit-logs`<br>`GET /admin/audit-logs/{id}` | `ADMIN` | Strictly read-only (zero `PUT`/`PATCH`/`DELETE` endpoints); filterable by actor, action, date, entity. | Pagination, filters, immutability verification. |
-| **12. Realtime WebSocket** | `WebSocketManager`, `broadcaster.py` | `WSS /api/v1/ws` | Staff JWT or `CustomerSession` | Post-commit emission only; role-scoped payload scrubbing; monotonic `sequence`; 30s heartbeat. | `WS-T01..WS-T33` (auth, room isolation, scrubbing, reconnect). |
+| **1. Health & System** | Config, DB Pool | `GET /health`<br>`GET /health/live`<br>`GET /health/ready`<br>`GET /health/db` | Public | Readiness executes `SELECT 1` with timeout; exposes zero secrets. | Liveness 200, Readiness 200/503. |
+| **2. Authentication** | `User`, `StaffRefreshToken`, `passwords.py`, `jwt.py` | `POST /auth/login`<br>`POST /auth/refresh`<br>`POST /auth/logout`<br>`GET /auth/me` | Public (`login`) / Staff JWT | 5-attempt / 15m brute-force lockout; Argon2id verify; active user + `token_version` check. | Valid/invalid login, lockout `429`, refresh rotation, logout. |
+| **3. Public QR & Session** | `RestaurantTable`, `TableQrToken`, `CustomerSession` | `GET /public/qr/{qr_token}` *(+ alias `POST /public/qr/resolve`)*<br>`GET /customer/session` | Public (rate-limited) / `X-Customer-Session-Token` | SHA-256 `token_hash` lookup; **never occupies table**; returns `410 Gone` on `SUPERSEDED`/`REVOKED`/`DISABLED` QR; issues `X-Customer-Session-Token`. | Active QR, rotated QR `410`, disabled table `409`, table stays `AVAILABLE`. |
+| **4. Menu Catalog** | `MenuCategory`, `MenuItem`, `MenuPriceVariant` | `GET /customer/menu`<br>`GET /waiter/menu/code-search?code=`<br>`GET /waiter/menu/search?q=`<br>`/admin/categories/*`, `/admin/menu-items/*`, `/admin/menu-variants/*` | Customer / Staff / Admin | Short-code priority search (`variant_code` -> `item_code` -> prefix -> trigram name); Pillow magic-byte image re-encoding. | Menu tree, short-code search (`CB-H`, `CB`), duplicate code `409`, image security. |
+| **5. Customer Ordering** | `OrderService`, `TableSession`, `IdempotencyKey` | `POST /customer/orders`<br>`GET /customer/orders`<br>`GET /customer/orders/{order_id}` | `X-Customer-Session-Token` + `Idempotency-Key` | Opens `ACTIVE` `TableSession` & marks `OCCUPIED` on 1st order; locks row `FOR UPDATE`; enforces `₹5,000` cap (`422`); snapshots prices & codes. | 1st order occupancy, `LIM-T01..T10`, price snapshot, IDOR cross-table `403`, idempotency replay. |
+| **6. Kitchen KDS** | `OrderService` | `GET /kitchen/orders`<br>`GET /kitchen/orders/{order_id}`<br>`POST /kitchen/orders/{order_id}/accept`<br>`.../reject`, `.../preparing`, `.../ready`, `.../modifications/ack` | `KITCHEN`, `ADMIN` | Strict state transition matrix; mandatory `rejection_reason`; all-orders-rejected closes session (`CLOSED_CANCELLED`) & resets table `AVAILABLE`; zero prices returned. | Valid/invalid transitions (`409`), rejection frees `₹5,000` cap, zero price fields in JSON. |
+| **7. Waiter Operations** | `TableService`, `OrderService` | `GET /waiter/tables`<br>`GET /waiter/tables/by-number/{table_number}`<br>`GET /waiter/tables/{table_id}/session`<br>`POST /waiter/orders`<br>`PATCH /waiter/orders/{order_id}`<br>`POST /waiter/orders/{order_id}/cancel`<br>`POST /waiter/orders/{order_id}/served` | `WAITER`, `ADMIN` | Unified `OrderService`; pre- vs post-accept edits record `OrderModificationEvent` and set `has_unacknowledged_mods = true`; `READY -> SERVED`. | Manual order creation, post-accept edit + KDS flag, optimistic lock `409`, mark `SERVED`. |
+| **8. Billing & Payments** | `BillingService` | `POST /waiter/bills`<br>`GET /waiter/tables/{table_id}/bill`<br>`GET /waiter/bills/{bill_id}`<br>`POST /waiter/payments` | `WAITER`, `ADMIN` + `Idempotency-Key` | Uses historical `unit_price_snapshot`; `Decimal` `CGST`/`SGST`; payment (`CASH`/`UPI`/`CARD`/`OTHER`) marks bill `PAID`, orders `COMPLETED`, session `CLOSED_PAID`, resets table `AVAILABLE`. | Historical price invariance, tax rounding, duplicate payment race `409`, table reset to `AVAILABLE`. |
+| **9. Admin Management** | `TableService`, `QrService`, `StaffService`, `SettingsService` | `/admin/tables/*`<br>`POST /admin/tables/{table_id}/qr/generate` & `.../regenerate` & `.../disable`<br>`/admin/users/*`<br>`/admin/orders/*`, `/admin/bills/*`<br>`/admin/settings` | `ADMIN` (+ CSRF) | Atomic QR regeneration sets old token `SUPERSEDED`; staff deactivation immediately revokes JWT/WS; audited `₹5,000` override. | Admin CRUD, non-admin `403`, staff instant revocation, QR rotation. |
+| **10. Reports** | `ReportService` | `GET /admin/reports/daily-summary`<br>`GET /admin/reports/sales`<br>`GET /admin/reports/item-sales`<br>`GET /admin/reports/payment-methods`<br>`GET /admin/reports/cancellations-rejections` | `ADMIN` | IST business-day aggregation; excludes `REJECTED`/`CANCELLED` orders and `VOIDED_FOR_REVISION` bills. | Revenue sum accuracy, payment method breakdown, CSV export. |
+| **11. Audit Logs** | `AuditService` | `GET /admin/audit-logs`<br>`GET /admin/audit-logs/{audit_log_id}` | `ADMIN` | Strictly read-only (zero `PUT`/`PATCH`/`DELETE` endpoints); filterable by actor, `action_type`, date, entity. | Pagination, filters, immutability verification. |
+| **12. Realtime WebSocket** | `WebSocketManager`, `broadcaster.py` | `WSS /api/v1/ws` | Staff JWT or `X-Customer-Session-Token` | Post-commit emission only; role-scoped payload scrubbing; monotonic `sequence`; 30s heartbeat. | `WS-T01..WS-T33` (auth, room isolation, scrubbing, reconnect). |
 
 ---
 
@@ -809,13 +836,23 @@ All twelve documents (`docs/01` through `docs/12`) were audited across 12 core d
 
 ---
 
-## 20. UNRESOLVED DECISIONS
+## 20. UNRESOLVED DECISIONS & CANONICAL POLICY DEFAULTS (`OD-01` – `OD-08`)
 
-### 20.1 Blocking Decisions (Must Decide Before Starting Phase 0–13 Coding)
-- **NONE (`0 Blocking Decisions`).**
-  - Every architectural boundary, database table, API endpoint, business rule, security guard, and UI workflow is completely specified and ready for immediate implementation.
+### 20.1 Canonical Resolution of Policy Decisions (`OD-01` – `OD-08` / `DR-01` – `DR-08`)
+All 8 configurable policy items identified in `docs/02`, `docs/04`, `docs/05`, and `docs/06` are stored as typed columns on the singleton `restaurant_settings` table (`id = 1`) and seeded with these **canonical default values** so there are **zero blocking decisions** for implementation:
 
-### 20.2 Non-Blocking Operational / Configuration Decisions (Can Be Finalized Before Production Go-Live)
+| Policy ID | `restaurant_settings` Column | Canonical Seeded Default | Behavioral Meaning (`docs/02`, `docs/04`, `docs/05`, `docs/06`) |
+| :--- | :--- | :---: | :--- |
+| **`OD-01` (`DR-01`)** | `allow_multi_device_per_table` | `true` | Multiple guests sitting at the same physical table can scan the table's QR code on their respective phones, share the same `ACTIVE` `TableSession`, view live session orders, and share the `₹5,000.00` unpaid cap. |
+| **`OD-02` (`DR-02`)** | `allow_customer_cancel_placed_order` | `false` | Customers cannot self-cancel a submitted order via Customer Web (they ask a waiter); if Admin toggles this to `true` in `/admin/settings`, customers may cancel only while `orders.status == 'PLACED'`. |
+| **`OD-03` (`DR-03`)** | `allow_waiter_cancel_preparing_item` | `false` | Once an order reaches `PREPARING`, `READY`, or `SERVED`, only `ADMIN` can cancel/void an item or order (requiring `reason` + wastage logging). Waiters can cancel only while `PLACED` or `ACCEPTED`. |
+| **`OD-04` (`DR-04`)** | `allow_kitchen_mark_served` | `false` | Kitchen transitions orders up to `READY`; Floor Waiters (or Admin) transition `READY -> SERVED` upon physical table delivery. |
+| **`OD-05` (`DR-05`)** | `allow_kitchen_toggle_availability` | `true` | Both `ADMIN` and `KITCHEN` staff can toggle `menu_items.is_available` / `menu_price_variants.is_available` for real-time 86'ing when an ingredient runs out mid-service. |
+| **`OD-06` (`DR-06`)** | `limit_includes_estimated_tax` | `false` | The `₹5,000.00` unpaid session limit (`current_outstanding_amount <= custom_outstanding_limit`) is evaluated against the sum of active `orders.order_subtotal` (pre-discount item subtotals). |
+| **`OD-07` (`DR-07`)** | `apply_outstanding_limit_to_waiter_orders` | `true` | Both `CUSTOMER_QR` and `WAITER` orders enforce the `₹5,000.00` table session cap; `ADMIN` (or an Admin-approved limit override on `table_sessions.custom_outstanding_limit`) can raise a specific table's cap for large banquets. |
+| **`OD-08` (`DR-08`)** | `waiter_max_discount_percentage` | `0.00` | By default (`0.00%`), bill discounts require `ADMIN` role (`discount_approved_by_user_id` + `discount_reason`); Admin can optionally raise this percentage in settings if waiters are permitted small courtesy discounts. |
+
+### 20.2 Non-Blocking Operational / Hosting Decisions (Can Be Finalized Before Production Go-Live)
 
 | ID | Decision | Why It Matters | Options | Recommended Default (`RECOMMENDATION`) | Impact of Delaying |
 | :--- | :--- | :--- | :--- | :--- | :--- |

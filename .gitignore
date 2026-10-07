@@ -1,8 +1,92 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
+# =============================================================================
+# Restaurant Management & QR Ordering System — Root .gitignore
+# =============================================================================
+
+# 1. Environment & Secrets (NEVER commit real secrets; keep .env.example)
+.env
+.env.*
 !.env.example
+!backend/.env.example
+!customer-web/.env.example
+!admin-web/.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+key.properties
+service-account*.json
+
+# 2. Python / FastAPI Backend
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 3. Database, Backups & Local Artifacts
+*.sql.gz
+*.dump
+*.dump.gpg
+*.db
+*.sqlite
+*.sqlite3
+backups/
+pgdata/
+
+# 4. Uploaded Media & Runtime Logs
+uploads/
+media/
+logs/
+*.log
+
+# 5. Node.js / Web Frontends (customer-web, admin-web, root preview)
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# 6. Flutter / Dart & Android Studio (waiter-app, kitchen-app)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.apk
+*.aab
+*.ipa
+android/.gradle/
+android/captures/
+android/local.properties
+android/ app/debug/
+android/app/profile/
+android/app/release/
+
+# 7. IDEs & OS Junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+

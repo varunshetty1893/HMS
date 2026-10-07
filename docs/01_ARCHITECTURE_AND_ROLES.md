@@ -2,7 +2,8 @@
 
 > **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
 > **Scope:** Single Physical Restaurant Management & QR Ordering System (Non-SaaS)  
-> **Target Implementation Environment:** Antigravity (AI Coding Agent) + Android Studio (Flutter SDK/Emulator)
+> **Target Implementation Environment:** Antigravity (AI Coding Agent) + Android Studio (Flutter SDK/Emulator)  
+> **Canonical Cross-Reference Notice:** This foundational volume is expanded and governed by **`docs/01-project-overview.md`**, **`docs/02-requirements-and-scope.md`**, **`docs/03-system-architecture.md`**, **`docs/11-project-structure-and-coding-standards.md`**, and **`docs/13-final-implementation-blueprint.md`** (canonical top-level directories: `backend/`, `customer-web/`, `admin-web/`, `waiter-app/`, `kitchen-app/`).
 
 ---
 

@@ -1,6 +1,7 @@
 # Volume 4: Conceptual REST API & Real-Time WebSocket Specification
 
-> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)
+> **Document Status:** SOURCE OF TRUTH — Phase 0 (Documentation Only; No Application Code)  
+> **Canonical Cross-Reference Notice:** This foundational volume is expanded into the authoritative endpoint and event contracts in **`docs/05-api-specification.md`** and **`docs/08-realtime-and-event-specification.md`** (and normalized in **`docs/13-final-implementation-blueprint.md`**). Where any route path, header (`X-Customer-Session-Token`), or event name differs, **`docs/05-api-specification.md` and `docs/08-realtime-and-event-specification.md` take strict precedence**.
 
 ---
 

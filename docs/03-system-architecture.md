@@ -526,25 +526,27 @@ sequenceDiagram
 ## 16. DATABASE ARCHITECTURE (CONCEPTUAL DATA MODEL)
 
 ### 16.1 Entity Relationship Overview
-The PostgreSQL database consists of **17 normalized entities** (no SQL code here; conceptual architecture only):
+The PostgreSQL database consists of **20 normalized entities** (authoritatively specified in `docs/04-database-design.md`):
 
 ```mermaid
 erDiagram
     RESTAURANT_SETTINGS["restaurant_settings (Singleton PK=1)"]
-    USERS["users (PK: id)"] ||--o{ USER_SESSIONS["user_sessions (PK: id)"] : "authenticates"
+    USERS["users (PK: id)"] ||--o{ STAFF_REFRESH_TOKENS["staff_refresh_tokens (PK: id)"] : "authenticates"
     RESTAURANT_TABLES["restaurant_tables (PK: id)"] ||--o{ TABLE_QR_TOKENS["table_qr_tokens (PK: id)"] : "rotates"
     RESTAURANT_TABLES ||--o{ TABLE_SESSIONS["table_sessions (PK: id)"] : "hosts"
-    TABLE_QR_TOKENS ||--o{ CUSTOMER_SESSION_TOKENS["customer_session_tokens (PK: id)"] : "bootstraps"
-    TABLE_SESSIONS ||--o{ CUSTOMER_SESSION_TOKENS : "binds"
+    TABLE_QR_TOKENS ||--o{ CUSTOMER_SESSIONS["customer_sessions (PK: id)"] : "bootstraps"
+    TABLE_SESSIONS ||--o{ CUSTOMER_SESSIONS : "binds"
     TABLE_SESSIONS ||--o{ ORDERS["orders (PK: id)"] : "aggregates"
     TABLE_SESSIONS ||--o{ BILLS["bills (PK: id)"] : "invoiced by"
     MENU_CATEGORIES["menu_categories (PK: id)"] ||--o{ MENU_ITEMS["menu_items (PK: id)"] : "groups"
     MENU_ITEMS ||--|{ MENU_PRICE_VARIANTS["menu_price_variants (PK: id)"] : "prices"
     ORDERS ||--|{ ORDER_ITEMS["order_items (PK: id)"] : "contains"
+    ORDERS ||--|{ ORDER_STATUS_HISTORY["order_status_history (PK: id)"] : "records timeline"
     MENU_PRICE_VARIANTS ||--o{ ORDER_ITEMS : "snapshotted into"
     ORDERS ||--o{ ORDER_MODIFICATION_EVENTS["order_modification_events (PK: id)"] : "audits"
     BILLS ||--|{ BILL_ITEMS["bill_items (PK: id)"] : "freezes"
     BILLS ||--o{ PAYMENTS["payments (PK: id)"] : "settled by"
+    IDEMPOTENCY_KEYS["idempotency_keys (PK: id)"]
     USERS ||--o{ NOTIFICATIONS["notifications (PK: id)"] : "receives"
     USERS ||--o{ AUDIT_LOGS["audit_logs (PK: id)"] : "logged in"
 ```
@@ -699,58 +701,52 @@ For a single-restaurant system built and maintained with an AI coding agent (**A
 
 ### 23.2 Recommended Repository Directory Tree
 ```text
-restaurant-qr-system/
+restaurant-management-system/
 ├── docs/                                  # AUTHORITATIVE SOURCE OF TRUTH (Read First!)
-│   ├── 01_ARCHITECTURE_AND_ROLES.md
+│   ├── 01-project-overview.md
 │   ├── 02-requirements-and-scope.md
 │   ├── 03-system-architecture.md
-│   └── ...
+│   └── ... (through 13-final-implementation-blueprint.md)
 ├── backend/                               # FastAPI + PostgreSQL + WebSockets (Python)
 │   ├── alembic/                           # Database schema migrations
 │   ├── app/
-│   │   ├── core/                          # config.py, security.py, database.py, exceptions.py
-│   │   ├── middleware/                    # rate_limit.py, idempotency.py, audit_context.py
-│   │   ├── modules/
-│   │   │   ├── auth_users/                # router, service, models, schemas
-│   │   │   ├── tables_qr_sessions/        # QR tokens, customer tokens, table sessions
-│   │   │   ├── menu_catalog/              # categories, items, price variants, short codes
-│   │   │   ├── orders_core/               # unified order creation, ₹5,000 limit check
-│   │   │   ├── order_modifications/       # audited order edits & kitchen ack
-│   │   │   ├── kitchen_kds/               # accept, reject, preparing, ready
-│   │   │   ├── billing_payments/          # bill generation, manual payments, session close
-│   │   │   ├── realtime_notifications/    # WebSocket room manager & event broadcaster
-│   │   │   ├── reports_settings/          # singleton settings & analytical queries
-│   │   │   └── audit_security/            # immutable audit_logs service
+│   │   ├── core/                          # database.py, exceptions.py, logging.py, rate_limit.py
+│   │   ├── security/                      # passwords.py, jwt.py, qr_crypto.py, csrf.py, dependencies.py
+│   │   ├── models/                        # 20 SQLAlchemy 2.0 ORM models (docs/04)
+│   │   ├── schemas/                       # Pydantic v2 DTOs
+│   │   ├── services/                      # 10 domain services (auth, staff, table, qr, menu, order, billing, report, settings, audit)
+│   │   ├── api/                           # Thin FastAPI routers (/api/v1/*)
+│   │   ├── realtime/                      # WebSocketManager, events, broadcaster
 │   │   └── main.py                        # FastAPI app assembly
 │   ├── tests/                             # pytest unit, integration, concurrency, RBAC suites
 │   ├── requirements.txt
 │   └── .env.example
-├── web-customer/                          # Customer Mobile-Responsive Web App (React/TS/Vite)
+├── customer-web/                          # Customer Mobile-Responsive Web App (React/TS/Vite)
 │   ├── src/
 │   │   ├── api/                           # REST + WebSocket client & Idempotency-Key helper
-│   │   ├── components/                    # Menu, VariantSheet, Cart, OrderStatusTracker
-│   │   ├── pages/                         # QrBootstrapPage, MenuPage, CartPage, StatusPage
-│   │   └── store/                         # Session & cart state
+│   │   ├── components/                    # Menu, VariantSelectorSheet, CartDrawer, OrderStatusTimeline
+│   │   ├── pages/                         # QrLandingPage, MenuPage, OrdersPage, SessionErrorPage
+│   │   └── context/                       # SessionContext & CartContext
 │   └── package.json
-├── web-admin/                             # Admin Web Dashboard (React/TS/Vite)
+├── admin-web/                             # Admin Web Dashboard (React/TS/Vite)
 │   ├── src/
 │   │   ├── api/
-│   │   ├── modules/                       # Dashboard, Menu, Variants, Codes, Tables, QR,
-│   │   │                                  # Staff, Orders, Bills, Payments, Reports, Audit, Settings
+│   │   ├── pages/                         # Overview, Menu, Tables & QR, Live Orders,
+│   │   │                                  # Billing, Staff, Reports, Settings, Audit Logs
 │   │   └── App.tsx
 │   └── package.json
-├── mobile-waiter/                         # Waiter Flutter Mobile App (Dart / Android)
+├── waiter-app/                            # Waiter Flutter Mobile App (Dart / Android)
 │   ├── lib/
-│   │   ├── core/                          # Dio client, SecureStorage, WebSocket service
+│   │   ├── core/                          # API client, SecureStorage, WebSocket service
 │   │   ├── features/
 │   │   │   ├── auth/
 │   │   │   ├── tables/                    # Floor grid & table-number quick lookup
-│   │   │   ├── ordering/                  # Short-code search ('CB-F') + full-name search
-│   │   │   ├── order_editing/             # Pre/post acceptance modifications
+│   │   │   ├── order_entry/               # Short-code search ('CB-F') + full-name search
+│   │   │   ├── orders/                    # Pre/post acceptance modifications & mark served
 │   │   │   └── billing/                   # Bill generation & manual payment recording
 │   │   └── main.dart
 │   └── pubspec.yaml
-├── mobile-kitchen/                        # Kitchen Staff Flutter KDS App (Dart / Android)
+├── kitchen-app/                           # Kitchen Staff Flutter KDS App (Dart / Android)
 │   ├── lib/
 │   │   ├── core/                          # WakeLock, AudioChime, WebSocket KDS stream
 │   │   ├── features/

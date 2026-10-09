@@ -1,0 +1,6 @@
+{
+  "name": "Restaurant Management & QR Ordering System — Master Specification",
+  "description": "Source-of-truth system architecture, database schema, security specification, API documentation, state machines, and implementation blueprint for a single-restaurant QR & waiter ordering system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

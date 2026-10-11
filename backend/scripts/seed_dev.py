@@ -24,6 +24,11 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -90,7 +95,7 @@ async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
         result = await session.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         if not user:
-            pw_hash = hash_password(password)
+            pw_hash = await hash_password(password)
             user = User(
                 username=username,
                 password_hash=pw_hash,
@@ -179,7 +184,7 @@ async def seed_menu(session: AsyncSession) -> None:
                     "name": "Mutton Biryani",
                     "desc": "Special dum biryani prepared with succulent slow-cooked mutton chunks",
                     "dietary": DietaryType.NON_VEG,
-                    "spice": SpiceLevel.SPICY,
+                    "spice": SpiceLevel.HOT,
                     "order": 3,
                     "variants": [
                         (
@@ -214,7 +219,7 @@ async def seed_menu(session: AsyncSession) -> None:
                     "name": "Chicken Kebab",
                     "desc": "Crispy deep-fried boneless chicken cubes marinated with fiery spices and curry leaves",
                     "dietary": DietaryType.NON_VEG,
-                    "spice": SpiceLevel.SPICY,
+                    "spice": SpiceLevel.HOT,
                     "order": 1,
                     "variants": [
                         (
@@ -410,7 +415,7 @@ async def seed_menu(session: AsyncSession) -> None:
                         display_order=v_order,
                     )
                     session.add(variant)
-                    print(f"      [+] Variant: {v_code} ({v_name}) @ ₹{price}")
+                    print(f"      [+] Variant: {v_code} ({v_name}) @ Rs. {price}")
             else:
                 print(f"    [*] Item already present: {item_spec['name']} ({item_code})")
 

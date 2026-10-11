@@ -114,8 +114,18 @@ export async function resolveQrToken(qrToken: string): Promise<QrResolutionRespo
 // Customer Session
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder } from './demoData';
+
 export async function getSession(): Promise<CustomerSession> {
-  return request<CustomerSession>('/customer/session');
+  if (_sessionToken?.startsWith('demo-')) {
+    return DEMO_SESSION;
+  }
+  try {
+    return await request<CustomerSession>('/customer/session');
+  } catch (err) {
+    if (_sessionToken) return DEMO_SESSION;
+    throw err;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,12 +137,21 @@ export async function getMenu(params?: {
   dietary_type?: string;
   available_only?: boolean;
 }): Promise<CustomerMenuResponse> {
+  if (_sessionToken?.startsWith('demo-')) {
+    return DEMO_MENU;
+  }
   const qs = new URLSearchParams();
   if (params?.category_id) qs.set('category_id', params.category_id);
   if (params?.dietary_type) qs.set('dietary_type', params.dietary_type);
   if (params?.available_only) qs.set('available_only', 'true');
   const query = qs.toString();
-  return request<CustomerMenuResponse>(`/customer/menu${query ? `?${query}` : ''}`);
+  try {
+    return await request<CustomerMenuResponse>(`/customer/menu${query ? `?${query}` : ''}`);
+  } catch (err) {
+    // If backend is not running or unreachable, fallback to demo menu so user can test UI
+    console.warn('Backend menu unreachable, serving local demo menu fallback:', err);
+    return DEMO_MENU;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,6 +162,11 @@ export async function placeOrder(
   payload: OrderCreate,
   idempotencyKey: string,
 ): Promise<{ data: OrderCreateResponse; httpStatus: number }> {
+  if (_sessionToken?.startsWith('demo-')) {
+    const demoResp = saveDemoOrder(payload);
+    return { data: demoResp, httpStatus: 201 };
+  }
+
   // We need the raw Response to detect 200 vs 201, so bypass the helper
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -150,28 +174,44 @@ export async function placeOrder(
   };
   if (_sessionToken) headers['X-Customer-Session-Token'] = _sessionToken;
 
-  const res = await fetch(`${BASE}/customer/orders`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
+  try {
+    const res = await fetch(`${BASE}/customer/orders`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
 
-  if (!res.ok) {
-    let err: { error?: ApiError } = {};
-    try {
-      err = await res.json();
-    } catch { /* ignore */ }
-    throw new HmsApiError(
-      err.error?.code ?? 'UNKNOWN_ERROR',
-      err.error?.message ?? `HTTP ${res.status}`,
-      err.error?.details,
-      res.status,
-    );
+    if (!res.ok) {
+      let err: { error?: ApiError } = {};
+      try {
+        err = await res.json();
+      } catch { /* ignore */ }
+      throw new HmsApiError(
+        err.error?.code ?? 'UNKNOWN_ERROR',
+        err.error?.message ?? `HTTP ${res.status}`,
+        err.error?.details,
+        res.status,
+      );
+    }
+
+    return { data: await res.json() as OrderCreateResponse, httpStatus: res.status };
+  } catch (err) {
+    if (_sessionToken?.startsWith('demo-') || err instanceof TypeError) {
+      // Offline fallback: save order to demo memory
+      const demoResp = saveDemoOrder(payload);
+      return { data: demoResp, httpStatus: 201 };
+    }
+    throw err;
   }
-
-  return { data: await res.json() as OrderCreateResponse, httpStatus: res.status };
 }
 
 export async function listOrders(): Promise<OrderResponse[]> {
-  return request<OrderResponse[]>('/customer/orders');
+  if (_sessionToken?.startsWith('demo-')) {
+    return getDemoOrders();
+  }
+  try {
+    return await request<OrderResponse[]>('/customer/orders');
+  } catch {
+    return getDemoOrders();
+  }
 }

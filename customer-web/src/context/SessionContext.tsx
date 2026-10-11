@@ -18,6 +18,7 @@ interface SessionContextType {
   updateOutstanding: (amount: string) => void;
   updateLimit: (limit: string) => void;
   clearSession: () => void;
+  startDemoSession: () => void;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -97,6 +98,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const startDemoSession = useCallback(() => {
+    const demoToken = 'demo-token-table-4';
+    setSessionToken(demoToken);
+    setSessionTokenState(demoToken);
+    setTableDisplayName('Table 4 (Window Side)');
+    setTableNumber(4);
+    setTableId('table-demo-4');
+    setTableSessionId('demo-session-4');
+    sessionStorage.setItem('hms_table_name', 'Table 4 (Window Side)');
+    sessionStorage.setItem('hms_table_number', '4');
+    sessionStorage.setItem('hms_table_id', 'table-demo-4');
+    sessionStorage.setItem('hms_table_session_id', 'demo-session-4');
+    setError(null);
+  }, []);
+
   const clearSession = useCallback(() => {
     clearSessionToken();
     setSessionTokenState(null);
@@ -110,6 +126,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     sessionStorage.removeItem('hms_table_number');
     sessionStorage.removeItem('hms_table_id');
     sessionStorage.removeItem('hms_table_session_id');
+    sessionStorage.removeItem('hms_demo_orders');
   }, []);
 
   const updateOutstanding = useCallback((amount: string) => {
@@ -140,6 +157,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateOutstanding,
         updateLimit,
         clearSession,
+        startDemoSession,
       }}
     >
       {children}

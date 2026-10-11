@@ -1,0 +1,335 @@
+"""Menu schemas for categories, items, variants, customer catalog, and waiter search.
+
+Follows `docs/05-api-specification.md` (Sections 6, 9.4, 12) and `docs/04-database-design.md`.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.models.enums import DietaryType, PriceUnit, SpiceLevel
+from app.schemas.common import StrictRequestModel
+
+# =============================================================================
+# Price Variant Schemas
+# =============================================================================
+
+
+class MenuPriceVariantCreate(StrictRequestModel):
+    """Schema for adding a price variant to a dish."""
+
+    variant_code: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=24,
+        description="Globally unique short code (e.g., CB-H, CB-F, CK-2)",
+    )
+    variant_name: str = Field(
+        min_length=1,
+        max_length=80,
+        description="Portion or variant name (e.g., Half, Full, 2 Pcs)",
+    )
+    quantity_value: Decimal = Field(
+        gt=0,
+        description="Quantity value (e.g., 0.50, 1.00, 2.00)",
+    )
+    unit: PriceUnit = Field(
+        description="Measurement unit: PORTION, PIECE, ML, GRAM",
+    )
+    price: Decimal = Field(
+        ge=0,
+        description="Base unit price in currency",
+    )
+    is_default: bool = Field(default=False)
+    is_available: bool = Field(default=True)
+    display_order: int = Field(default=0, ge=0)
+
+    @field_validator("variant_code")
+    @classmethod
+    def clean_variant_code(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip().upper()
+            return cleaned if cleaned else None
+        return None
+
+
+class MenuPriceVariantUpdate(StrictRequestModel):
+    """Schema for updating an existing price variant."""
+
+    variant_code: str | None = Field(default=None, min_length=1, max_length=24)
+    variant_name: str | None = Field(default=None, min_length=1, max_length=80)
+    quantity_value: Decimal | None = Field(default=None, gt=0)
+    unit: PriceUnit | None = None
+    price: Decimal | None = Field(default=None, ge=0)
+    is_default: bool | None = None
+    is_available: bool | None = None
+    is_active: bool | None = None
+    display_order: int | None = Field(default=None, ge=0)
+
+    @field_validator("variant_code")
+    @classmethod
+    def clean_variant_code(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip().upper()
+            return cleaned if cleaned else None
+        return None
+
+
+class MenuPriceVariantResponse(BaseModel):
+    """Admin/Staff view of a price variant."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    menu_item_id: uuid.UUID
+    variant_code: str | None
+    variant_name: str
+    quantity_value: Decimal
+    unit: str
+    price: Decimal
+    is_default: bool
+    is_available: bool
+    is_active: bool
+    display_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+# =============================================================================
+# Category Schemas
+# =============================================================================
+
+
+class MenuCategoryCreate(StrictRequestModel):
+    """Schema for creating a menu category."""
+
+    name: str = Field(min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=255)
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = Field(default=True)
+
+
+class MenuCategoryUpdate(StrictRequestModel):
+    """Schema for updating a menu category."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=255)
+    display_order: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+
+class MenuCategoryResponse(BaseModel):
+    """Schema for menu category representation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    display_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    item_count: int | None = None
+
+
+# =============================================================================
+# Menu Item Schemas
+# =============================================================================
+
+
+class MenuItemCreate(StrictRequestModel):
+    """Schema for creating a menu item with initial price variants."""
+
+    category_id: uuid.UUID
+    item_code: str = Field(
+        min_length=1,
+        max_length=16,
+        description="Globally unique dish short code (e.g., CB, VB, CK)",
+    )
+    name: str = Field(min_length=1, max_length=150)
+    description: str | None = None
+    dietary_type: DietaryType | None = None
+    spice_level: SpiceLevel | None = None
+    image_url: str | None = Field(default=None, max_length=500)
+    tax_rate_override: Decimal | None = Field(default=None, ge=0)
+    is_available: bool = Field(default=True)
+    display_order: int = Field(default=0, ge=0)
+    variants: list[MenuPriceVariantCreate] = Field(
+        min_length=1,
+        description="At least one price variant required upon item creation",
+    )
+
+    @field_validator("item_code")
+    @classmethod
+    def clean_item_code(cls, v: str) -> str:
+        cleaned = v.strip().upper()
+        if not cleaned:
+            raise ValueError("item_code cannot be empty or whitespace.")
+        return cleaned
+
+
+class MenuItemUpdate(StrictRequestModel):
+    """Schema for updating a menu item."""
+
+    category_id: uuid.UUID | None = None
+    item_code: str | None = Field(default=None, min_length=1, max_length=16)
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = None
+    dietary_type: DietaryType | None = None
+    spice_level: SpiceLevel | None = None
+    tax_rate_override: Decimal | None = Field(default=None, ge=0)
+    is_available: bool | None = None
+    is_active: bool | None = None
+    display_order: int | None = Field(default=None, ge=0)
+
+    @field_validator("item_code")
+    @classmethod
+    def clean_item_code(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip().upper()
+            return cleaned if cleaned else None
+        return None
+
+
+class MenuItemAvailabilityUpdate(StrictRequestModel):
+    """Instant stock availability toggle schema (Admin / Kitchen)."""
+
+    is_available: bool
+    reason: str | None = Field(default=None, max_length=255)
+
+
+class MenuItemResponse(BaseModel):
+    """Admin / Staff view of a menu item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    category_id: uuid.UUID
+    item_code: str
+    name: str
+    description: str | None
+    dietary_type: str | None
+    spice_level: str | None
+    image_url: str | None
+    tax_rate_override: Decimal | None
+    is_available: bool
+    is_active: bool
+    display_order: int
+    created_at: datetime
+    updated_at: datetime
+    variants: list[MenuPriceVariantResponse] = Field(default_factory=list)
+
+
+# =============================================================================
+# Customer Menu Schemas
+# =============================================================================
+
+
+class CustomerMenuVariant(BaseModel):
+    """Portion variant representation for Customer Web."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    variant_code: str | None
+    variant_name: str
+    quantity_value: Decimal
+    unit: str
+    price: Decimal
+    is_default: bool
+    is_available: bool
+
+
+class CustomerMenuItem(BaseModel):
+    """Dish representation for Customer Web."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    item_code: str
+    name: str
+    description: str | None
+    dietary_type: str | None
+    spice_level: str | None
+    image_url: str | None
+    is_available: bool
+    variants: list[CustomerMenuVariant]
+
+
+class CustomerMenuCategory(BaseModel):
+    """Category group representation for Customer Web."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    display_order: int
+    items: list[CustomerMenuItem]
+
+
+class CustomerMenuResponse(BaseModel):
+    """Full customer-facing menu catalog response (`GET /api/v1/customer/menu`)."""
+
+    currency_symbol: str = "₹"
+    prices_include_tax: bool = False
+    cgst_percentage: Decimal = Decimal("2.50")
+    sgst_percentage: Decimal = Decimal("2.50")
+    categories: list[CustomerMenuCategory]
+
+
+class CustomerCategorySummary(BaseModel):
+    """Category tab navigation item (`GET /api/v1/customer/menu/categories`)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    display_order: int
+    item_count: int = 0
+
+
+# =============================================================================
+# Waiter Search Schemas
+# =============================================================================
+
+
+class WaiterSearchVariant(BaseModel):
+    """Variant detail in waiter search results."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    variant_id: uuid.UUID
+    variant_code: str | None
+    variant_name: str
+    quantity_value: Decimal
+    unit: str
+    price: Decimal
+    is_available: bool
+
+
+class WaiterSearchResultItem(BaseModel):
+    """Ranked item in waiter dual short-code / full-name search."""
+
+    item_id: uuid.UUID
+    item_code: str
+    name: str
+    category_name: str
+    is_available: bool
+    match_type: Literal["EXACT_VARIANT_CODE", "EXACT_ITEM_CODE", "PREFIX_CODE", "NAME_MATCH"]
+    matched_variant_id: uuid.UUID | None = None
+    variants: list[WaiterSearchVariant]
+
+
+class WaiterSearchResponse(BaseModel):
+    """Response for `GET /api/v1/waiter/menu/search`."""
+
+    query: str
+    results: list[WaiterSearchResultItem]

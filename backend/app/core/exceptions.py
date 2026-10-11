@@ -26,6 +26,8 @@ HTTP_STATUS_DEFAULT_CODES: dict[int, str] = {
     status.HTTP_405_METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
     status.HTTP_409_CONFLICT: "STATE_CONFLICT",
     status.HTTP_410_GONE: "RESOURCE_GONE",
+    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE: "PAYLOAD_TOO_LARGE",
+    status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: "UNSUPPORTED_MEDIA_TYPE",
     status.HTTP_422_UNPROCESSABLE_ENTITY: "VALIDATION_ERROR",
     status.HTTP_423_LOCKED: "RESOURCE_LOCKED",
     status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMIT_EXCEEDED",
@@ -138,6 +140,40 @@ class AuthorizationError(AppError):
         )
 
 
+class UnsupportedMediaTypeError(AppError):
+    """Raised when an uploaded file is not an allowed media type (HTTP 415)."""
+
+    def __init__(
+        self,
+        code: str = "UNSUPPORTED_MEDIA_TYPE",
+        message: str = "Unsupported media type.",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            code=code,
+            message=message,
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            details=details,
+        )
+
+
+class PayloadTooLargeError(AppError):
+    """Raised when an upload exceeds the maximum allowed file size (HTTP 413)."""
+
+    def __init__(
+        self,
+        code: str = "PAYLOAD_TOO_LARGE",
+        message: str = "Uploaded payload exceeds the maximum allowed size.",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            code=code,
+            message=message,
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            details=details,
+        )
+
+
 class RateLimitExceededError(AppError):
     """Raised when a client exceeds a sliding-window rate limit (HTTP 429)."""
 
@@ -168,6 +204,30 @@ class DatabaseUnavailableError(AppError):
             code=code,
             message=message,
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+
+class AccountLockedError(AppError):
+    """Raised when a staff account is locked due to brute-force attempts (HTTP 423)."""
+
+    def __init__(
+        self,
+        code: str = "ACCOUNT_LOCKED",
+        message: str = (
+            "Account is locked due to too many failed login attempts. Please try again later."
+        ),
+        locked_until_iso: str | None = None,
+        retry_after_seconds: int = 900,
+    ) -> None:
+        details: dict[str, Any] = {"retry_after_seconds": retry_after_seconds}
+        if locked_until_iso:
+            details["locked_until"] = locked_until_iso
+        super().__init__(
+            code=code,
+            message=message,
+            status_code=status.HTTP_423_LOCKED,
+            details=details,
+            headers={"Retry-After": str(retry_after_seconds)},
         )
 
 

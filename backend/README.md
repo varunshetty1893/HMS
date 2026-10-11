@@ -6,26 +6,46 @@ Modular-monolith Python + FastAPI backend for a single physical restaurant, buil
 
 ## 1. Current Implementation Status
 
-- **Completed Phase:** **Phase 0 — Repository & Backend Foundation** (`docs/13-final-implementation-blueprint.md`)
-- **Included in Phase 0:**
+- **Implemented:**
   - Validated environment configuration (`app/config.py`) with production safety guards
   - Structured logging with `X-Request-Id` correlation and secret redaction (`app/core/logging.py`)
   - Canonical JSON error envelope and domain exception hierarchy (`app/core/exceptions.py`)
-  - Async SQLAlchemy 2.0 database engine, session dependency (`get_db`), and connectivity probe (`app/core/database.py`)
-  - Declarative `Base` with deterministic Alembic constraint naming conventions (`app/models/base.py`)
-  - Alembic async migration environment (`alembic/` & `alembic.ini`)
-  - Health and database readiness endpoints (`GET /api/v1/health`, `/api/v1/health/live`, `/api/v1/health/ready`, `/api/v1/health/db`)
-  - Automated `pytest` + `httpx.AsyncClient` test suite (`tests/api/test_health_and_config.py`)
-- **Not Yet Implemented (Scheduled for Phases 2–10):**
-  - Domain database tables and initial Alembic migration (Phase 2)
-  - Argon2id Staff Auth, RBAC, and `WebSocketManager` (Phase 3)
-  - Menu, Tables/QR, Unified `OrderService` (`₹5,000` cap), Kitchen KDS, Waiter, Billing, and Admin modules (Phases 4–10)
+  - Async SQLAlchemy 2.x engine, `get_db` session dependency and connectivity probe (`app/core/database.py`)
+  - All 20 SQLAlchemy models (`app/models/`) and the single initial Alembic migration `0001` (`alembic/versions/`)
+  - Alembic async environment wired to `app.config` and `Base.metadata` (`alembic/env.py`)
+  - Health endpoints: `GET /api/v1/health`, `/api/v1/health/live`, `/api/v1/health/ready`, `/api/v1/health/db`
+  - `pytest` suites: API/config tests, offline schema and migration tests, and PostgreSQL integration tests
+- **Not yet implemented:** staff authentication and RBAC, WebSockets, and the menu, table/QR, ordering, kitchen, waiter, billing and admin modules. There are deliberately no placeholder endpoints for these.
 
 ---
 
-## 2. Local Development Setup
+## 2. Requirements
 
-### 2.1 Create & Activate Python Virtual Environment
+- **Python:** 3.10 or newer (`pyproject.toml`). The project is verified on **Python 3.12**. Very new Python releases (for example 3.14) may not yet have wheels for the pinned dependencies, so prefer 3.12.
+- **PostgreSQL:** the project targets **PostgreSQL 16**. A PostgreSQL server is only needed for the readiness check against a real database, running the app against real data, and the optional integration tests. The default `pytest` run does **not** need PostgreSQL.
+- **Dependencies:** pinned in `requirements.txt` (FastAPI, SQLAlchemy 2.x async, asyncpg, Alembic, Pydantic Settings, pytest, httpx, ruff).
+
+---
+
+## 3. Local Development Setup
+
+### 3.1 Create and activate a virtual environment
+
+Always work inside the project's virtual environment. Running `pytest` with a global Python can fail with errors such as `'asyncio' not found in markers configuration option`, because the global Python has a different set of packages.
+
+Windows (PowerShell):
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If PowerShell refuses to run the activation script, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once in that window and activate again.
+
+macOS / Linux:
 
 ```bash
 cd backend
@@ -35,52 +55,125 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2.2 Configure `.env`
+Every later command in this README assumes the virtual environment is active (the prompt starts with `(.venv)`) and that you are inside `backend/`. Use `python -m pytest`, `python -m ruff` and `python -m alembic` so the active environment's tools are always the ones that run.
 
-```bash
-cp .env.example .env
+### 3.2 Configure `.env`
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-Update `DATABASE_URL` in `backend/.env` to match your local PostgreSQL credentials:
+(`cp .env.example .env` on macOS / Linux.) `backend/.env` is ignored by Git. Never commit it and never paste its contents into chats or issues.
+
+Edit `DATABASE_URL` in `backend/.env` to match your local PostgreSQL role and database:
 
 ```env
 DATABASE_URL="postgresql+asyncpg://restaurant_app:your_local_password@127.0.0.1:5432/restaurant_dev"
 ```
 
-### 2.3 Run the FastAPI Server Locally
+The values in `.env.example` that start with `CHANGE_ME` are placeholders. They are fine for local development, and the settings validator **refuses** them when `ENVIRONMENT=production`. Generate real secrets with:
 
 ```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-- **Liveness Check:** `http://127.0.0.1:8000/api/v1/health/live`
-- **Readiness / DB Check:** `http://127.0.0.1:8000/api/v1/health/ready`
-- **Interactive OpenAPI Docs (Dev Only):** `http://127.0.0.1:8000/docs`
+### 3.3 Create a safe local PostgreSQL role and databases
+
+Use a dedicated role instead of the `postgres` superuser, and a separate `_test` database for tests. In `psql` connected as an administrator (for example `psql -U postgres -h 127.0.0.1`):
+
+```sql
+CREATE ROLE restaurant_app LOGIN PASSWORD 'choose_a_local_password';
+CREATE DATABASE restaurant_dev OWNER restaurant_app;
+CREATE DATABASE restaurant_test OWNER restaurant_app;
+```
+
+The initial migration runs `CREATE EXTENSION IF NOT EXISTS pg_trgm`. On PostgreSQL 13 and newer this extension is "trusted", so the database owner can create it.
+
+### 3.4 Run the FastAPI server locally
+
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+- **Liveness (no database):** `http://127.0.0.1:8000/api/v1/health/live`
+- **Readiness (checks the database):** `http://127.0.0.1:8000/api/v1/health/ready` returns `200` when the database answers and `503` otherwise. The `503` body never contains credentials or host names.
+- **Interactive OpenAPI docs (development and test only):** `http://127.0.0.1:8000/docs`
+
+The server starts even if PostgreSQL is down. Only the readiness endpoints report the database as unavailable.
 
 ---
 
-## 3. Running Linting, Formatting & Tests
+## 4. Running Linting, Formatting and Tests
 
-```bash
-cd backend
-.venv/bin/ruff check .
-.venv/bin/ruff format --check .
-.venv/bin/pytest -v
+```powershell
+python -m ruff check .
+python -m ruff format --check .
+python -m pytest -v
+```
+
+`ruff format --check` only reports files that need formatting. Run `python -m ruff format <file>` yourself on a specific file if you want it fixed.
+
+### 4.1 Default tests (no database needed)
+
+`python -m pytest` runs the API, configuration, logging, schema-metadata and offline-migration tests. They use in-process clients, mocks and in-memory SQLite, so they never touch a real PostgreSQL database. The tests under `tests/integration/` are **skipped automatically** unless `TEST_DATABASE_URL` is set.
+
+### 4.2 PostgreSQL integration tests (optional, destructive to the target database)
+
+These tests run `alembic upgrade head` and `alembic downgrade base`, so they delete everything in the database they use. They refuse to run unless **all** of these hold:
+
+- `TEST_DATABASE_URL` is set and uses `postgresql+asyncpg://`
+- the database name ends with `_test`
+- the database has no application tables yet (it must be freshly created and empty)
+
+Never point `TEST_DATABASE_URL` at `restaurant_dev` or any database that holds data you want to keep.
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://restaurant_app:your_local_password@127.0.0.1:5432/restaurant_test"
+python -m pytest tests/integration -v
+Remove-Item Env:TEST_DATABASE_URL
 ```
 
 ---
 
-## 4. Alembic Database Migrations
+## 5. Alembic Database Migrations
 
-- **Check current migration state:**
-  ```bash
-  .venv/bin/alembic current
-  ```
-- **Generate a new migration (Phase 2+ after adding SQLAlchemy models):**
-  ```bash
-  .venv/bin/alembic revision --autogenerate -m "descriptive_migration_name"
-  ```
-- **Apply migrations:**
-  ```bash
-  .venv/bin/alembic upgrade head
-  ```
+The schema is created only by Alembic migrations. `Base.metadata.create_all()` must never be used as a replacement. Alembic takes the database URL from `app.config` (your `.env`), and `alembic.ini` contains no credentials.
+
+Safe workflow for a development database:
+
+1. **See which revision the database is at** (read-only):
+   ```powershell
+   python -m alembic current
+   python -m alembic heads
+   ```
+2. **Preview the SQL without connecting to any database** (read-only). Print it to the terminal:
+   ```powershell
+   python -m alembic upgrade head --sql
+   ```
+   Do not redirect this output with `>` in Windows PowerShell. The migration contains the `₹` character, and the redirect can fail with a `UnicodeEncodeError`. The migration itself is not at fault; the terminal output works, and the automated offline-migration test already checks this SQL.
+3. **Apply the migrations to your development database only:**
+   ```powershell
+   python -m alembic upgrade head
+   ```
+4. **Create a new migration after changing models.** Review the generated file by hand before applying it:
+   ```powershell
+   python -m alembic revision --autogenerate -m "descriptive_migration_name"
+   ```
+
+Rules to keep the migration history safe:
+
+- Never edit or delete an already-applied migration. Add a new one instead.
+- Do not run `alembic downgrade` against a database that contains data you want to keep.
+- Make sure `DATABASE_URL` points at the database you intend to change before every `upgrade` or `downgrade`.
+
+---
+
+## 6. Development Seeding & Sample Catalog
+
+Run the idempotent database seed script to populate sample restaurant settings, dev staff accounts (`admin`, `waiter1`, `waiter2`, `kitchen1`), menu categories, dishes with short codes (`CB`, `VB`, `CK`), and physical tables (`T-01`..`T-10`) with initial QR tokens:
+
+```powershell
+python scripts/seed_dev.py
+```
+
+The script is safe to re-run at any time without duplicating records.

@@ -74,11 +74,50 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         try:
             response = await call_next(request)
             response.headers["X-Request-Id"] = request_id
+            # Security headers (docs/06 Sections 15 & 24)
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self'; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "frame-ancestors 'none'"
+            )
+            # HSTS — only meaningful in production behind TLS; harmless in dev
+            if settings.is_production:
+                response.headers["Strict-Transport-Security"] = (
+                    "max-age=31536000; includeSubDomains"
+                )
             return response
         finally:
             request_id_ctx_var.reset(token)
+
+    # 1b. Request body size limit — reject payloads > 256 KB (docs/06 Section 15)
+    _MAX_BODY_BYTES = 256 * 1024  # 256 KB
+
+    @app.middleware("http")
+    async def body_size_limit_middleware(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_BYTES:
+            return Response(
+                content=(
+                    '{"error": {"code": "PAYLOAD_TOO_LARGE",'
+                    ' "message": "Request body exceeds 256 KB limit."}}'
+                ),
+                status_code=413,
+                media_type="application/json",
+            )
+        return await call_next(request)
 
     # 2. Strict CORS configuration (wildcard '*' is forbidden by Settings validator)
     if settings.cors_allowed_origins:
@@ -106,7 +145,14 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     # 4. Versioned API routers (`/api/v1`)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
+    # 5. Static files for menu dish photos
+    from fastapi.staticfiles import StaticFiles
+
+    settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/menu", StaticFiles(directory=str(settings.upload_dir)), name="static_menu")
+
     return app
 
 
 app = create_app()
+

@@ -4,13 +4,30 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.core.sanitizer import sanitize_text
 
 
 class StrictRequestModel(BaseModel):
-    """Base schema for all incoming client requests (`extra='forbid'`, whitespace stripped)."""
+    """Base schema for all incoming client requests.
+
+    Enforces:
+    - `extra='forbid'` — rejects any undocumented client-supplied fields.
+    - `str_strip_whitespace=True` — trims leading/trailing whitespace.
+    - XSS sanitization — all `str | None` fields are checked for HTML tags
+      and dangerous URI schemes (docs/06 Section 24).
+    """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _sanitize_string_fields(cls, value: object) -> object:
+        """Reject HTML tags and dangerous URI schemes on all string fields."""
+        if isinstance(value, str):
+            return sanitize_text(value)
+        return value
 
 
 class ErrorDetailPayload(BaseModel):

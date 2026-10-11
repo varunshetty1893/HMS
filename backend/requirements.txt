@@ -17,6 +17,15 @@ aiosqlite==0.21.0
 pydantic==2.10.6
 pydantic-settings==2.8.1
 
+# Authentication & Cryptography (Zero-Cost / Open-Source)
+argon2-cffi==25.1.0
+pyjwt==2.15.1
+cryptography==50.0.2
+
+# Image Processing & File Uploads (Zero-Cost / Open-Source)
+pillow==12.3.0
+python-multipart==0.0.32
+
 # Testing & Quality Tooling
 pytest==8.3.5
 pytest-asyncio==0.25.3

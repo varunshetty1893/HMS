@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/table_model.dart';
+import '../auth/auth_controller.dart';
 
 final floorGridControllerProvider =
     StateNotifierProvider<FloorGridController, FloorGridState>((ref) {

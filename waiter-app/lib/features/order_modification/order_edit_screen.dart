@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../models/order_model.dart';
+import '../auth/auth_controller.dart';
 
 class OrderEditScreen extends ConsumerStatefulWidget {
   final OrderModel order;

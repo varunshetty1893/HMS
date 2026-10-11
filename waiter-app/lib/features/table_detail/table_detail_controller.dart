@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/table_session_detail.dart';
+import '../auth/auth_controller.dart';
 
 final tableDetailControllerProvider = StateNotifierProvider.family<
     TableDetailController, TableDetailState, String>((ref, tableId) {

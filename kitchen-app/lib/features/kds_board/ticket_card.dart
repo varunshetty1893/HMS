@@ -51,7 +51,7 @@ class TicketCard extends StatelessWidget {
           children: [
             // Header: Table badge, Order #, Elapsed timer
             Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [

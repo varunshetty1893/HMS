@@ -12,6 +12,17 @@ class DateFormatter {
     return DateFormat('hh:mm a').format(dt.toLocal());
   }
 
+  static String formatDateTime(dynamic dateTime) {
+    if (dateTime == null) return '';
+    DateTime dt;
+    if (dateTime is DateTime) {
+      dt = dateTime;
+    } else {
+      dt = DateTime.tryParse(dateTime.toString()) ?? DateTime.now();
+    }
+    return DateFormat('dd MMM yyyy, hh:mm a').format(dt.toLocal());
+  }
+
   static String elapsed(dynamic dateTime) {
     if (dateTime == null) return '';
     DateTime dt;

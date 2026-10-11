@@ -19,6 +19,7 @@ class KitchenOrderModel {
   final bool hasUnacknowledgedMods;
   final List<KitchenItemModel> items;
   final List<KitchenModificationEventModel> unacknowledgedModifications;
+  final String? rejectionReason;
 
   const KitchenOrderModel({
     required this.id,
@@ -39,6 +40,7 @@ class KitchenOrderModel {
     this.hasUnacknowledgedMods = false,
     required this.items,
     this.unacknowledgedModifications = const [],
+    this.rejectionReason,
   });
 
   factory KitchenOrderModel.fromJson(Map<String, dynamic> json) {
@@ -65,6 +67,7 @@ class KitchenOrderModel {
       unacknowledgedModifications: (json['unacknowledged_modifications'] as List<dynamic>? ?? [])
           .map((e) => KitchenModificationEventModel.fromJson(e as Map<String, dynamic>))
           .toList(),
+      rejectionReason: json['rejection_reason'] as String? ?? json['rejectionReason'] as String?,
     );
   }
 
@@ -76,6 +79,7 @@ class KitchenOrderModel {
     DateTime? readyAt,
     bool? hasUnacknowledgedMods,
     List<KitchenItemModel>? items,
+    String? rejectionReason,
   }) {
     return KitchenOrderModel(
       id: id,
@@ -96,6 +100,7 @@ class KitchenOrderModel {
       hasUnacknowledgedMods: hasUnacknowledgedMods ?? this.hasUnacknowledgedMods,
       items: items ?? this.items,
       unacknowledgedModifications: unacknowledgedModifications,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
 }

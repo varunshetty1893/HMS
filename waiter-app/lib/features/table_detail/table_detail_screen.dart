@@ -296,7 +296,7 @@ class TableDetailScreen extends ConsumerWidget {
                     ),
                     if (order.hasUnacknowledgedMods) ...[
                       const SizedBox(width: 6),
-                      const ModificationBadge(),
+                      OrderModificationBadge(hasUnacknowledgedMods: order.hasUnacknowledgedMods),
                     ],
                   ],
                 ),

@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: restaurant_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-restaurant_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurant_prod}
+      TZ: UTC
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - db_backups:/var/backups/restaurant
+    # Strict Security: Database is NOT published to host port 0.0.0.0
+    networks:
+      - internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-restaurant_app} -d ${POSTGRES_DB:-restaurant_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: restaurant_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: "false"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-restaurant_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-restaurant_prod}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT secret must be set in .env}
+      CSRF_SECRET_KEY: ${CSRF_SECRET_KEY:?CSRF secret must be set in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-["https://localhost"]}
+      PUBLIC_QR_BASE_URL: ${PUBLIC_QR_BASE_URL:-https://localhost/q}
+      UPLOAD_DIR: /app/uploads/menu
+    volumes:
+      - media_uploads:/app/uploads/menu
+    networks:
+      - internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/v1/health/live || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: restaurant_caddy
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./customer-web/dist:/var/www/customer-web/dist:ro
+      - ./admin-web/dist:/var/www/admin-web/dist:ro
+      - media_uploads:/var/lib/restaurant/uploads:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal_net
+
+networks:
+  internal_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+    name: restaurant_pg_data
+  media_uploads:
+    name: restaurant_media_uploads
+  db_backups:
+    name: restaurant_db_backups
+  caddy_data:
+    name: restaurant_caddy_data
+  caddy_config:
+    name: restaurant_caddy_config

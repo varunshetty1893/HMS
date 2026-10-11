@@ -23,10 +23,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-paneer-tikka',
           item_code: 'APP01',
           name: 'Tandoori Paneer Tikka',
-          description: 'Cottage cheese cubes marinated in spiced yogurt and roasted in tandoor.',
+          description: 'Cottage cheese cubes marinated in spiced yogurt, capsicum & roasted in clay tandoor.',
           dietary_type: 'VEG',
           spice_level: 'MEDIUM',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 1,
           variants: [
@@ -46,10 +46,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-malai-kebab',
           item_code: 'APP02',
           name: 'Murgh Malai Kebab',
-          description: 'Tender chicken boneless chunks marinated in rich cream, cashew paste, and aromatic green cardamom.',
+          description: 'Tender chicken boneless chunks marinated in rich cream, cashew paste & aromatic green cardamom.',
           dietary_type: 'NON_VEG',
           spice_level: 'MILD',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 2,
           variants: [
@@ -69,10 +69,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-crispy-corn',
           item_code: 'APP03',
           name: 'Crispy Chilli Babycorn',
-          description: 'Golden fried crispy babycorn tossed with spring onions, bell peppers, and oriental spices.',
+          description: 'Golden fried crispy babycorn tossed with spring onions, bell peppers & oriental wok spices.',
           dietary_type: 'VEG',
           spice_level: 'HOT',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 3,
           variants: [
@@ -92,10 +92,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-egg-bhurji',
           item_code: 'APP04',
           name: 'Desi Masala Egg Bhurji',
-          description: 'Farm fresh eggs scrambled with chopped onions, tomatoes, green chillies, and fresh coriander.',
+          description: 'Farm fresh eggs scrambled with chopped onions, juicy tomatoes, green chillies & fresh coriander.',
           dietary_type: 'EGG',
           spice_level: 'MEDIUM',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 4,
           variants: [
@@ -126,7 +126,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Smoked tandoori chicken simmered in a velvety tomato and butter gravy finished with kasoori methi.',
           dietary_type: 'NON_VEG',
           spice_level: 'MEDIUM',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 1,
           variants: [
@@ -156,10 +156,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-paneer-butter-masala',
           item_code: 'MC02',
           name: 'Paneer Butter Masala',
-          description: 'Fresh malai paneer simmered in a rich tomato, butter, and cashew nut gravy.',
+          description: 'Fresh malai paneer simmered in a rich creamy tomato, butter, and cashew nut gravy.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 2,
           variants: [
@@ -188,11 +188,11 @@ export const DEMO_MENU: CustomerMenuResponse = {
         {
           id: 'item-dal-makhani',
           item_code: 'MC03',
-          name: 'Dal Makhani Dal Bukhara',
-          description: 'Whole black lentils slow-cooked overnight with white butter, cream, and gentle spices.',
+          name: 'Dal Makhani Bukhara',
+          description: 'Whole black lentils slow-cooked overnight with white butter, fresh cream & gentle spices.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 3,
           variants: [
@@ -220,10 +220,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-chicken-biryani',
           item_code: 'BR01',
           name: 'Hyderabadi Chicken Dum Biryani',
-          description: 'Long grain basmati rice and marinated chicken cooked under dum with saffron, mint, and fried onions.',
+          description: 'Long grain basmati rice and marinated chicken cooked under dum with saffron, mint & caramelized onions.',
           dietary_type: 'NON_VEG',
-          spice_level: 'MEDIUM',
-          image_url: null,
+          spice_level: 'HOT',
+          image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 1,
           variants: [
@@ -253,10 +253,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-garlic-naan',
           item_code: 'BR02',
           name: 'Garlic Butter Naan',
-          description: 'Refined flour flatbread topped with minced garlic, fresh coriander, and melted butter.',
+          description: 'Refined flour clay oven flatbread topped with minced garlic, fresh coriander & melted desi butter.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 2,
           variants: [
@@ -284,10 +284,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-mango-lassi',
           item_code: 'BV01',
           name: 'Alphonso Mango Lassi',
-          description: 'Thick churned creamy yogurt blended with sweet Ratnagiri Alphonso mango pulp.',
+          description: 'Thick churned creamy yogurt blended with sweet Ratnagiri Alphonso mango pulp & cardamoms.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 1,
           variants: [
@@ -307,10 +307,10 @@ export const DEMO_MENU: CustomerMenuResponse = {
           id: 'item-fresh-lime',
           item_code: 'BV02',
           name: 'Fresh Lime Soda (Sweet & Salt)',
-          description: 'Freshly squeezed lime juice with club soda, black salt, and roasted cumin.',
+          description: 'Freshly squeezed lemon juice with sparkling club soda, black salt & roasted cumin.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 2,
           variants: [
@@ -333,7 +333,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Warm khoya dumplings steeped in rose cardamom syrup, served with chilled creamy rabdi.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: null,
+          image_url: 'https://images.unsplash.com/photo-1605197154247-a870d02ea29b?auto=format&fit=crop&w=600&q=80',
           is_available: true,
           display_order: 3,
           variants: [
@@ -371,7 +371,6 @@ export function getDemoOrders(): OrderResponse[] {
 export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
   const currentOrders = getDemoOrders();
   const orderNum = `#ORD-${1000 + currentOrders.length + 1}`;
-  const now = new Date().toISOString();
 
   let subtotal = 0;
   const items = payload.items.map((it, idx) => {
@@ -419,7 +418,6 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
     };
   });
 
-
   const newOrder: OrderResponse = {
     id: `demo-order-${Date.now()}`,
     order_number: orderNum,
@@ -432,7 +430,7 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
     special_instructions: payload.special_instructions ?? null,
     is_first_qr_order_of_session: currentOrders.length === 0,
     version: 1,
-    placed_at: now,
+    placed_at: new Date().toISOString(),
     accepted_at: null,
     ready_at: null,
     served_at: null,
@@ -455,4 +453,23 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
     },
     is_replay: false,
   };
+}
+
+export function cancelDemoOrder(orderId: string): OrderResponse {
+  const currentOrders = getDemoOrders();
+  const target = currentOrders.find(o => o.id === orderId);
+  if (!target) throw new Error("Order not found");
+  if (target.status !== 'PLACED' && target.status !== 'SUBMITTED' && target.status !== 'ACCEPTED') {
+    throw new Error("Cooking has already started. Order cannot be cancelled.");
+  }
+  target.status = 'CANCELLED';
+  target.order_subtotal = '0.00';
+  target.items.forEach(it => {
+    it.active_quantity = 0;
+    it.line_subtotal = '0.00';
+    it.item_status = 'CANCELLED';
+  });
+  sessionStorage.setItem('hms_demo_orders', JSON.stringify(currentOrders));
+  _demoOrders = currentOrders;
+  return target;
 }

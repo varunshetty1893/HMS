@@ -2,17 +2,33 @@ import React, { useState } from 'react';
 import type { MenuItem, MenuPriceVariant } from '../types';
 import { formatInr } from '../utils/currency';
 import { useCart } from '../context/CartContext';
-import { X, Plus, Minus, Check } from 'lucide-react';
+import { Plus, Minus, Check } from 'lucide-react';
 
 interface VariantSelectorSheetProps {
   item: MenuItem | null;
   onClose: () => void;
 }
 
-export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({
-  item,
-  onClose,
-}) => {
+const DietaryBadge: React.FC<{ type: string | null }> = ({ type }) => {
+  if (!type) return null;
+  const cfg: Record<string, { label: string; fg: string; bg: string; border: string }> = {
+    VEG:     { label: '🥗 Vegetarian', fg: 'var(--green)',   bg: 'var(--green-light)',   border: 'var(--green)' },
+    NON_VEG: { label: '🍗 Non-Veg',    fg: '#B91C1C',        bg: '#FEF2F2',              border: '#B91C1C' },
+    EGG:     { label: '🥚 Egg',        fg: 'var(--amber)',   bg: 'var(--amber-light)',   border: 'var(--amber)' },
+  };
+  const c = cfg[type];
+  if (!c) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+      style={{ color: c.fg, background: c.bg, border: `1px solid ${c.border}` }}
+    >
+      {c.label}
+    </span>
+  );
+};
+
+export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item, onClose }) => {
   const { addItem } = useCart();
 
   if (!item) return null;
@@ -25,7 +41,7 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({
   const [quantity, setQuantity] = useState<number>(1);
   const [itemNotes, setItemNotes] = useState<string>('');
 
-  const variantPrice = parseFloat(selectedVariant?.price || '0') || 0;
+  const variantPrice = parseFloat(String(selectedVariant?.price ?? '0')) || 0;
   const totalPrice = variantPrice * quantity;
 
   const handleAddToCart = () => {
@@ -43,144 +59,173 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in"
+      style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl text-slate-100 flex flex-col max-h-[90vh] overflow-hidden"
+        className="w-full max-w-md bottom-sheet flex flex-col animate-slide-up"
+        style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between pb-3 border-b border-slate-800">
-          <div>
-            <div className="flex items-center space-x-2 mb-1">
-              {item.dietary_type === 'VEG' && (
-                <span className="flex items-center justify-center w-3.5 h-3.5 border border-emerald-500 rounded-sm p-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                </span>
-              )}
-              {item.dietary_type === 'NON_VEG' && (
-                <span className="flex items-center justify-center w-3.5 h-3.5 border border-rose-500 rounded-sm p-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                </span>
-              )}
-              {item.dietary_type === 'EGG' && (
-                <span className="flex items-center justify-center w-3.5 h-3.5 border border-amber-500 rounded-sm p-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                </span>
-              )}
-              <span className="text-xs font-mono text-slate-400">{item.item_code}</span>
-            </div>
-            <h2 className="text-lg font-bold text-white">{item.name}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
-          >
-            <X size={18} />
-          </button>
+        {/* Handle */}
+        <div className="flex justify-center pt-3">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
-        {/* Content scroll area */}
-        <div className="overflow-y-auto py-4 space-y-5 flex-1 pr-1">
-          {item.description && (
-            <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
-          )}
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-3 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex-1 min-w-0 pr-3">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <DietaryBadge type={item.dietary_type} />
+              <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                {item.item_code}
+              </span>
+            </div>
+            <h2 className="text-lg font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+              {item.name}
+            </h2>
+            {item.description && (
+              <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {item.description}
+              </p>
+            )}
+          </div>
+          {/* Dish image thumbnail */}
+          <div
+            className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-2xl"
+            style={{ background: 'var(--bg-subtle)' }}
+          >
+            {item.image_url ? (
+              <img src={item.image_url} alt={item.name} className="w-full h-full object-cover"
+                onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextElementSibling!.removeAttribute('hidden'); }}
+              />
+            ) : null}
+            <span hidden={!!item.image_url}>
+              {item.dietary_type === 'VEG' ? '🥗' : item.dietary_type === 'NON_VEG' ? '🍗' : '🍳'}
+            </span>
+          </div>
+        </div>
 
-          {/* Variants Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2.5">
-              Select Portion / Variant
-            </label>
-            <div className="space-y-2">
-              {availableVariants.map((variant) => {
-                const isSelected = selectedVariant?.id === variant.id;
-                return (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => setSelectedVariant(variant)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                      isSelected
-                        ? 'bg-orange-500/10 border-orange-500 text-white'
-                        : 'bg-slate-800/50 border-slate-700/70 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-500 text-white'
-                            : 'border-slate-600 bg-transparent'
-                        }`}
-                      >
-                        {isSelected && <Check size={10} strokeWidth={3} />}
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">{variant.variant_name}</span>
-                        {variant.quantity_value && (
-                          <span className="text-xs text-slate-400 ml-2">
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+          {/* Variant selection */}
+          {availableVariants.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide mb-2.5"
+                style={{ color: 'var(--text-muted)' }}>
+                Choose Portion
+              </label>
+              <div className="space-y-2">
+                {availableVariants.map((variant) => {
+                  const isSelected = selectedVariant?.id === variant.id;
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setSelectedVariant(variant)}
+                      className="w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all"
+                      style={
+                        isSelected
+                          ? { background: 'var(--primary-bg)', border: '1.5px solid var(--primary)' }
+                          : { background: 'var(--bg-subtle)', border: '1px solid var(--border)' }
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                          style={
+                            isSelected
+                              ? { borderColor: 'var(--primary)', background: 'var(--primary)' }
+                              : { borderColor: 'var(--border)', background: 'transparent' }
+                          }
+                        >
+                          {isSelected && <Check size={9} strokeWidth={3} color="#fff" />}
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            {variant.variant_name}
+                          </span>
+                          <span className="text-xs ml-1.5" style={{ color: 'var(--text-muted)' }}>
                             ({variant.quantity_value} {variant.unit})
                           </span>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                    <span className="font-semibold text-sm text-slate-100">
-                      {formatInr(variant.price)}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span className="font-bold text-sm" style={{ color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                        {formatInr(variant.price)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Quantity Selector */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          {/* Quantity */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
               Quantity
             </span>
-            <div className="flex items-center space-x-3 bg-slate-800 rounded-xl p-1 border border-slate-700">
+            <div
+              className="flex items-center gap-1 p-1 rounded-xl"
+              style={{ border: '1.5px solid var(--border)', background: 'var(--bg-subtle)' }}
+            >
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-8 h-8 rounded-lg bg-slate-700 text-slate-200 flex items-center justify-center hover:bg-slate-600 transition"
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                style={{ background: 'var(--white)', color: 'var(--text-primary)' }}
               >
                 <Minus size={14} />
               </button>
-              <span className="w-6 text-center font-bold text-sm text-white">{quantity}</span>
+              <span className="w-7 text-center font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                {quantity}
+              </span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.min(20, q + 1))}
-                className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition"
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                style={{ background: 'var(--primary)', color: '#fff' }}
               >
                 <Plus size={14} />
               </button>
             </div>
           </div>
 
-          {/* Item Special Notes */}
+          {/* Item notes */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Item Instructions (Optional)
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+              style={{ color: 'var(--text-muted)' }}>
+              Special Instructions <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
             </label>
             <input
               type="text"
               value={itemNotes}
               onChange={(e) => setItemNotes(e.target.value)}
-              placeholder="e.g. Less spicy, no onions, extra crispy"
+              placeholder="Less spicy, no onions, extra crispy…"
               maxLength={100}
-              className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 transition"
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
+              onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
             />
           </div>
         </div>
 
-        {/* Footer Add Button */}
-        <div className="pt-3 border-t border-slate-800">
+        {/* Footer CTA */}
+        <div className="px-5 pb-6 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             type="button"
             onClick={handleAddToCart}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-between shadow-lg shadow-orange-500/25 transition active:scale-[0.99]"
+            className="btn-primary w-full"
           >
             <span>Add to Cart</span>
-            <span>{formatInr(totalPrice)}</span>
+            <span className="ml-auto font-bold">{formatInr(totalPrice)}</span>
           </button>
         </div>
       </div>

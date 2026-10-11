@@ -2140,6 +2140,148 @@ class OrderService:
         return _build_waiter_order_response(order)
 
     @classmethod
+    async def cancel_customer_order(
+        cls,
+        db: AsyncSession,
+        *,
+        order_id: uuid.UUID,
+        customer_session: CustomerSession,
+        reason: str | None = None,
+    ) -> OrderResponse:
+        """Cancel an entire active order by customer before cooking starts.
+
+        Allowed ONLY while status is PLACED or ACCEPTED.
+        Once cooking starts (PREPARING, READY, SERVED), cancellation is forbidden.
+        """
+        stmt = (
+            select(Order)
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.table),
+                selectinload(Order.modification_events),
+            )
+            .where(Order.id == order_id)
+            .with_for_update()
+        )
+        order = await db.scalar(stmt)
+        if not order:
+            raise ResourceNotFoundError("ORDER_NOT_FOUND", f"Order {order_id} not found.")
+
+        # Ensure order belongs to customer session or active table session
+        if (
+            order.customer_session_id != customer_session.id
+            and order.table_session_id != customer_session.table_session_id
+        ):
+            raise StateConflictError("FORBIDDEN", "This order does not belong to your table session.")
+
+        if order.status not in [OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value]:
+            raise StateConflictError(
+                "CANNOT_CANCEL_AFTER_COOKING",
+                f"Cooking has already started (status: {order.status}). Order cannot be cancelled.",
+            )
+
+        sess_stmt = (
+            select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
+        )
+        table_session = await db.scalar(sess_stmt)
+
+        now = utc_now()
+        cancel_reason = reason or "Cancelled by customer before cooking started"
+
+        for item in order.items or []:
+            if item.active_quantity > 0:
+                prev_qty = item.active_quantity
+                item.cancelled_quantity += prev_qty
+                item.active_quantity = 0
+                item.line_subtotal = Decimal("0.00")
+                item.item_status = OrderItemStatus.CANCELLED.value
+                item.cancellation_reason = cancel_reason
+
+                ev = OrderModificationEvent(
+                    order_id=order.id,
+                    order_item_id=item.id,
+                    modification_type=ModificationType.ITEM_CANCELLED.value,
+                    order_status_at_modification=order.status,
+                    previous_quantity=prev_qty,
+                    new_quantity=0,
+                    previous_notes=item.item_notes,
+                    new_notes=None,
+                    unit_price_snapshot=item.unit_price_snapshot,
+                    price_delta=-_two_dp(Decimal(prev_qty) * item.unit_price_snapshot),
+                    reason=cancel_reason,
+                    modified_by_user_id=None,
+                    modified_by_role="CUSTOMER_QR",
+                    kitchen_ack_required=False,
+                )
+                db.add(ev)
+                order.modification_events.append(ev)
+
+        if table_session:
+            new_outstanding = _two_dp(
+                table_session.current_outstanding_amount - order.order_subtotal
+            )
+            table_session.current_outstanding_amount = max(Decimal("0.00"), new_outstanding)
+
+        order.order_subtotal = Decimal("0.00")
+        prev_status = order.status
+        order.status = OrderStatus.CANCELLED.value
+        order.cancelled_at = now
+        order.cancelled_by_user_id = None
+        order.cancelled_by_role = "CUSTOMER_QR"
+        order.cancellation_reason = cancel_reason
+        order.version += 1
+
+        history = OrderStatusHistory(
+            order_id=order.id,
+            previous_status=prev_status,
+            new_status=OrderStatus.CANCELLED.value,
+            changed_by_role="CUSTOMER_QR",
+            changed_by_user_id=None,
+            reason=cancel_reason,
+            changed_at=now,
+        )
+        db.add(history)
+
+        await db.commit()
+        await db.refresh(order)
+
+        try:
+            await ws_manager.broadcast_to_room(
+                "kitchen",
+                {
+                    "event": "order.cancelled",
+                    "order_id": str(order.id),
+                    "order_number": order.order_number,
+                    "table_id": str(order.table_id),
+                    "reason": cancel_reason,
+                },
+            )
+            await ws_manager.broadcast_to_room(
+                "channel:waiters",
+                {
+                    "event": "order.cancelled",
+                    "order_id": str(order.id),
+                    "order_number": order.order_number,
+                    "table_id": str(order.table_id),
+                    "reason": cancel_reason,
+                },
+            )
+            if order.table_session_id:
+                await ws_manager.broadcast_to_room(
+                    f"table_session:{order.table_session_id}",
+                    {
+                        "event": "order.cancelled",
+                        "order_id": str(order.id),
+                        "status": "CANCELLED",
+                        "reason": cancel_reason,
+                    },
+                )
+        except Exception as exc:
+            logger.warning("WebSocket broadcast failed: %s", exc)
+
+        return _build_order_response(order)
+
+    @classmethod
     async def mark_order_served(
         cls,
         db: AsyncSession,

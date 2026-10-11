@@ -128,3 +128,27 @@ export interface CartItem {
   quantity: number;
   itemNotes?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Waiter Request types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type WaiterRequestReason = 'ASSISTANCE' | 'CUTLERY' | 'WATER' | 'OTHER';
+export type WaiterRequestStatus = 'PENDING' | 'CLAIMED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+
+export interface WaiterRequest {
+  id: string;
+  customer_session_id: string;
+  table_session_id: string;
+  table_id: string;
+  reason: WaiterRequestReason;
+  notes: string | null;
+  status: WaiterRequestStatus;
+  claimed_by_user_id: string | null;
+  claimed_at: string | null;
+  completed_at: string | null;
+  completed_by_user_id: string | null;
+  cancelled_at: string | null;
+  expires_at: string;
+  created_at: string;
+}

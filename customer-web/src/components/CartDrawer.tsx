@@ -5,7 +5,7 @@ import { placeOrder, HmsApiError } from '../api';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { formatInr } from '../utils/currency';
 import { LimitExceededBanner } from './LimitExceededBanner';
-import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Loader2 } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Loader2, ShoppingCart } from 'lucide-react';
 import type { OrderCreate } from '../types';
 
 interface CartDrawerProps {
@@ -14,11 +14,7 @@ interface CartDrawerProps {
   onOrderSuccess: () => void;
 }
 
-export const CartDrawer: React.FC<CartDrawerProps> = ({
-  isOpen,
-  onClose,
-  onOrderSuccess,
-}) => {
+export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onOrderSuccess }) => {
   const { items, updateQuantity, removeItem, clearCart, totalItemsCount, totalEstimatedAmount } =
     useCart();
   const { updateOutstanding, refreshSession } = useSession();
@@ -38,14 +34,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setGeneralError(null);
 
     const idempotencyKey = generateIdempotencyKey();
-
     const orderPayload: OrderCreate = {
       items: items.map((it) => ({
         variant_id: it.variantId,
         quantity: it.quantity,
         item_notes: it.itemNotes || null,
       })),
-      special_instructions: specialInstructions.trim() ? specialInstructions.trim() : null,
+      special_instructions: specialInstructions.trim() || null,
     };
 
     try {
@@ -64,118 +59,160 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         if (err.code === 'TABLE_SPEND_LIMIT_EXCEEDED') {
           setLimitError(
             err.message ||
-              'Unpaid table limit (₹5,000.00) reached. Please ask your waiter to settle or verify orders.'
+              'Unpaid table limit (₹5,000.00) reached. Please ask your waiter to settle.'
           );
         } else {
           setGeneralError(err.message || 'Failed to place order. Please try again.');
         }
       } else {
-        setGeneralError('Network error submitting order. Please check connection.');
+        setGeneralError('Network error. Please check your connection.');
       }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex justify-end animate-fade-in"
+      style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md bg-slate-900 border-l border-slate-800 text-slate-100 flex flex-col h-full shadow-2xl"
+        className="w-full max-w-md flex flex-col h-full shadow-2xl animate-slide-in-right"
+        style={{ background: 'var(--white)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 bg-orange-500/20 text-orange-400 rounded-xl">
-              <ShoppingBag size={18} />
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--primary-bg)', color: 'var(--primary)' }}
+            >
+              <ShoppingCart size={18} />
             </div>
             <div>
-              <h2 className="font-bold text-base text-white">Your Cart</h2>
-              <span className="text-xs text-slate-400">
+              <h2 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                Your Cart
+              </h2>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'}
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Limit Warning if any */}
+        {/* Error banners */}
         {limitError && (
-          <div className="p-4 border-b border-slate-800">
-            <LimitExceededBanner
-              message={limitError}
-              onDismiss={() => setLimitError(null)}
-            />
+          <div style={{ borderBottom: '1px solid var(--border)' }} className="px-4 py-3">
+            <LimitExceededBanner message={limitError} onDismiss={() => setLimitError(null)} />
           </div>
         )}
-
-        {/* General Error Banner */}
         {generalError && (
-          <div className="p-4 bg-rose-950/60 border-b border-rose-800 text-rose-300 text-xs flex justify-between items-center">
+          <div
+            className="flex items-center justify-between gap-2 px-4 py-3 text-xs"
+            style={{
+              background: '#FEF2F2',
+              borderBottom: '1px solid #FCA5A5',
+              color: '#B91C1C',
+            }}
+          >
             <span>{generalError}</span>
-            <button onClick={() => setGeneralError(null)} className="text-rose-400 hover:text-white">✕</button>
+            <button onClick={() => setGeneralError(null)}><X size={13} /></button>
           </div>
         )}
 
-        {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Cart item list */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 py-12">
-              <ShoppingBag size={48} className="stroke-[1.5] mb-3 text-slate-600" />
-              <p className="text-sm font-medium text-slate-300">Your cart is empty</p>
-              <p className="text-xs text-slate-500 mt-1">Browse the menu to add delicious items</p>
+            <div className="h-full flex flex-col items-center justify-center gap-3 py-12 text-center">
+              <ShoppingBag size={52} strokeWidth={1} style={{ color: 'var(--border)' }} />
+              <div>
+                <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  Your cart is empty
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  Browse the menu to add delicious items
+                </p>
+              </div>
             </div>
           ) : (
             items.map((it) => (
               <div
-                key={`${it.variantId}-${it.itemNotes || ''}`}
-                className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex flex-col justify-between"
+                key={`${it.variantId}-${it.itemNotes ?? ''}`}
+                className="flex items-start gap-3 p-3.5 rounded-2xl"
+                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-semibold text-sm text-slate-100">{it.itemName}</h4>
-                    <span className="text-xs text-orange-400">{it.variantName}</span>
-                    {it.itemNotes && (
-                      <p className="text-[11px] text-slate-400 italic mt-0.5">
-                        Note: &ldquo;{it.itemNotes}&rdquo;
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeItem(it.variantId)}
-                    className="text-slate-500 hover:text-rose-400 transition p-1"
-                    title="Remove item"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                {/* Emoji placeholder */}
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                  style={{ background: 'var(--white)' }}
+                >
+                  🍽
                 </div>
 
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-700/40">
-                  <span className="font-semibold text-sm text-slate-200">
-                    {formatInr(it.price * it.quantity)}
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
+                    {it.itemName}
+                  </h4>
+                  <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>
+                    {it.variantName}
                   </span>
+                  {it.itemNotes && (
+                    <p className="text-[11px] italic mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      "{it.itemNotes}"
+                    </p>
+                  )}
 
-                  <div className="flex items-center space-x-2 bg-slate-900 rounded-lg p-0.5 border border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(it.variantId, it.quantity - 1)}
-                      className="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition"
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span className="w-5 text-center text-xs font-bold text-white">
-                      {it.quantity}
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                      {formatInr(it.price * it.quantity)}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(it.variantId, it.quantity + 1)}
-                      className="w-6 h-6 rounded bg-orange-500 text-white hover:bg-orange-600 flex items-center justify-center transition"
-                    >
-                      <Plus size={12} />
-                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {/* Delete */}
+                      <button
+                        onClick={() => removeItem(it.variantId)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                        style={{ background: '#FEF2F2', color: '#B91C1C' }}
+                        title="Remove"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+
+                      {/* Qty controls */}
+                      <div
+                        className="flex items-center gap-0.5 rounded-lg overflow-hidden"
+                        style={{ border: '1px solid var(--border)', background: 'var(--white)' }}
+                      >
+                        <button
+                          onClick={() => updateQuantity(it.variantId, it.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center transition-colors"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span className="w-6 text-center text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                          {it.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(it.variantId, it.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center transition-colors"
+                          style={{ background: 'var(--primary)', color: '#fff' }}
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -183,12 +220,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           )}
         </div>
 
-        {/* Footer / Order submission */}
+        {/* Footer */}
         {items.length > 0 && (
-          <div className="p-4 border-t border-slate-800 bg-slate-900/90 space-y-3">
-            {/* Special Instructions for Order */}
+          <div
+            className="px-5 pb-6 pt-4 space-y-3"
+            style={{ borderTop: '1px solid var(--border)', background: 'var(--white)' }}
+          >
+            {/* Special instructions */}
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              <label
+                className="block text-xs font-semibold uppercase tracking-wide mb-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
                 Order Notes (Optional)
               </label>
               <input
@@ -197,37 +240,46 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 onChange={(e) => setSpecialInstructions(e.target.value)}
                 placeholder="e.g. Please bring water first"
                 maxLength={200}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+                className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none transition"
+                style={{
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
               />
             </div>
 
-            {/* Subtotal summary */}
-            <div className="flex items-center justify-between text-sm pt-1">
-              <span className="text-slate-400">Estimated Total:</span>
-              <span className="font-bold text-base text-white">
+            {/* Total */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Estimated Total
+              </span>
+              <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
                 {formatInr(totalEstimatedAmount)}
               </span>
             </div>
-            <p className="text-[10px] text-slate-500">
-              Authoritative prices, taxes, and total are calculated by server.
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Authoritative prices, taxes, and final total are calculated by the server.
             </p>
 
-            {/* Place Order CTA */}
+            {/* Place Order */}
             <button
               type="button"
               disabled={isSubmitting}
               onClick={handleSubmitOrder}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-slate-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/20 transition active:scale-[0.99]"
+              className="btn-primary w-full"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  <span>Submitting to Kitchen...</span>
+                  <span>Sending to Kitchen…</span>
                 </>
               ) : (
                 <>
-                  <span>Send Order to Kitchen</span>
-                  <ArrowRight size={16} />
+                  <span>Place Order</span>
+                  <ArrowRight size={16} className="ml-auto" />
                 </>
               )}
             </button>

@@ -165,3 +165,18 @@ class NotificationSeverity(_StrEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
+
+
+class WaiterRequestStatus(_StrEnum):
+    PENDING = "PENDING"
+    CLAIMED = "CLAIMED"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+class WaiterRequestReason(_StrEnum):
+    ASSISTANCE = "ASSISTANCE"
+    CUTLERY = "CUTLERY"
+    WATER = "WATER"
+    OTHER = "OTHER"

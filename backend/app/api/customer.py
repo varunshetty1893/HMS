@@ -31,6 +31,8 @@ from app.schemas.order import (
 from app.schemas.qr import CustomerSessionResponse
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService, _build_order_response
+from app.services import waiter_request_service as wr_svc
+from app.schemas.waiter_request import WaiterRequestCreate, WaiterRequestResponse
 
 router = APIRouter(prefix="/customer", tags=["Customer Operations"])
 
@@ -175,3 +177,77 @@ async def list_orders(
     """Return all orders placed by the current customer session, newest first."""
     orders = await OrderService.list_customer_orders(db, customer_session=session)
     return [_build_order_response(o) for o in orders]
+
+
+@router.post(
+    "/orders/{order_id}/cancel",
+    response_model=OrderResponse,
+    summary="Cancel order before cooking starts",
+)
+async def cancel_order(
+    order_id: uuid.UUID,
+    session: CustomerSession = Depends(get_current_customer_session),
+    db: AsyncSession = Depends(get_db),
+) -> OrderResponse:
+    """Allow customer to cancel their order while still in PLACED or ACCEPTED status.
+    Once cooking starts (PREPARING, READY, SERVED), orders cannot be cancelled by the customer.
+    """
+    return await OrderService.cancel_customer_order(
+        db, order_id=order_id, customer_session=session
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Call-Waiter  (Phase 7 / docs/05 Section 8)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/waiter-requests",
+    response_model=WaiterRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Call a waiter to the table",
+)
+async def create_waiter_request(
+    payload: WaiterRequestCreate,
+    session: CustomerSession = Depends(get_current_customer_session),
+    db: AsyncSession = Depends(get_db),
+) -> WaiterRequestResponse:
+    """Create a new call-waiter request for the active table session.
+
+    - Returns HTTP 201 on first creation.
+    - Returns the existing request (HTTP 201) if one is already PENDING or CLAIMED
+      (idempotent from the customer's perspective).
+    - Broadcasts `waiter.request.created` to `channel:waiters` and the customer's
+      `table_session:{id}` room via WebSocket.
+    """
+    return await wr_svc.create_waiter_request(db, payload=payload, customer_session=session)
+
+
+@router.get(
+    "/waiter-requests/active",
+    response_model=WaiterRequestResponse | None,
+    summary="Get active waiter request for current session",
+)
+async def get_active_waiter_request(
+    session: CustomerSession = Depends(get_current_customer_session),
+    db: AsyncSession = Depends(get_db),
+) -> WaiterRequestResponse | None:
+    """Return the current PENDING or CLAIMED request for this session, or null."""
+    return await wr_svc.get_active_customer_request(db, customer_session=session)
+
+
+@router.delete(
+    "/waiter-requests/{request_id}",
+    response_model=WaiterRequestResponse,
+    summary="Cancel a pending waiter request",
+)
+async def cancel_waiter_request(
+    request_id: uuid.UUID,
+    session: CustomerSession = Depends(get_current_customer_session),
+    db: AsyncSession = Depends(get_db),
+) -> WaiterRequestResponse:
+    """Cancel a PENDING waiter request. Only the originating customer session can cancel."""
+    return await wr_svc.cancel_customer_request(
+        db, request_id=request_id, customer_session=session
+    )

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, UtensilsCrossed, Smartphone } from 'lucide-react';
+import { UtensilsCrossed, Smartphone, Sparkles, QrCode } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 
 interface SessionErrorPageProps {
@@ -12,45 +12,103 @@ export const SessionErrorPage: React.FC<SessionErrorPageProps> = ({
   const { startDemoSession } = useSession();
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white text-center">
-      <div className="max-w-md w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 backdrop-blur-sm">
-        <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow-inner">
-          <AlertTriangle size={32} />
+    <div
+      className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+      style={{ background: 'var(--cream, #FFF8ED)' }}
+    >
+      <div
+        className="max-w-md w-full rounded-3xl p-8 space-y-6 shadow-md transition-all"
+        style={{
+          background: 'var(--white)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 8px 30px rgba(40, 40, 32, 0.06)',
+        }}
+      >
+        {/* Restaurant Icon Badge */}
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-sm"
+          style={{
+            background: 'var(--primary-bg)',
+            color: 'var(--primary)',
+            border: '1px solid rgba(217, 93, 43, 0.2)',
+          }}
+        >
+          <QrCode size={34} />
         </div>
 
         <div>
-          <h2 className="text-xl font-bold text-white mb-2">Dining Table Required</h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <span
+            className="text-[11px] font-bold tracking-widest uppercase px-3 py-1 rounded-full inline-block mb-2"
+            style={{
+              background: 'var(--primary-bg)',
+              color: 'var(--primary)',
+            }}
+          >
+            SpiceHub Family Restaurant
+          </span>
+          <h2
+            className="text-xl font-bold mb-2 tracking-tight"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Dining Table Required
+          </h2>
+          <p
+            className="text-xs leading-relaxed max-w-sm mx-auto"
+            style={{ color: 'var(--text-secondary)' }}
+          >
             {message}
           </p>
         </div>
 
         {/* Development / Testing Quick Access */}
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-1">
           <button
             onClick={startDemoSession}
             id="btn-preview-demo-table"
-            className="w-full bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-3.5 px-4 rounded-2xl flex items-center justify-center space-x-2 text-sm shadow-lg shadow-orange-500/25 transition-all transform active:scale-98 cursor-pointer"
+            className="w-full text-white font-semibold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md transition-all transform active:scale-98 cursor-pointer"
+            style={{
+              background: 'var(--primary)',
+              boxShadow: '0 4px 16px rgba(217, 93, 43, 0.28)',
+            }}
           >
             <UtensilsCrossed size={18} />
             <span>Preview Customer Menu (Table 4 Demo)</span>
           </button>
-          <p className="text-[11px] text-slate-500">
-            Click above to instantly explore the customer menu, cart & ordering without scanning a physical QR code.
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Instant interactive demo to explore dishes, cart, variant picker & ordering.
           </p>
         </div>
 
         {/* Explanation for Real Restaurant Flow */}
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 text-xs text-slate-300 space-y-2.5 text-left">
-          <div className="flex items-center space-x-2 text-orange-400 font-semibold">
+        <div
+          className="rounded-2xl p-4 text-xs space-y-2.5 text-left"
+          style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <div
+            className="flex items-center gap-2 font-semibold"
+            style={{ color: 'var(--primary)' }}
+          >
             <Smartphone size={16} />
-            <span>How QR ordering works for customers:</span>
+            <span>How QR ordering works at your table:</span>
           </div>
-          <ol className="list-decimal list-inside space-y-1.5 text-slate-400 pl-1 text-[11px] leading-relaxed">
-            <li>Guests don't scan from inside the app; they use their <strong>phone camera</strong> or <strong>Google Lens</strong> to scan the table's physical QR sticker.</li>
-            <li>The phone camera opens the table link: <code className="text-amber-400 font-mono">http://localhost:3001/?qr=...</code></li>
-            <li>The menu loads automatically linked to that specific table!</li>
+          <ol
+            className="list-decimal list-inside space-y-1.5 pl-1 text-[11px] leading-relaxed"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <li>
+              Point your <strong>phone camera</strong> or <strong>Google Lens</strong> at the QR sticker on the dining table.
+            </li>
+            <li>Tap the pop-up link to open your table's dedicated ordering session.</li>
+            <li>Browse the menu, customize your order, and send directly to our kitchen!</li>
           </ol>
+        </div>
+
+        <div className="flex items-center justify-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <Sparkles size={13} style={{ color: 'var(--primary)' }} />
+          <span>Freshly prepared • Authentic spices • Contactless dining</span>
         </div>
       </div>
     </div>

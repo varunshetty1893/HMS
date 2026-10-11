@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from '../context/SessionContext';
-import { QrCode, AlertCircle, RefreshCw } from 'lucide-react';
+import { QrCode, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
 interface QrLandingPageProps {
   onSuccess: () => void;
@@ -64,7 +64,7 @@ export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError
           setErrorDetails('This QR code is either invalid, revoked, or the dining table is currently closed.');
           onError('QR code resolution failed');
         }
-      } catch (err: unknown) {
+      } catch {
         setErrorDetails('Unable to reach restaurant servers. Please check your network connection.');
         onError('Network error');
       }
@@ -74,38 +74,86 @@ export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError
   }, [initFromQr, onSuccess, onError]);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white text-center">
-      <div className="max-w-sm w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
-        <div className="w-16 h-16 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center mx-auto shadow-inner">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+      style={{ background: 'var(--cream, #FFF8ED)' }}
+    >
+      <div
+        className="max-w-sm w-full rounded-3xl p-8 space-y-6 shadow-md"
+        style={{
+          background: 'var(--white)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 8px 30px rgba(40, 40, 32, 0.06)',
+        }}
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-sm"
+          style={{
+            background: 'var(--primary-bg)',
+            color: 'var(--primary)',
+            border: '1px solid rgba(217, 93, 43, 0.2)',
+          }}
+        >
           <QrCode size={32} />
         </div>
 
         <div>
-          <h2 className="text-xl font-bold text-white mb-2">Welcome to HMS Dining</h2>
-          <p className="text-sm text-slate-400">
-            Fast, seamless digital ordering right from your table.
+          <span
+            className="text-[11px] font-bold tracking-widest uppercase px-3 py-1 rounded-full inline-block mb-2"
+            style={{
+              background: 'var(--primary-bg)',
+              color: 'var(--primary)',
+            }}
+          >
+            SpiceHub Dining
+          </span>
+          <h2
+            className="text-xl font-bold mb-1 tracking-tight"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Welcome to Your Table
+          </h2>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Instant digital ordering, straight to the kitchen.
           </p>
         </div>
 
         {errorDetails ? (
           <div className="space-y-4">
-            <div className="bg-rose-950/60 border border-rose-800 rounded-2xl p-4 text-xs text-rose-300 flex items-start space-x-3 text-left">
-              <AlertCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+            <div
+              className="rounded-2xl p-4 text-xs flex items-start gap-3 text-left"
+              style={{
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                color: '#B91C1C',
+              }}
+            >
+              <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-500" />
               <span>{errorDetails}</span>
             </div>
 
             <button
               onClick={() => window.location.reload()}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 text-xs transition"
+              className="w-full text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow-sm"
+              style={{ background: 'var(--primary)' }}
             >
               <RefreshCw size={14} />
-              <span>Retry</span>
+              <span>Retry Scan</span>
             </button>
           </div>
         ) : (
-          <div className="space-y-3 py-2">
-            <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-slate-400 animate-pulse">{statusMessage}</p>
+          <div className="space-y-3 py-3">
+            <Loader2
+              size={28}
+              className="animate-spin mx-auto"
+              style={{ color: 'var(--primary)' }}
+            />
+            <p
+              className="text-xs font-medium animate-pulse"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {statusMessage}
+            </p>
           </div>
         )}
       </div>

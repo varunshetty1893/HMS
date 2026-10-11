@@ -11,19 +11,36 @@ export const LimitExceededBanner: React.FC<LimitExceededBannerProps> = ({
   onDismiss,
 }) => {
   return (
-    <div className="bg-rose-950/80 border border-rose-500/60 rounded-2xl p-4 text-rose-200 shadow-xl shadow-rose-950/40 animate-fade-in">
-      <div className="flex items-start space-x-3">
-        <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0 mt-0.5">
+    <div
+      className="rounded-2xl p-4 shadow-sm animate-fade-in"
+      style={{
+        background: '#FFF1F2',
+        border: '1px solid #FECDD3',
+        color: '#9F1239',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="p-2 rounded-xl shrink-0 mt-0.5"
+          style={{ background: '#FFE4E6', color: '#E11D48' }}
+        >
           <AlertTriangle size={20} />
         </div>
         <div className="flex-1">
-          <h4 className="text-sm font-bold text-white mb-1">
+          <h4 className="text-sm font-bold mb-1" style={{ color: '#881337' }}>
             Table Limit (₹5,000.00) Reached
           </h4>
-          <p className="text-xs text-rose-200/90 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: '#9F1239' }}>
             {message}
           </p>
-          <div className="mt-3 flex items-center space-x-2 text-xs font-semibold text-rose-300 bg-rose-900/40 px-3 py-1.5 rounded-lg border border-rose-800/60 inline-flex">
+          <div
+            className="mt-3 flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex"
+            style={{
+              background: '#FFE4E6',
+              border: '1px solid #FECDD3',
+              color: '#BE123C',
+            }}
+          >
             <UserCheck size={14} />
             <span>Waiter Assistance Required</span>
           </div>
@@ -31,7 +48,8 @@ export const LimitExceededBanner: React.FC<LimitExceededBannerProps> = ({
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="text-rose-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-rose-900/40"
+            className="text-xs px-2 py-1 rounded-lg hover:bg-rose-100 transition-colors"
+            style={{ color: '#BE123C' }}
           >
             ✕
           </button>

@@ -12,6 +12,7 @@ from app.models.operations import AuditLog, IdempotencyKey, Notification
 from app.models.orders import Order, OrderItem, OrderModificationEvent, OrderStatusHistory
 from app.models.qr_sessions import CustomerSession, TableQrToken, TableSession
 from app.models.restaurant import RestaurantSettings, RestaurantTable
+from app.models.waiter_requests import WaiterRequest
 
 __all__ = [
     "AuditLog",
@@ -37,4 +38,5 @@ __all__ = [
     "TimestampMixin",
     "UUIDPrimaryKeyMixin",
     "User",
+    "WaiterRequest",
 ]

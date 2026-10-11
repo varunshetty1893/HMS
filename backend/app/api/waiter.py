@@ -37,6 +37,8 @@ from app.services.billing_service import BillingService
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
 from app.services.table_service import TableService
+from app.services import waiter_request_service as wr_svc
+from app.schemas.waiter_request import WaiterRequestResponse
 
 router = APIRouter(prefix="/waiter", tags=["Waiter Operations"])
 
@@ -286,3 +288,55 @@ async def generate_waiter_table_bill(
         content=response_dto.model_dump(mode="json"),
         status_code=http_status,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Call-Waiter Requests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/waiter-requests",
+    response_model=list[WaiterRequestResponse],
+    summary="List all pending call-waiter requests",
+)
+async def list_waiter_requests(
+    _staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[WaiterRequestResponse]:
+    """Retrieve all PENDING call-waiter requests, oldest-first."""
+    return await wr_svc.list_pending_requests(db)
+
+
+@router.post(
+    "/waiter-requests/{request_id}/claim",
+    response_model=WaiterRequestResponse,
+    summary="Atomically claim a pending call-waiter request",
+)
+async def claim_waiter_request(
+    request_id: uuid.UUID,
+    staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterRequestResponse:
+    """Atomically claim a PENDING request. Concurrent claims result in exactly one winner (409 for the rest).
+
+    Uses SELECT FOR UPDATE NOWAIT to ensure atomicity without long lock waits.
+    """
+    return await wr_svc.claim_request(db, request_id=request_id, staff_user=staff)
+
+
+@router.post(
+    "/waiter-requests/{request_id}/complete",
+    response_model=WaiterRequestResponse,
+    summary="Mark a claimed waiter request as completed",
+)
+async def complete_waiter_request(
+    request_id: uuid.UUID,
+    staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterRequestResponse:
+    """Mark a CLAIMED (or PENDING) request as COMPLETED.
+
+    Broadcasts `waiter.request.completed` to the customer's table session room.
+    """
+    return await wr_svc.complete_request(db, request_id=request_id, staff_user=staff)

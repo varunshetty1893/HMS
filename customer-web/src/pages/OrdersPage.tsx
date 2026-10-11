@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { listOrders } from '../api';
+import { listOrders, cancelCustomerOrder } from '../api';
 import type { OrderResponse } from '../types';
 import { OrderStatusTimeline } from '../components/OrderStatusTimeline';
 import { useSession } from '../context/SessionContext';
 import { customerWs, type WsEvent } from '../customerWs';
 import { formatInr } from '../utils/currency';
-import { PlusCircle, RefreshCw, AlertCircle, ShoppingBag } from 'lucide-react';
+import { PlusCircle, RefreshCw, AlertCircle, ShoppingBag, Receipt } from 'lucide-react';
 
 interface OrdersPageProps {
   onBackToMenu: () => void;
@@ -32,6 +32,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
       }
     }
   }, []);
+
+  const handleCancelOrder = useCallback(async (orderId: string) => {
+    await cancelCustomerOrder(orderId);
+    await loadOrders(false);
+    refreshSession();
+  }, [loadOrders, refreshSession]);
 
   useEffect(() => {
     loadOrders();
@@ -72,30 +78,50 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
   const isLimitLocked = outstandingNum >= limitNum;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
-      <div className="max-w-md mx-auto px-4 py-4 space-y-4">
+    <div
+      className="min-h-screen pb-24"
+      style={{ background: 'var(--cream, #FFF8ED)' }}
+    >
+      <div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
         {/* Top Summary Banner */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div
+          className="rounded-2xl p-4 flex items-center justify-between shadow-sm"
+          style={{
+            background: 'var(--white)',
+            border: '1px solid var(--border)',
+          }}
+        >
           <div>
-            <span className="text-xs text-slate-400 block">Total Table Exposure</span>
-            <div className="flex items-baseline space-x-1.5 mt-0.5">
-              <span className="text-xl font-bold text-white">
+            <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              <Receipt size={14} style={{ color: 'var(--primary)' }} />
+              <span>Current Table Bill Total</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span
+                className="text-2xl font-bold font-mono tracking-tight"
+                style={{ color: 'var(--text-primary)' }}
+              >
                 {formatInr(outstandingNum)}
               </span>
-              <span className="text-xs text-slate-500 font-mono">
-                / {formatInr(limitNum)}
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                of {formatInr(limitNum)} limit
               </span>
             </div>
             {isLimitLocked && (
-              <span className="text-[10px] text-rose-400 font-semibold block mt-1">
-                Limit Reached — Ask waiter to settle
+              <span className="text-[11px] font-semibold block mt-1.5 text-red-600">
+                Limit Reached — Please ask your waiter to settle or verify.
               </span>
             )}
           </div>
 
           <button
             onClick={() => loadOrders(false)}
-            className="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            className="p-2.5 rounded-xl transition-all"
+            style={{
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+            }}
             title="Refresh orders"
           >
             <RefreshCw size={16} />
@@ -105,10 +131,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
         {/* Action Button: Order More Dishes */}
         <button
           onClick={onBackToMenu}
-          className="w-full bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-orange-400 hover:text-orange-300 font-semibold py-3 px-4 rounded-2xl flex items-center justify-center space-x-2 text-xs transition shadow-sm"
+          className="w-full py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold transition-all shadow-sm cursor-pointer"
+          style={{
+            background: 'var(--primary)',
+            color: '#FFFFFF',
+            boxShadow: '0 4px 14px rgba(217, 93, 43, 0.25)',
+          }}
         >
-          <PlusCircle size={16} />
-          <span>Add More Dishes from Menu</span>
+          <PlusCircle size={18} />
+          <span>Add More Dishes to Table</span>
         </button>
 
         {/* Orders List */}
@@ -117,55 +148,106 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 animate-pulse space-y-4"
+                className="rounded-2xl p-5 space-y-4 animate-pulse"
+                style={{
+                  background: 'var(--white)',
+                  border: '1px solid var(--border)',
+                }}
               >
-                <div className="h-4 bg-slate-800 rounded w-1/4"></div>
-                <div className="h-8 bg-slate-800/50 rounded"></div>
-                <div className="h-16 bg-slate-800/30 rounded"></div>
+                <div className="h-4 bg-orange-100/60 rounded w-1/3"></div>
+                <div className="h-8 bg-orange-50/50 rounded"></div>
+                <div className="h-16 bg-orange-50/30 rounded"></div>
               </div>
             ))}
           </div>
         ) : error ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
-            <AlertCircle size={28} className="text-rose-400 mx-auto" />
-            <p className="text-xs text-slate-300">{error}</p>
+          <div
+            className="rounded-2xl p-6 text-center space-y-3"
+            style={{
+              background: 'var(--white)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <AlertCircle size={32} className="mx-auto text-red-500" />
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              {error}
+            </p>
             <button
               onClick={() => loadOrders(false)}
-              className="bg-orange-500 text-white text-xs font-semibold px-4 py-2 rounded-xl"
+              className="text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all"
+              style={{ background: 'var(--primary)' }}
             >
               Retry
             </button>
           </div>
         ) : orders.length === 0 ? (
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-8 text-center space-y-3 my-6">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto">
-              <ShoppingBag size={24} />
+          <div
+            className="rounded-2xl p-8 text-center space-y-3 my-6"
+            style={{
+              background: 'var(--white)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 2px 10px rgba(40, 40, 32, 0.04)',
+            }}
+          >
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
+              style={{
+                background: 'var(--primary-bg)',
+                color: 'var(--primary)',
+              }}
+            >
+              <ShoppingBag size={28} />
             </div>
-            <h3 className="font-semibold text-slate-200 text-sm">No orders placed yet</h3>
-            <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-              Scan through our menu, add your favorite items to cart, and send them directly to the kitchen.
+            <h3
+              className="font-bold text-base"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              No orders placed yet
+            </h3>
+            <p
+              className="text-xs max-w-xs mx-auto leading-relaxed"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              Browse our freshly prepared dishes, customize variants, and place your order directly to the kitchen.
             </p>
             <button
               onClick={onBackToMenu}
-              className="mt-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-5 rounded-xl text-xs inline-flex items-center space-x-2 transition shadow-lg shadow-orange-500/20"
+              className="mt-2 text-white font-semibold py-2.5 px-6 rounded-xl text-xs inline-flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              style={{
+                background: 'var(--primary)',
+                boxShadow: '0 4px 14px rgba(217, 93, 43, 0.25)',
+              }}
             >
-              <span>Explore Menu</span>
+              <span>Explore SpiceHub Menu</span>
             </button>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-              <span className="font-semibold uppercase tracking-wider">
-                Live Orders ({orders.length})
+            <div className="flex items-center justify-between text-xs px-1">
+              <span
+                className="font-bold uppercase tracking-wider text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Table Orders ({orders.length})
               </span>
-              <span className="flex items-center space-x-1 text-[11px] text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Live Status</span>
+              <span
+                className="flex items-center gap-1.5 text-[11px] font-semibold"
+                style={{ color: 'var(--green)' }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ background: 'var(--green)' }}
+                />
+                <span>Live Kitchen Status</span>
               </span>
             </div>
 
             {orders.map((order) => (
-              <OrderStatusTimeline key={order.id} order={order} />
+              <OrderStatusTimeline
+                key={order.id}
+                order={order}
+                onCancelOrder={handleCancelOrder}
+              />
             ))}
           </div>
         )}

@@ -50,7 +50,10 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+    <div
+      className="min-h-screen flex flex-col font-sans"
+      style={{ background: 'var(--cream, #FFF8ED)' }}
+    >
       <HeaderBar
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}

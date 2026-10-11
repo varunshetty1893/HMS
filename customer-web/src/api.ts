@@ -114,7 +114,7 @@ export async function resolveQrToken(qrToken: string): Promise<QrResolutionRespo
 // Customer Session
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder } from './demoData';
+import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder, cancelDemoOrder } from './demoData';
 
 export async function getSession(): Promise<CustomerSession> {
   if (_sessionToken?.startsWith('demo-')) {
@@ -214,4 +214,99 @@ export async function listOrders(): Promise<OrderResponse[]> {
   } catch {
     return getDemoOrders();
   }
+}
+
+export async function cancelCustomerOrder(orderId: string): Promise<OrderResponse> {
+  if (_sessionToken?.startsWith('demo-')) {
+    return cancelDemoOrder(orderId);
+  }
+  return request<OrderResponse>(`/customer/orders/${orderId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Waiter Requests
+// ─────────────────────────────────────────────────────────────────────────────
+
+import type { WaiterRequest, WaiterRequestReason } from './types';
+
+let _demoWaiterRequest: WaiterRequest | null = null;
+
+export async function callWaiter(
+  reason: WaiterRequestReason,
+  notes?: string,
+): Promise<WaiterRequest> {
+  if (_sessionToken?.startsWith('demo-')) {
+    _demoWaiterRequest = {
+      id: `demo-wr-${Date.now()}`,
+      customer_session_id: 'demo-session',
+      table_session_id: 'demo-ts',
+      table_id: 'table-demo-4',
+      reason,
+      notes: notes ?? null,
+      status: 'PENDING',
+      claimed_by_user_id: null,
+      claimed_at: null,
+      completed_at: null,
+      completed_by_user_id: null,
+      cancelled_at: null,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    // Simulate waiter claiming after 2.5s for rich interactive demo feedback
+    setTimeout(() => {
+      if (_demoWaiterRequest && _demoWaiterRequest.status === 'PENDING') {
+        _demoWaiterRequest = {
+          ..._demoWaiterRequest,
+          status: 'CLAIMED',
+          claimed_at: new Date().toISOString(),
+        };
+      }
+    }, 2500);
+    return _demoWaiterRequest;
+  }
+  return request<WaiterRequest>('/customer/waiter-requests', {
+    method: 'POST',
+    body: JSON.stringify({ reason, notes: notes ?? null }),
+  });
+}
+
+export async function getActiveWaiterRequest(): Promise<WaiterRequest | null> {
+  if (_sessionToken?.startsWith('demo-')) return _demoWaiterRequest;
+  try {
+    const result = await request<WaiterRequest | null>('/customer/waiter-requests/active');
+    return result ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function cancelWaiterRequest(requestId: string): Promise<WaiterRequest> {
+  if (_sessionToken?.startsWith('demo-')) {
+    if (_demoWaiterRequest) {
+      _demoWaiterRequest = { ..._demoWaiterRequest, status: 'CANCELLED' };
+    }
+    const res = _demoWaiterRequest || {
+      id: requestId,
+      customer_session_id: 'demo-session',
+      table_session_id: 'demo-ts',
+      table_id: 'table-demo-4',
+      reason: 'OTHER' as WaiterRequestReason,
+      notes: null,
+      status: 'CANCELLED' as const,
+      claimed_by_user_id: null,
+      claimed_at: null,
+      completed_at: null,
+      completed_by_user_id: null,
+      cancelled_at: new Date().toISOString(),
+      expires_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    _demoWaiterRequest = null;
+    return res;
+  }
+  return request<WaiterRequest>(`/customer/waiter-requests/${requestId}`, {
+    method: 'DELETE',
+  });
 }

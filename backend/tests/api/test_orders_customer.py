@@ -608,3 +608,127 @@ class TestSessionStatusGating:
                     idempotency_key=None,
                 )
             assert exc_info.value.code == "SESSION_EXPIRED"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Unit tests — Customer Order Cancellation (Pre-Cooking Only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCustomerOrderCancellation:
+    @pytest.mark.asyncio
+    async def test_cancel_order_placed_status_succeeds(self) -> None:
+        cust_sess = _make_customer_session()
+        table_sess = _make_table_session(outstanding=Decimal("350.00"))
+        cust_sess.table_session_id = table_sess.id
+
+        mock_item = MagicMock()
+        mock_item.id = uuid.uuid4()
+        mock_item.active_quantity = 2
+        mock_item.cancelled_quantity = 0
+        mock_item.unit_price_snapshot = Decimal("150.00")
+        mock_item.item_notes = None
+
+        mock_order = MagicMock()
+        mock_order.id = uuid.uuid4()
+        mock_order.customer_session_id = cust_sess.id
+        mock_order.table_session_id = table_sess.id
+        mock_order.status = OrderStatus.PLACED.value
+        mock_order.order_subtotal = Decimal("300.00")
+        mock_order.items = [mock_item]
+        mock_order.modification_events = []
+        mock_order.version = 1
+
+        db = AsyncMock()
+        db.add = MagicMock()
+        # db.scalar returns order on first call, table_session on second call
+        db.scalar.side_effect = [mock_order, table_sess]
+
+        with patch("app.services.order_service.ws_manager.broadcast_to_room", AsyncMock()):
+            with patch("app.services.order_service._build_order_response", return_value=MagicMock()):
+                await OrderService.cancel_customer_order(
+                    db,
+                    order_id=mock_order.id,
+                    customer_session=cust_sess,
+                    reason="Changed mind",
+                )
+
+        assert mock_order.status == OrderStatus.CANCELLED.value
+        assert mock_order.order_subtotal == Decimal("0.00")
+        assert mock_item.active_quantity == 0
+        assert mock_item.cancelled_quantity == 2
+        assert table_sess.current_outstanding_amount == Decimal("50.00")
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_accepted_status_succeeds(self) -> None:
+        cust_sess = _make_customer_session()
+        mock_order = MagicMock()
+        mock_order.id = uuid.uuid4()
+        mock_order.customer_session_id = cust_sess.id
+        mock_order.table_session_id = cust_sess.table_session_id
+        mock_order.status = OrderStatus.ACCEPTED.value
+        mock_order.order_subtotal = Decimal("100.00")
+        mock_order.items = []
+        mock_order.modification_events = []
+        mock_order.version = 1
+
+        db = AsyncMock()
+        db.add = MagicMock()
+        db.scalar.side_effect = [mock_order, None]
+
+        with patch("app.services.order_service.ws_manager.broadcast_to_room", AsyncMock()):
+            with patch("app.services.order_service._build_order_response", return_value=MagicMock()):
+                await OrderService.cancel_customer_order(
+                    db,
+                    order_id=mock_order.id,
+                    customer_session=cust_sess,
+                )
+
+        assert mock_order.status == OrderStatus.CANCELLED.value
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_preparing_status_rejected(self) -> None:
+        cust_sess = _make_customer_session()
+        mock_order = MagicMock()
+        mock_order.id = uuid.uuid4()
+        mock_order.customer_session_id = cust_sess.id
+        mock_order.table_session_id = cust_sess.table_session_id
+        mock_order.status = OrderStatus.PREPARING.value
+        mock_order.order_subtotal = Decimal("200.00")
+
+        db = AsyncMock()
+        db.scalar.return_value = mock_order
+
+        with pytest.raises(StateConflictError) as exc_info:
+            await OrderService.cancel_customer_order(
+                db,
+                order_id=mock_order.id,
+                customer_session=cust_sess,
+            )
+
+        assert exc_info.value.code == "CANNOT_CANCEL_AFTER_COOKING"
+        assert "Cooking has already started" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_forbidden_for_other_session(self) -> None:
+        cust_sess = _make_customer_session()
+        other_session_id = uuid.uuid4()
+        mock_order = MagicMock()
+        mock_order.id = uuid.uuid4()
+        mock_order.customer_session_id = other_session_id
+        mock_order.table_session_id = uuid.uuid4()
+        mock_order.status = OrderStatus.PLACED.value
+
+        db = AsyncMock()
+        db.scalar.return_value = mock_order
+
+        with pytest.raises(StateConflictError) as exc_info:
+            await OrderService.cancel_customer_order(
+                db,
+                order_id=mock_order.id,
+                customer_session=cust_sess,
+            )
+
+        assert exc_info.value.code == "FORBIDDEN"
+

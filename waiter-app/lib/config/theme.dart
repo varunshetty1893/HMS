@@ -6,16 +6,16 @@ class WaiterTheme {
   static const Color surfaceVariant = Color(0xFF334155); // Slate 700
   static const Color surfaceLight = Color(0xFF475569); // Slate 600
 
-  static const Color primary = Color(0xFFF59E0B); // Amber 500
-  static const Color primaryDark = Color(0xFFD97706); // Amber 600
-  static const Color primaryLight = Color(0xFFFDE68A); // Amber 200
+  static const Color primary = Color(0xFFD95D2B); // Spice Orange
+  static const Color primaryDark = Color(0xFFC84E1D); // Dark Spice
+  static const Color primaryLight = Color(0xFFFED7AA); // Warm Peach
 
-  static const Color availableGreen = Color(0xFF10B981); // Emerald 500
-  static const Color availableGreenBg = Color(0xFF064E3B); // Emerald 900
+  static const Color availableGreen = Color(0xFF315B42); // Herb Green
+  static const Color availableGreenBg = Color(0xFF1B3526); // Deep Herb
   static const Color occupiedBlue = Color(0xFF3B82F6); // Blue 500
   static const Color occupiedBlueBg = Color(0xFF1E3A8A); // Blue 900
-  static const Color readyAmber = Color(0xFFF59E0B); // Amber 500
-  static const Color readyAmberBg = Color(0xFF78350F); // Amber 900
+  static const Color readyAmber = Color(0xFFD95D2B); // Spice Orange
+  static const Color readyAmberBg = Color(0xFF5A2510); // Deep Spice
   static const Color errorRed = Color(0xFFEF4444); // Red 500
   static const Color errorRedBg = Color(0xFF7F1D1D); // Red 900
 

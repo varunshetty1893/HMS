@@ -91,12 +91,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     <aside className="w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col h-full no-print">
       {/* Brand Header */}
       <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-black shadow-lg shadow-indigo-600/30">
-          H
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#D95D2B] to-[#EB7444] flex items-center justify-center text-white font-black shadow-lg shadow-orange-600/30">
+          🌶️
         </div>
         <div>
           <h1 className="text-sm font-bold tracking-tight text-white">HMS Admin</h1>
-          <p className="text-[11px] text-slate-400 font-medium">Control Plane</p>
+          <p className="text-[11px] text-[#EB7444] font-medium">SpiceHub Ops</p>
         </div>
       </div>
 
@@ -109,9 +109,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onSelectModule(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
                 isActive
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-semibold'
+                  ? 'bg-[#D95D2B] text-white shadow-md shadow-orange-600/25 font-semibold'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
               }`}
             >

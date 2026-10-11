@@ -34,32 +34,65 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-950 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.25),rgba(255,255,255,0))]">
-      <div className="w-full max-w-md rounded-3xl bg-slate-900/90 border border-slate-800 p-8 shadow-2xl backdrop-blur-md">
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-4"
+      style={{
+        background: 'linear-gradient(135deg, #FFF8ED 0%, #FDF3E3 50%, #FAF0DF 100%)',
+      }}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl p-8 sm:p-10 shadow-2xl transition-all"
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #F2E7D5',
+          boxShadow: '0 20px 40px -15px rgba(217, 93, 43, 0.12), 0 0 0 1px rgba(242, 231, 213, 0.8)',
+        }}
+      >
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 items-center justify-center text-white text-2xl font-black shadow-xl shadow-indigo-600/30 mb-4">
-            H
+          <div
+            className="inline-flex w-16 h-16 rounded-2xl items-center justify-center text-white text-3xl font-black mb-4 shadow-lg"
+            style={{
+              background: 'linear-gradient(135deg, #D95D2B 0%, #EB7444 100%)',
+              boxShadow: '0 8px 20px -4px rgba(217, 93, 43, 0.35)',
+            }}
+          >
+            🌶️
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">HMS Portal</h1>
-          <p className="text-sm text-slate-400 mt-1">Single Restaurant Administrative Control</p>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#282820' }}>
+            HMS Admin Portal
+          </h1>
+          <p className="text-sm mt-1.5 font-medium" style={{ color: '#7A7568' }}>
+            SpiceHub Family Restaurant • Control Plane
+          </p>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-950/60 border border-rose-800/60 text-xs font-semibold text-rose-300">
-            {error}
+          <div
+            className="mb-6 p-4 rounded-2xl text-xs font-semibold flex items-center gap-2"
+            style={{
+              background: '#FEF2F2',
+              color: '#B91C1C',
+              border: '1px solid #FCA5A5',
+            }}
+          >
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label
+              className="block text-xs font-bold uppercase tracking-wider mb-1.5"
+              style={{ color: '#57534E' }}
+            >
               Username
             </label>
             <div className="relative">
-              <UserIcon className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <UserIcon className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#9CA3AF' }} />
               <input
                 type="text"
                 value={username}
@@ -67,17 +100,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 placeholder="admin"
                 autoComplete="username"
                 required
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                className="w-full pl-11 pr-4 py-3 rounded-xl text-sm transition outline-none"
+                style={{
+                  background: '#FFFDF9',
+                  border: '1.5px solid #F2E7D5',
+                  color: '#282820',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#D95D2B';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(217, 93, 43, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#F2E7D5';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label
+              className="block text-xs font-bold uppercase tracking-wider mb-1.5"
+              style={{ color: '#57534E' }}
+            >
               Password
             </label>
             <div className="relative">
-              <Lock className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#9CA3AF' }} />
               <input
                 type="password"
                 value={password}
@@ -85,7 +134,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                className="w-full pl-11 pr-4 py-3 rounded-xl text-sm transition outline-none"
+                style={{
+                  background: '#FFFDF9',
+                  border: '1.5px solid #F2E7D5',
+                  color: '#282820',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#D95D2B';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(217, 93, 43, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#F2E7D5';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
           </div>
@@ -93,14 +155,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-2 py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+            className="w-full mt-2 py-3.5 px-4 rounded-xl text-sm font-bold text-white transition cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+            style={{
+              background: '#D95D2B',
+              boxShadow: '0 8px 18px -4px rgba(217, 93, 43, 0.4)',
+              opacity: isLoading ? 0.7 : 1,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#C84E1D')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = '#D95D2B')}
           >
             {isLoading ? 'Authenticating...' : 'Sign In to Dashboard'}
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-800/80 text-center">
-          <p className="text-xs text-slate-500">
+        {/* Staff Credentials Helper Card */}
+        <div
+          className="mt-6 p-3.5 rounded-2xl text-xs flex flex-col gap-1"
+          style={{
+            background: '#FFFDF9',
+            border: '1px dashed #E5D9C5',
+            color: '#7A7568',
+          }}
+        >
+          <div className="flex items-center justify-between font-semibold" style={{ color: '#282820' }}>
+            <span>🔑 Staff Account Access:</span>
+            <span className="px-2 py-0.5 rounded-md font-mono text-[11px]" style={{ background: '#FDF1EB', color: '#D95D2B' }}>
+              ADMIN
+            </span>
+          </div>
+          <div className="flex items-center justify-between font-mono text-[11px] pt-1">
+            <span>Username: <strong style={{ color: '#282820' }}>admin</strong></span>
+            <span>Password: <strong style={{ color: '#282820' }}>AdminPass123!</strong></span>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: '#F2E7D5' }}>
+          <p className="text-xs" style={{ color: '#A8A29E' }}>
             Staff access only • 5 failed attempts trigger 15-minute lock
           </p>
         </div>

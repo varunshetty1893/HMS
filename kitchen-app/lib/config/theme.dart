@@ -8,10 +8,10 @@ class KdsTheme {
   static const Color border = Color(0xFF475569); // slate-600
 
   // Semantic KDS column colors
-  static const Color placedColor = Color(0xFFF97316); // orange-500
+  static const Color placedColor = Color(0xFFD95D2B); // SpiceHub Spice Orange
   static const Color acceptedColor = Color(0xFFEAB308); // yellow-500
   static const Color preparingColor = Color(0xFF3B82F6); // blue-500
-  static const Color readyColor = Color(0xFF10B981); // emerald-500
+  static const Color readyColor = Color(0xFF315B42); // SpiceHub Herb Green
   static const Color rejectedColor = Color(0xFFEF4444); // red-500
 
   // Alert colors for modifications

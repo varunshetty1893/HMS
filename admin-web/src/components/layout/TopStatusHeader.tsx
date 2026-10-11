@@ -67,7 +67,7 @@ export const TopStatusHeader: React.FC = () => {
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="text-sm font-semibold text-white">{user?.full_name || 'Administrator'}</p>
-          <p className="text-xs text-indigo-400 font-medium">@{user?.username || 'admin'} • ADMIN</p>
+          <p className="text-xs text-[#EB7444] font-medium">@{user?.username || 'admin'} • ADMIN</p>
         </div>
 
         <button

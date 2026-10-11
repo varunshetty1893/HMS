@@ -105,30 +105,30 @@ export const CallWaiterSheet: React.FC<CallWaiterSheetProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 animate-fade-in"
-      style={{ background: 'rgba(40,40,32,0.45)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="absolute bottom-0 left-0 right-0 bottom-sheet animate-slide-up max-w-md mx-auto"
+        className="w-full max-w-md bg-[var(--bg-card)] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[var(--border)] overflow-hidden max-h-[85dvh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle bar */}
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Handle bar (visible on mobile) */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-2 pb-4">
+        <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2.5">
             <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
               style={{ background: 'var(--primary-bg)', color: 'var(--primary)' }}
             >
               <Hand size={20} />
             </div>
             <div>
-              <h2 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+              <h2 className="font-bold text-base leading-tight" style={{ color: 'var(--text-primary)' }}>
                 Call Waiter
               </h2>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -138,128 +138,132 @@ export const CallWaiterSheet: React.FC<CallWaiterSheetProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer"
             style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
+            aria-label="Close"
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mx-5 mb-3 px-4 py-3 rounded-xl text-sm flex items-center justify-between"
-            style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5' }}>
-            <span>{error}</span>
-            <button onClick={() => setError(null)}><X size={14} /></button>
-          </div>
-        )}
-
-        {/* Phase: pick reason */}
-        {phase === 'pick' && (
-          <div className="px-5 pb-6 space-y-2.5">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3"
-              style={{ color: 'var(--text-muted)' }}>
-              What do you need?
-            </p>
-            {REASONS.map(({ key, label, emoji, description }) => (
-              <button
-                key={key}
-                onClick={() => handlePickReason(key)}
-                className="w-full flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all cursor-pointer"
-                style={{
-                  background: 'var(--bg-subtle)',
-                  borderColor: 'var(--border)',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.background = 'var(--primary-bg)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--border)';
-                  e.currentTarget.style.background = 'var(--bg-subtle)';
-                }}
-              >
-                <span className="text-2xl">{emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {label}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{description}</div>
-                </div>
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Phase: requesting (spinner) */}
-        {phase === 'requesting' && (
-          <div className="px-5 pb-8 flex flex-col items-center gap-3 pt-2">
-            <Loader2 size={36} className="animate-spin" style={{ color: 'var(--primary)' }} />
-            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-              Notifying staff…
-            </p>
-          </div>
-        )}
-
-        {/* Phase: active request */}
-        {phase === 'active' && activeRequest && (
-          <div className="px-5 pb-6 space-y-4">
-            {/* Status badge */}
-            <div className="flex items-center justify-center">
-              <div
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm ${STATUS_LABELS[activeRequest.status]?.className ?? ''}`}
-              >
-                {STATUS_LABELS[activeRequest.status]?.icon}
-                {STATUS_LABELS[activeRequest.status]?.text ?? activeRequest.status}
-              </div>
+        {/* Scrollable Content Body */}
+        <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+          {/* Error */}
+          {error && (
+            <div className="px-4 py-3 rounded-xl text-sm flex items-center justify-between"
+              style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5' }}>
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="cursor-pointer"><X size={14} /></button>
             </div>
+          )}
 
-            {/* Request details */}
-            <div
-              className="rounded-2xl p-4 space-y-2"
-              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Reason</span>
-                <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {REASONS.find(r => r.key === activeRequest.reason)?.label ?? activeRequest.reason}
-                </span>
+          {/* Phase: pick reason */}
+          {phase === 'pick' && (
+            <div className="space-y-2.5 pb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2"
+                style={{ color: 'var(--text-muted)' }}>
+                What do you need?
+              </p>
+              {REASONS.map(({ key, label, emoji, description }) => (
+                <button
+                  key={key}
+                  onClick={() => handlePickReason(key)}
+                  className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs"
+                  style={{
+                    background: 'var(--bg-subtle)',
+                    borderColor: 'var(--border)',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.background = 'var(--primary-bg)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.background = 'var(--bg-subtle)';
+                  }}
+                >
+                  <span className="text-2xl shrink-0">{emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                      {label}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{description}</div>
+                  </div>
+                  <ChevronRight size={16} className="shrink-0" style={{ color: 'var(--text-muted)' }} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Phase: requesting (spinner) */}
+          {phase === 'requesting' && (
+            <div className="py-8 flex flex-col items-center gap-3">
+              <Loader2 size={36} className="animate-spin" style={{ color: 'var(--primary)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Notifying staff…
+              </p>
+            </div>
+          )}
+
+          {/* Phase: active request */}
+          {phase === 'active' && activeRequest && (
+            <div className="space-y-4 pb-2">
+              {/* Status badge */}
+              <div className="flex items-center justify-center">
+                <div
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm ${STATUS_LABELS[activeRequest.status]?.className ?? ''}`}
+                >
+                  {STATUS_LABELS[activeRequest.status]?.icon}
+                  {STATUS_LABELS[activeRequest.status]?.text ?? activeRequest.status}
+                </div>
               </div>
-              {activeRequest.notes && (
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Note</span>
-                  <span className="text-xs text-right" style={{ color: 'var(--text-secondary)' }}>
-                    {activeRequest.notes}
+
+              {/* Request details */}
+              <div
+                className="rounded-2xl p-4 space-y-2"
+                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Reason</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {REASONS.find(r => r.key === activeRequest.reason)?.label ?? activeRequest.reason}
                   </span>
                 </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Sent at</span>
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  {new Date(activeRequest.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                {activeRequest.notes && (
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Note</span>
+                    <span className="text-xs text-right" style={{ color: 'var(--text-secondary)' }}>
+                      {activeRequest.notes}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Sent at</span>
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {new Date(activeRequest.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* Cancel (only PENDING) */}
-            {activeRequest.status === 'PENDING' && (
-              <button
-                onClick={handleCancel}
-                disabled={isCancelling}
-                className="w-full py-2.5 rounded-xl border text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                style={{
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-secondary)',
-                  background: 'transparent',
-                }}
-              >
-                {isCancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
-                Cancel Request
-              </button>
-            )}
-          </div>
-        )}
+              {/* Cancel (only PENDING) */}
+              {activeRequest.status === 'PENDING' && (
+                <button
+                  onClick={handleCancel}
+                  disabled={isCancelling}
+                  className="w-full py-2.5 rounded-xl border text-sm font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--text-secondary)',
+                    background: 'transparent',
+                  }}
+                >
+                  {isCancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                  Cancel Request
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

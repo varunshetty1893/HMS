@@ -1,5 +1,67 @@
 @import "tailwindcss";
 
+/* ─── SpiceHub Design Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --spice-orange:    #D95D2B;
+  --spice-orange-lt: #EB7444;
+  --herb-green:      #315B42;
+  --warm-cream:      #FFF8ED;
+  --charcoal:        #282820;
+
+  /* Dark theme (default) */
+  --bg-base:         #020617;     /* slate-950 */
+  --bg-surface:      #0f172a;     /* slate-900 */
+  --bg-card:         #1e293b;     /* slate-800 */
+  --bg-hover:        #293548;
+  --border-color:    #334155;     /* slate-700 */
+  --border-subtle:   #1e293b;
+  --text-primary:    #f8fafc;     /* slate-50 */
+  --text-secondary:  #94a3b8;     /* slate-400 */
+  --text-muted:      #64748b;     /* slate-500 */
+  --text-accent:     var(--spice-orange-lt);
+  --scrollbar-track: #0f172a;
+  --scrollbar-thumb: #334155;
+  --scrollbar-hover: #475569;
+
+  /* Semantic status colors (dark) */
+  --status-success-bg:   #052e16;
+  --status-success-text: #4ade80;
+  --status-warn-bg:      #431407;
+  --status-warn-text:    #fb923c;
+  --status-error-bg:     #450a0a;
+  --status-error-text:   #f87171;
+  --status-info-bg:      #0c1a2e;
+  --status-info-text:    #60a5fa;
+}
+
+/* ─── Light Theme Overrides ──────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-base:         #f5f0e8;
+  --bg-surface:      #FFF8ED;     /* warm-cream */
+  --bg-card:         #ffffff;
+  --bg-hover:        #fef3e2;
+  --border-color:    #e4d9c8;
+  --border-subtle:   #ede5d8;
+  --text-primary:    #282820;     /* charcoal */
+  --text-secondary:  #5a5545;
+  --text-muted:      #9b8e7a;
+  --text-accent:     var(--spice-orange);
+  --scrollbar-track: #e8dfd0;
+  --scrollbar-thumb: #c9bba8;
+  --scrollbar-hover: #b5a491;
+
+  /* Semantic status colors (light) */
+  --status-success-bg:   #dcfce7;
+  --status-success-text: #15803d;
+  --status-warn-bg:      #fff7ed;
+  --status-warn-text:    #c2410c;
+  --status-error-bg:     #fee2e2;
+  --status-error-text:   #b91c1c;
+  --status-info-bg:      #eff6ff;
+  --status-info-text:    #1d4ed8;
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -22,9 +84,10 @@
       "Segoe UI",
       Roboto,
       sans-serif;
-    background-color: #020617;
-    color: #f8fafc;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
     overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   /* Custom scrollbar */
@@ -33,20 +96,57 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #0f172a;
+    background: var(--scrollbar-track);
   }
   ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: var(--scrollbar-hover);
   }
 }
 
 /* Tabular numbers for financial and metric displays */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ─── Theme-aware utility classes ────────────────────────────────────────── */
+.theme-bg-base    { background-color: var(--bg-base); }
+.theme-bg-surface { background-color: var(--bg-surface); }
+.theme-bg-card    { background-color: var(--bg-card); }
+.theme-text       { color: var(--text-primary); }
+.theme-text-muted { color: var(--text-muted); }
+.theme-border     { border-color: var(--border-color); }
+
+/* ─── Light-theme overrides for Tailwind dark hardcoded classes ──────────── */
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] .bg-slate-900\/60,
+[data-theme="light"] .bg-slate-950\/60 {
+  background-color: var(--bg-base) !important;
+}
+[data-theme="light"] .bg-slate-900 {
+  background-color: var(--bg-surface) !important;
+}
+[data-theme="light"] .bg-slate-800 {
+  background-color: var(--bg-card) !important;
+}
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-slate-50,
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200 {
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+[data-theme="light"] .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+[data-theme="light"] .border-slate-800,
+[data-theme="light"] .border-slate-700 {
+  border-color: var(--border-color) !important;
 }
 
 /* Printable Standee styles */

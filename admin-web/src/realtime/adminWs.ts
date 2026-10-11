@@ -1,10 +1,62 @@
 /**
  * WebSocket client for Admin Web.
  * Subscribes to room:admin, room:tables, room:waiters, room:kitchen, room:menu.
+ *
+ * Token refresh: Before each (re)connect attempt, if the stored access token
+ * appears expired (via JWT exp claim), a silent refresh is attempted using the
+ * stored refresh_token so that WebSocket connections are never rejected with 403.
  */
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 type EventHandler = (data: any) => void;
 type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED';
+
+/** Decode JWT payload without verifying signature (client-side only). */
+function jwtPayload(token: string): Record<string, any> | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const decoded = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+/** Returns true if token is missing or will expire within the next 60 seconds. */
+function isTokenExpiredOrSoon(token: string | null): boolean {
+  if (!token) return true;
+  const payload = jwtPayload(token);
+  if (!payload || typeof payload.exp !== 'number') return true;
+  const nowSec = Math.floor(Date.now() / 1000);
+  return payload.exp - nowSec < 60; // refresh if less than 60 s remaining
+}
+
+/** Attempt silent token refresh. Returns the new access token or null on failure. */
+async function silentRefresh(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('hms_admin_refresh_token');
+  if (!refreshToken) return null;
+  try {
+    const resp = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data.access_token) {
+      localStorage.setItem('hms_admin_access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('hms_admin_refresh_token', data.refresh_token);
+      }
+      return data.access_token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 class AdminWebSocketClient {
   private ws: WebSocket | null = null;
@@ -13,6 +65,7 @@ class AdminWebSocketClient {
   private reconnectTimeout: any = null;
   private currentStatus: ConnectionStatus = 'DISCONNECTED';
   private shouldReconnect = true;
+  private isRefreshing = false;
 
   constructor() {
     // Listen for online/offline events
@@ -28,25 +81,48 @@ class AdminWebSocketClient {
     }
   }
 
-  public connect(): void {
-    const token = localStorage.getItem('hms_admin_access_token');
-    if (!token) {
-      this.setStatus('DISCONNECTED');
-      return;
-    }
-
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+  public async connect(): Promise<void> {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
     this.setStatus('CONNECTING');
     this.shouldReconnect = true;
 
+    // ── Token refresh guard ───────────────────────────────────────────────────
+    let token = localStorage.getItem('hms_admin_access_token');
+
+    if (isTokenExpiredOrSoon(token) && !this.isRefreshing) {
+      this.isRefreshing = true;
+      const refreshed = await silentRefresh();
+      this.isRefreshing = false;
+
+      if (refreshed) {
+        token = refreshed;
+      } else {
+        // Refresh failed — session truly expired, don't try to connect
+        this.setStatus('DISCONNECTED');
+        // Emit a synthetic auth-expired event so the UI can redirect to login
+        this.dispatch('auth.expired', {});
+        return;
+      }
+    }
+
+    if (!token) {
+      this.setStatus('DISCONNECTED');
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl =
-      import.meta.env.VITE_WS_URL ||
-      `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(token)}`;
+    const baseWsUrl =
+      import.meta.env.VITE_WS_URL || `${protocol}//${host}/api/v1/ws`;
+    const separator = baseWsUrl.includes('?') ? '&' : '?';
+    const wsUrl = `${baseWsUrl}${separator}token=${encodeURIComponent(token)}`;
 
     try {
       this.ws = new WebSocket(wsUrl);
@@ -71,8 +147,14 @@ class AdminWebSocketClient {
         }
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (ev) => {
         this.setStatus('DISCONNECTED');
+        // Code 4001 = CLOSE_SESSION_REVOKED from backend (token rejected)
+        // In this case force a refresh on next reconnect attempt.
+        if (ev.code === 4001 || ev.code === 4008) {
+          // Clear the stored token so next connect() triggers a refresh
+          localStorage.removeItem('hms_admin_access_token');
+        }
         this.scheduleReconnect();
       };
 

@@ -41,10 +41,10 @@ class RestaurantSettingsResponse(BaseModel):
     kitchen_can_toggle_availability: bool
     limit_includes_estimated_tax: bool
     apply_outstanding_limit_to_waiter_orders: bool
-    allow_waiter_discount: bool
+    allow_waiter_discount: bool = False
     waiter_max_discount_percentage: Decimal
 
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime
 
 

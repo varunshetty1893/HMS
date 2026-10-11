@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '@/context/ThemeContext';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -35,6 +36,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   unpaidCount = 0,
   activeOrdersCount = 0,
 }) => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+
   const navItems = [
     {
       id: 'overview' as AdminModule,
@@ -46,14 +50,18 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       label: 'Live Orders',
       icon: Flame,
       badge: activeOrdersCount > 0 ? activeOrdersCount : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+      badgeColor: isLight
+        ? 'bg-amber-100 text-amber-700 border border-amber-300'
+        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
     },
     {
       id: 'billing' as AdminModule,
       label: 'Billing & Settle',
       icon: Receipt,
       badge: unpaidCount > 0 ? unpaidCount : undefined,
-      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
+      badgeColor: isLight
+        ? 'bg-rose-100 text-rose-700 border border-rose-300'
+        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
     },
     {
       id: 'tables-qr' as AdminModule,
@@ -87,16 +95,33 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
   ];
 
+  const sidebarStyle: React.CSSProperties = {
+    backgroundColor: isLight ? '#FFF8ED' : '#0f172a',
+    borderRightColor: isLight ? '#e4d9c8' : '#1e293b',
+  };
+
+  const brandBorderStyle: React.CSSProperties = {
+    borderBottomColor: isLight ? '#e4d9c8' : '#1e293b',
+  };
+
+  const footerStyle: React.CSSProperties = {
+    borderTopColor: isLight ? '#e4d9c8' : 'rgba(30,41,59,0.8)',
+    color: isLight ? '#9b8e7a' : '#64748b',
+  };
+
   return (
-    <aside className="w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col h-full no-print">
+    <aside
+      className="w-64 shrink-0 border-r flex flex-col h-full no-print"
+      style={sidebarStyle}
+    >
       {/* Brand Header */}
-      <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800">
+      <div className="h-16 flex items-center gap-3 px-6 border-b" style={brandBorderStyle}>
         <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#D95D2B] to-[#EB7444] flex items-center justify-center text-white font-black shadow-lg shadow-orange-600/30">
           🌶️
         </div>
         <div>
-          <h1 className="text-sm font-bold tracking-tight text-white">HMS Admin</h1>
-          <p className="text-[11px] text-[#EB7444] font-medium">SpiceHub Ops</p>
+          <h1 className="text-sm font-bold tracking-tight" style={{ color: isLight ? '#282820' : '#f8fafc' }}>HMS Admin</h1>
+          <p className="text-[11px] font-medium" style={{ color: '#D95D2B' }}>SpiceHub Ops</p>
         </div>
       </div>
 
@@ -109,20 +134,42 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onSelectModule(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer"
+              style={
                 isActive
-                  ? 'bg-[#D95D2B] text-white shadow-md shadow-orange-600/25 font-semibold'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-              }`}
+                  ? {
+                      backgroundColor: '#D95D2B',
+                      color: '#ffffff',
+                      boxShadow: '0 2px 8px rgba(217,93,43,0.35)',
+                    }
+                  : {
+                      color: isLight ? '#5a5545' : '#94a3b8',
+                      backgroundColor: 'transparent',
+                    }
+              }
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = isLight
+                    ? '#fef3e2'
+                    : 'rgba(30,41,59,0.6)';
+                  (e.currentTarget as HTMLButtonElement).style.color = isLight ? '#282820' : '#f1f5f9';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color = isLight ? '#5a5545' : '#94a3b8';
+                }
+              }}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <Icon className="w-4 h-4" style={{ color: isActive ? '#fff' : (isLight ? '#D95D2B' : '#94a3b8') }} />
                 <span>{item.label}</span>
               </div>
               {item.badge !== undefined && (
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                    item.badgeColor || 'bg-slate-800 text-slate-200'
+                    item.badgeColor || (isLight ? 'bg-gray-100 text-gray-700' : 'bg-slate-800 text-slate-200')
                   }`}
                 >
                   {item.badge}
@@ -134,7 +181,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       </nav>
 
       {/* Footer Info */}
-      <div className="p-4 border-t border-slate-800/80 text-[11px] text-slate-500 text-center">
+      <div className="p-4 border-t text-[11px] text-center" style={footerStyle}>
         Single Restaurant Ops v1.0
       </div>
     </aside>

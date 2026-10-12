@@ -156,19 +156,19 @@ export const AuditLogsPage: React.FC = () => {
           className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink focus:outline-none"
         >
           <option value="">All Action Types</option>
-          <option value="PRICE_VARIANT_PRICE_CHANGED">PRICE_VARIANT_PRICE_CHANGED</option>
-          <option value="QR_TOKEN_ROTATED">QR_TOKEN_ROTATED</option>
-          <option value="STAFF_USER_CREATED">STAFF_USER_CREATED</option>
-          <option value="STAFF_USER_UPDATED">STAFF_USER_UPDATED</option>
-          <option value="STAFF_PASSWORD_RESET">STAFF_PASSWORD_RESET</option>
-          <option value="RESTAURANT_SETTINGS_UPDATED">RESTAURANT_SETTINGS_UPDATED</option>
-          <option value="ORDER_MODIFIED">ORDER_MODIFIED</option>
-          <option value="ORDER_CANCELLED">ORDER_CANCELLED</option>
-          <option value="BILL_GENERATED">BILL_GENERATED</option>
-          <option value="BILL_DISCOUNT_APPLIED">BILL_DISCOUNT_APPLIED</option>
-          <option value="BILL_VOIDED_FOR_REVISION">BILL_VOIDED_FOR_REVISION</option>
-          <option value="PAYMENT_RECORDED">PAYMENT_RECORDED</option>
-          <option value="SESSION_LIMIT_OVERRIDDEN">SESSION_LIMIT_OVERRIDDEN</option>
+          <option value="PRICE_VARIANT_PRICE_CHANGED">Dish Price Changed</option>
+          <option value="QR_TOKEN_ROTATED">QR Code Regenerated</option>
+          <option value="STAFF_USER_CREATED">New Staff Account Created</option>
+          <option value="STAFF_USER_UPDATED">Staff Account Updated</option>
+          <option value="STAFF_PASSWORD_RESET">Staff Password Reset</option>
+          <option value="RESTAURANT_SETTINGS_UPDATED">Restaurant Settings Changed</option>
+          <option value="ORDER_MODIFIED">Order Items Modified</option>
+          <option value="ORDER_CANCELLED">Order Cancelled</option>
+          <option value="BILL_GENERATED">Bill Generated</option>
+          <option value="BILL_DISCOUNT_APPLIED">Manager Discount Applied</option>
+          <option value="BILL_VOIDED_FOR_REVISION">Bill Cancelled to Fix Order</option>
+          <option value="PAYMENT_RECORDED">Customer Payment Received</option>
+          <option value="SESSION_LIMIT_OVERRIDDEN">Spending Limit Overridden</option>
         </select>
 
         <select

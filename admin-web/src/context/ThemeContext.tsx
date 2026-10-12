@@ -15,12 +15,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
     if (stored === 'light' || stored === 'dark') return stored;
-    // Default: light
-    return 'light';
+    // Default: dark (matching Spice Hub Admin Portal specifications)
+    return 'dark';
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 

@@ -56,7 +56,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
     {
       id: 'billing' as AdminModule,
-      label: 'Billing & Settle',
+      label: 'Billing & Payments',
       icon: Receipt,
       badge: unpaidCount > 0 ? unpaidCount : undefined,
       badgeColor: isLight
@@ -65,12 +65,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
     {
       id: 'tables-qr' as AdminModule,
-      label: 'Tables & QR',
+      label: 'Tables & QR Codes',
       icon: QrCode,
     },
     {
       id: 'menu' as AdminModule,
-      label: 'Menu Catalog',
+      label: 'Menu Dishes',
       icon: UtensilsCrossed,
     },
     {
@@ -85,12 +85,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
     {
       id: 'settings' as AdminModule,
-      label: 'Settings',
+      label: 'Restaurant Settings',
       icon: Settings,
     },
     {
       id: 'audit-logs' as AdminModule,
-      label: 'Audit Viewer',
+      label: 'Activity & Audit Logs',
       icon: ShieldAlert,
     },
   ];

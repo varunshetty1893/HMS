@@ -3,7 +3,8 @@
  * Enforces Bearer JWT injection, 401 refresh token rotation, and error standard handling.
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// In dev, go through the Vite proxy (/api -> backend) so CORS / port mismatches can't break requests.
+const BASE_URL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || '/api/v1');
 
 export class ApiError extends Error {
   code: string;
@@ -57,7 +58,11 @@ export async function apiClient<T>(
   try {
     response = await fetch(url, { ...options, headers });
   } catch (err: any) {
-    throw new ApiError(err?.message || 'Network error occurred', 'NETWORK_ERROR', 0);
+    throw new ApiError(
+      'Cannot reach the server. Make sure the backend is running (port 8000) and the database is up.',
+      'NETWORK_ERROR',
+      0
+    );
   }
 
   // Handle 401 Token Expiration -> Trigger Refresh

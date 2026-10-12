@@ -16,7 +16,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
   } else if (normalized === 'ACCEPTED') {
     colorClasses = 'bg-blue-950/60 text-blue-300 border-blue-700/50';
   } else if (normalized === 'PREPARING') {
-    colorClasses = 'bg-indigo-950/60 text-indigo-300 border-indigo-700/50';
+    colorClasses = 'bg-brand-950/60 text-brand-300 border-brand-700/50';
   } else if (normalized === 'READY') {
     colorClasses = 'bg-emerald-950/60 text-emerald-300 border-emerald-700/50 animate-pulse';
   } else if (normalized === 'SERVED') {

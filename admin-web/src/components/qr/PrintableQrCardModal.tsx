@@ -23,20 +23,20 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
         {/* Controls - Hidden during print */}
         <div className="no-print flex items-center justify-between pb-4 border-b border-slate-800">
           <div>
-            <h3 className="text-base font-bold text-white">Table QR Standee Card</h3>
+            <h3 className="text-base font-bold text-ink">Table QR Standee Card</h3>
             <p className="text-xs text-slate-400">Token v{cardData.token_version} • Prefix {cardData.token_prefix}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-600/30 transition"
             >
               <Printer className="w-4 h-4" />
               <span>Print Card</span>
             </button>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1 rounded-lg"
+              className="text-slate-400 hover:text-ink p-1 rounded-lg"
             >
               <X className="w-5 h-5" />
             </button>
@@ -45,7 +45,8 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
 
         {/* The Printable Standee Card */}
         <div className="mt-6 p-8 bg-white text-slate-900 rounded-2xl shadow-xl flex flex-col items-center text-center border-4 border-slate-900">
-          <div className="uppercase tracking-widest text-[11px] font-black text-indigo-600 mb-1">
+          <img src="/logo.png" alt="Spice Hub" className="w-20 h-20 mb-2" />
+          <div className="uppercase tracking-widest text-[11px] font-black text-brand-600 mb-1">
             {cardData.restaurant_name}
           </div>
           <div className="text-3xl font-black tracking-tight text-slate-950 mb-4">

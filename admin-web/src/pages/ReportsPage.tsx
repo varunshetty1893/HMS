@@ -94,7 +94,7 @@ export const ReportsPage: React.FC = () => {
       {/* Header & Date Range Filter */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Business Intelligence & Reports</h1>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Business Intelligence & Reports</h1>
           <p className="text-sm text-slate-400 mt-1">
             Sales aggregation, tax liabilities, velocity analysis, and staff performance
           </p>
@@ -107,20 +107,20 @@ export const ReportsPage: React.FC = () => {
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="bg-transparent text-white focus:outline-none"
+              className="bg-transparent text-ink focus:outline-none"
             />
             <span className="text-slate-600">to</span>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="bg-transparent text-white focus:outline-none"
+              className="bg-transparent text-ink focus:outline-none"
             />
           </div>
 
           <button
             onClick={handleDownloadCsv}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-600/30 transition cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
@@ -152,7 +152,7 @@ export const ReportsPage: React.FC = () => {
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs font-semibold shrink-0 transition ${
                 isActive
-                  ? 'border-indigo-500 text-white bg-slate-900/40 rounded-t-xl'
+                  ? 'border-brand-500 text-ink bg-slate-900/40 rounded-t-xl'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -194,7 +194,7 @@ export const ReportsPage: React.FC = () => {
                   ) : (
                     dailySales.map((d, i) => (
                       <tr key={i} className="hover:bg-slate-800/30">
-                        <td className="px-6 py-4 font-semibold text-white font-sans">{formatDateIst(d.date)}</td>
+                        <td className="px-6 py-4 font-semibold text-ink font-sans">{formatDateIst(d.date)}</td>
                         <td className="px-6 py-4 text-right text-slate-300">{formatInr(d.gross_subtotal)}</td>
                         <td className="px-6 py-4 text-right text-amber-400">-{formatInr(d.total_discounts)}</td>
                         <td className="px-6 py-4 text-right text-slate-400">{formatInr(d.cgst_amount)}</td>
@@ -203,7 +203,7 @@ export const ReportsPage: React.FC = () => {
                           {formatInr(d.net_collected_revenue)}
                         </td>
                         <td className="px-6 py-4 text-right text-slate-200">{d.total_bills}</td>
-                        <td className="px-6 py-4 text-right text-indigo-300">{formatInr(d.average_bill_value)}</td>
+                        <td className="px-6 py-4 text-right text-brand-300">{formatInr(d.average_bill_value)}</td>
                       </tr>
                     ))
                   )}
@@ -237,13 +237,13 @@ export const ReportsPage: React.FC = () => {
                     popularDishes.map((dish, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/30">
                         <td className="px-6 py-4 font-bold text-slate-500">#{idx + 1}</td>
-                        <td className="px-6 py-4 font-mono font-bold text-indigo-400">{dish.item_code}</td>
-                        <td className="px-6 py-4 font-semibold text-white">{dish.item_name}</td>
+                        <td className="px-6 py-4 font-mono font-bold text-brand-400">{dish.item_code}</td>
+                        <td className="px-6 py-4 font-semibold text-ink">{dish.item_name}</td>
                         <td className="px-6 py-4 text-xs text-slate-400">{dish.variant_name}</td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-slate-200">
                           {dish.quantity_billed}
                         </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-white">
+                        <td className="px-6 py-4 text-right font-mono font-bold text-ink">
                           {formatInr(dish.gross_revenue)}
                         </td>
                       </tr>
@@ -266,12 +266,12 @@ export const ReportsPage: React.FC = () => {
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                       {pm.payment_method}
                     </span>
-                    <div className="p-2.5 rounded-2xl bg-indigo-950/60 text-indigo-400 border border-indigo-800/40">
+                    <div className="p-2.5 rounded-2xl bg-brand-950/60 text-brand-400 border border-brand-800/40">
                       <CreditCard className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4">
-                    <div className="text-2xl font-black font-mono text-white">
+                    <div className="text-2xl font-black font-mono text-ink">
                       {formatInr(pm.total_amount)}
                     </div>
                     <p className="text-xs text-slate-500 mt-1">{pm.transaction_count} settled transactions</p>
@@ -296,7 +296,7 @@ export const ReportsPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-800/60">
                   {tableUsage.map((t) => (
                     <tr key={t.table_id} className="hover:bg-slate-800/30">
-                      <td className="px-6 py-4 font-semibold text-white">
+                      <td className="px-6 py-4 font-semibold text-ink">
                         {t.display_name} <span className="text-xs text-slate-500 font-mono">(#{t.table_number})</span>
                       </td>
                       <td className="px-6 py-4 text-right font-mono font-bold text-slate-200">{t.session_count}</td>
@@ -337,7 +337,7 @@ export const ReportsPage: React.FC = () => {
                   ) : (
                     cancellations.map((c) => (
                       <tr key={c.order_id} className="hover:bg-slate-800/30">
-                        <td className="px-6 py-4 font-mono font-bold text-white">{c.order_number}</td>
+                        <td className="px-6 py-4 font-mono font-bold text-ink">{c.order_number}</td>
                         <td className="px-6 py-4 font-semibold text-slate-200">Table {c.table_number}</td>
                         <td className="px-6 py-4">
                           <span className="text-xs px-2 py-0.5 rounded font-bold bg-rose-950 text-rose-300 border border-rose-800">
@@ -362,18 +362,18 @@ export const ReportsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Waiter Performance */}
               <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-                <h3 className="text-base font-bold text-white">Waiter Operations</h3>
+                <h3 className="text-base font-bold text-ink">Waiter Operations</h3>
                 <div className="divide-y divide-slate-800">
                   {waiters.map((w) => (
                     <div key={w.user_id} className="py-3 flex items-center justify-between text-xs">
                       <div>
-                        <div className="font-semibold text-white">{w.full_name}</div>
+                        <div className="font-semibold text-ink">{w.full_name}</div>
                         <div className="text-slate-500 font-mono">@{w.username}</div>
                       </div>
                       <div className="text-right space-y-0.5 text-slate-400 font-mono">
-                        <div>Orders: <strong className="text-white">{w.orders_placed}</strong></div>
+                        <div>Orders: <strong className="text-ink">{w.orders_placed}</strong></div>
                         <div>Delivered: <strong className="text-emerald-400">{w.items_served}</strong></div>
-                        <div>Settled: <strong className="text-indigo-400">{w.payments_recorded}</strong></div>
+                        <div>Settled: <strong className="text-brand-400">{w.payments_recorded}</strong></div>
                       </div>
                     </div>
                   ))}
@@ -382,18 +382,18 @@ export const ReportsPage: React.FC = () => {
 
               {/* Kitchen Performance */}
               <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-                <h3 className="text-base font-bold text-white">Kitchen Turnaround</h3>
+                <h3 className="text-base font-bold text-ink">Kitchen Turnaround</h3>
                 <div className="divide-y divide-slate-800">
                   {kitchens.map((k) => (
                     <div key={k.user_id} className="py-3 flex items-center justify-between text-xs">
                       <div>
-                        <div className="font-semibold text-white">{k.full_name}</div>
+                        <div className="font-semibold text-ink">{k.full_name}</div>
                         <div className="text-slate-500 font-mono">@{k.username}</div>
                       </div>
                       <div className="text-right space-y-0.5 text-slate-400 font-mono">
-                        <div>Accepted: <strong className="text-white">{k.orders_accepted}</strong></div>
+                        <div>Accepted: <strong className="text-ink">{k.orders_accepted}</strong></div>
                         <div>Ready: <strong className="text-emerald-400">{k.orders_ready}</strong></div>
-                        <div>Avg Prep: <strong className="text-indigo-400">{k.avg_prep_minutes}m</strong></div>
+                        <div>Avg Prep: <strong className="text-brand-400">{k.avg_prep_minutes}m</strong></div>
                       </div>
                     </div>
                   ))}

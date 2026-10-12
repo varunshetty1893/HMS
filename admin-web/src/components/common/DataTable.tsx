@@ -34,7 +34,7 @@ export function DataTable<T>({
   if (isLoading) {
     return (
       <div className="w-full rounded-2xl border border-slate-800 bg-slate-900/50 p-12 text-center">
-        <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
         <p className="mt-3 text-sm text-slate-400">Loading records...</p>
       </div>
     );
@@ -46,7 +46,7 @@ export function DataTable<T>({
         <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-800/80 flex items-center justify-center text-slate-400">
           <Inbox className="w-6 h-6" />
         </div>
-        <h4 className="mt-3 text-base font-semibold text-white">Empty</h4>
+        <h4 className="mt-3 text-base font-semibold text-ink">Empty</h4>
         <p className="mt-1 text-sm text-slate-400">{emptyMessage}</p>
       </div>
     );

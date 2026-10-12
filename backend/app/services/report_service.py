@@ -262,9 +262,9 @@ class ReportService:
 
         stmt = (
             select(
-                BillItem.item_code,
-                BillItem.item_name,
-                BillItem.variant_name,
+                BillItem.item_code_snapshot,
+                BillItem.item_name_snapshot,
+                BillItem.variant_name_snapshot,
                 func.sum(BillItem.quantity_billed).label("total_qty"),
                 func.sum(BillItem.line_total).label("total_revenue"),
             )
@@ -274,7 +274,11 @@ class ReportService:
                 Bill.generated_at >= start_utc,
                 Bill.generated_at <= end_utc,
             )
-            .group_by(BillItem.item_code, BillItem.item_name, BillItem.variant_name)
+            .group_by(
+                BillItem.item_code_snapshot,
+                BillItem.item_name_snapshot,
+                BillItem.variant_name_snapshot,
+            )
             .order_by(desc("total_qty"))
             .limit(limit)
         )
@@ -361,7 +365,7 @@ class ReportService:
         stmt = (
             select(
                 Payment.payment_method,
-                func.count(Payment.id),
+                func.count(Payment.id).label("tx_count"),
                 func.coalesce(func.sum(Payment.amount_paid), Decimal("0.00")),
             )
             .where(
@@ -370,7 +374,7 @@ class ReportService:
                 Payment.completed_at <= end_utc,
             )
             .group_by(Payment.payment_method)
-            .order_by(desc("count_1"))
+            .order_by(desc("tx_count"))
         )
         rows = (await db.execute(stmt)).all()
 

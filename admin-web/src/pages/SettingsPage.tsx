@@ -108,7 +108,7 @@ export const SettingsPage: React.FC = () => {
     <div className="p-8 max-w-4xl space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-black tracking-tight text-white">Restaurant Configuration & Policies</h1>
+        <h1 className="text-2xl font-black tracking-tight text-ink">Restaurant Configuration & Policies</h1>
         <p className="text-sm text-slate-400 mt-1">
           Profile, GST tax rates, session limit protection, and operational switches
           {settings?.updated_at && ` • Last updated ${formatDateTimeIst(settings.updated_at)}`}
@@ -132,8 +132,8 @@ export const SettingsPage: React.FC = () => {
         {/* Section 1: Business Profile */}
         <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-            <Building2 className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-base font-bold text-white">Restaurant Profile</h2>
+            <Building2 className="w-5 h-5 text-brand-400" />
+            <h2 className="text-base font-bold text-ink">Restaurant Profile</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -144,7 +144,7 @@ export const SettingsPage: React.FC = () => {
                 value={restaurantName}
                 onChange={(e) => setRestaurantName(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -154,7 +154,7 @@ export const SettingsPage: React.FC = () => {
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value.toUpperCase())}
                 placeholder="29AAAAA0000A1Z5"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -164,7 +164,7 @@ export const SettingsPage: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -174,7 +174,7 @@ export const SettingsPage: React.FC = () => {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="123 Food Street, Indiranagar, Bengaluru"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>
@@ -184,7 +184,7 @@ export const SettingsPage: React.FC = () => {
         <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
             <Percent className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-white">GST Rates & Exposure Protection</h2>
+            <h2 className="text-base font-bold text-ink">GST Rates & Exposure Protection</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -196,7 +196,7 @@ export const SettingsPage: React.FC = () => {
                 value={cgstPercentage}
                 onChange={(e) => setCgstPercentage(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink"
               />
               <span className="text-[11px] text-slate-500 mt-0.5 block">Default 2.50%</span>
             </div>
@@ -208,7 +208,7 @@ export const SettingsPage: React.FC = () => {
                 value={sgstPercentage}
                 onChange={(e) => setSgstPercentage(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink"
               />
               <span className="text-[11px] text-slate-500 mt-0.5 block">Default 2.50%</span>
             </div>
@@ -220,7 +220,7 @@ export const SettingsPage: React.FC = () => {
                 value={outstandingLimit}
                 onChange={(e) => setOutstandingLimit(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink"
               />
               <span className="text-[11px] text-slate-500 mt-0.5 block">Default ₹5,000.00 cap per session</span>
             </div>
@@ -230,73 +230,73 @@ export const SettingsPage: React.FC = () => {
         {/* Section 3: Operational Policy Switches (OD-01..OD-08) */}
         <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-            <ShieldCheck className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-base font-bold text-white">Operational Policy Controls</h2>
+            <ShieldCheck className="w-5 h-5 text-brand-400" />
+            <h2 className="text-base font-bold text-ink">Operational Policy Controls</h2>
           </div>
 
           <div className="space-y-3">
             <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 cursor-pointer">
               <div>
-                <span className="text-sm font-semibold text-white block">Multi-Device Ordering (OD-01)</span>
+                <span className="text-sm font-semibold text-ink block">Multi-Device Ordering (OD-01)</span>
                 <span className="text-xs text-slate-400">Allow multiple customer phones at the same table to order simultaneously.</span>
               </div>
               <input
                 type="checkbox"
                 checked={allowMultiDevice}
                 onChange={(e) => setAllowMultiDevice(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600 rounded"
+                className="w-4 h-4 accent-brand-600 rounded"
               />
             </label>
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 cursor-pointer">
               <div>
-                <span className="text-sm font-semibold text-white block">Customer Self-Cancel (OD-02)</span>
+                <span className="text-sm font-semibold text-ink block">Customer Self-Cancel (OD-02)</span>
                 <span className="text-xs text-slate-400">Allow customer phone to cancel their order while still in PLACED status.</span>
               </div>
               <input
                 type="checkbox"
                 checked={allowCustomerCancel}
                 onChange={(e) => setAllowCustomerCancel(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600 rounded"
+                className="w-4 h-4 accent-brand-600 rounded"
               />
             </label>
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 cursor-pointer">
               <div>
-                <span className="text-sm font-semibold text-white block">Kitchen 86 Stock Toggle (OD-05)</span>
+                <span className="text-sm font-semibold text-ink block">Kitchen 86 Stock Toggle (OD-05)</span>
                 <span className="text-xs text-slate-400">Allow Kitchen KDS display staff to mark dishes sold out directly.</span>
               </div>
               <input
                 type="checkbox"
                 checked={allowKitchenToggle}
                 onChange={(e) => setAllowKitchenToggle(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600 rounded"
+                className="w-4 h-4 accent-brand-600 rounded"
               />
             </label>
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 cursor-pointer">
               <div>
-                <span className="text-sm font-semibold text-white block">Include Tax in ₹5,000 Cap (OD-06)</span>
+                <span className="text-sm font-semibold text-ink block">Include Tax in ₹5,000 Cap (OD-06)</span>
                 <span className="text-xs text-slate-400">Calculates estimated GST before evaluating the session exposure limit.</span>
               </div>
               <input
                 type="checkbox"
                 checked={limitIncludesTax}
                 onChange={(e) => setLimitIncludesTax(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600 rounded"
+                className="w-4 h-4 accent-brand-600 rounded"
               />
             </label>
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 cursor-pointer">
               <div>
-                <span className="text-sm font-semibold text-white block">Apply Exposure Limit to Waiter Orders (OD-07)</span>
+                <span className="text-sm font-semibold text-ink block">Apply Exposure Limit to Waiter Orders (OD-07)</span>
                 <span className="text-xs text-slate-400">Blocks waiter manual order entry if table session exceeds ₹5,000 cap.</span>
               </div>
               <input
                 type="checkbox"
                 checked={limitAppliesToWaiter}
                 onChange={(e) => setLimitAppliesToWaiter(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600 rounded"
+                className="w-4 h-4 accent-brand-600 rounded"
               />
             </label>
           </div>
@@ -306,7 +306,7 @@ export const SettingsPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSaving}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white shadow-lg shadow-brand-600/30 transition cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>{isSaving ? 'Saving Changes...' : 'Save Configuration'}</span>

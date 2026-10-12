@@ -169,7 +169,7 @@ export const MenuManagementPage: React.FC = () => {
       {/* Header & Primary Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Menu & Catalog Manager</h1>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Menu & Catalog Manager</h1>
           <p className="text-sm text-slate-400 mt-1">
             Categories, dishes, price variants, short codes, and 86'd stock availability
           </p>
@@ -184,7 +184,7 @@ export const MenuManagementPage: React.FC = () => {
           </button>
           <button
             onClick={() => setIsItemModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 transition"
           >
             <Plus className="w-4 h-4" />
             <span>Add Dish</span>
@@ -206,8 +206,8 @@ export const MenuManagementPage: React.FC = () => {
             onClick={() => setSelectedCategory('ALL')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition ${
               selectedCategory === 'ALL'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                : 'bg-slate-900 text-slate-400 hover:text-ink border border-slate-800'
             }`}
           >
             All Items ({items.length})
@@ -218,8 +218,8 @@ export const MenuManagementPage: React.FC = () => {
               onClick={() => setSelectedCategory(c.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition ${
                 selectedCategory === c.id
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                  : 'bg-slate-900 text-slate-400 hover:text-ink border border-slate-800'
               }`}
             >
               {c.name}
@@ -235,7 +235,7 @@ export const MenuManagementPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search dish or code (CB)..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink placeholder-slate-500 focus:outline-none focus:border-brand-500"
           />
         </div>
       </div>
@@ -262,7 +262,7 @@ export const MenuManagementPage: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-indigo-950 text-indigo-400 border border-indigo-800/50">
+                    <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-brand-950 text-brand-400 border border-brand-800/50">
                       {item.item_code}
                     </span>
                     <span
@@ -296,7 +296,7 @@ export const MenuManagementPage: React.FC = () => {
                   </button>
                 </div>
 
-                <h3 className="text-base font-bold text-white mt-3">{item.name}</h3>
+                <h3 className="text-base font-bold text-ink mt-3">{item.name}</h3>
                 {item.description && (
                   <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.description}</p>
                 )}
@@ -317,7 +317,7 @@ export const MenuManagementPage: React.FC = () => {
                         <span className="font-mono text-slate-400 text-[10px]">{v.variant_code}</span>
                         <span className="font-medium text-slate-200">{v.variant_name}</span>
                       </div>
-                      <span className="font-mono font-bold text-white">{formatInr(v.price)}</span>
+                      <span className="font-mono font-bold text-ink">{formatInr(v.price)}</span>
                     </div>
                   ))}
                 </div>
@@ -325,7 +325,7 @@ export const MenuManagementPage: React.FC = () => {
 
               {/* Image & Action bar */}
               <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-                <label className="flex items-center gap-1.5 text-indigo-400 hover:text-indigo-300 cursor-pointer font-medium">
+                <label className="flex items-center gap-1.5 text-brand-400 hover:text-brand-300 cursor-pointer font-medium">
                   <Camera className="w-4 h-4" />
                   <span>{uploadingItemId === item.id ? 'Uploading...' : item.image_url ? 'Replace Photo' : 'Add Photo'}</span>
                   <input
@@ -347,8 +347,8 @@ export const MenuManagementPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Create Menu Category</h3>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-white">
+              <h3 className="text-lg font-bold text-ink">Create Menu Category</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -361,7 +361,7 @@ export const MenuManagementPage: React.FC = () => {
                   onChange={(e) => setCategoryName(e.target.value)}
                   placeholder="Biriyani, Starters, Beverages..."
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div>
@@ -371,7 +371,7 @@ export const MenuManagementPage: React.FC = () => {
                   value={categoryDesc}
                   onChange={(e) => setCategoryDesc(e.target.value)}
                   placeholder="Traditional dum biriyanis cooked over coal..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div className="pt-2 flex justify-end gap-3">
@@ -384,7 +384,7 @@ export const MenuManagementPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
                 >
                   Create Category
                 </button>
@@ -399,8 +399,8 @@ export const MenuManagementPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
           <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl my-8">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Add New Dish</h3>
-              <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-white">
+              <h3 className="text-lg font-bold text-ink">Add New Dish</h3>
+              <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -414,7 +414,7 @@ export const MenuManagementPage: React.FC = () => {
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder="Chicken Biryani"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                   />
                 </div>
                 <div>
@@ -427,7 +427,7 @@ export const MenuManagementPage: React.FC = () => {
                     onChange={(e) => setNewItemCode(e.target.value.toUpperCase())}
                     placeholder="CB"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -437,7 +437,7 @@ export const MenuManagementPage: React.FC = () => {
                 <select
                   value={newItemCatId}
                   onChange={(e) => setNewItemCatId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -453,7 +453,7 @@ export const MenuManagementPage: React.FC = () => {
                   <select
                     value={newItemDiet}
                     onChange={(e) => setNewItemDiet(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                   >
                     <option value="VEG">VEG</option>
                     <option value="NON_VEG">NON-VEG</option>
@@ -465,7 +465,7 @@ export const MenuManagementPage: React.FC = () => {
                   <select
                     value={newItemSpice}
                     onChange={(e) => setNewItemSpice(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                   >
                     <option value="NONE">None</option>
                     <option value="MILD">Mild</option>
@@ -483,13 +483,13 @@ export const MenuManagementPage: React.FC = () => {
                   onChange={(e) => setNewItemDesc(e.target.value)}
                   placeholder="Rich spices, long-grain basmati rice, tender chicken..."
                   rows={2}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
               {/* Initial Price Variant */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-400">
                   Initial Portion & Price
                 </span>
                 <div className="grid grid-cols-3 gap-3">
@@ -501,7 +501,7 @@ export const MenuManagementPage: React.FC = () => {
                       onChange={(e) => setVariantName(e.target.value)}
                       placeholder="Full / Half"
                       required
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white"
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-ink"
                     />
                   </div>
                   <div>
@@ -511,7 +511,7 @@ export const MenuManagementPage: React.FC = () => {
                       value={variantCode}
                       onChange={(e) => setVariantCode(e.target.value.toUpperCase())}
                       placeholder="CB-F"
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-white"
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-ink"
                     />
                   </div>
                   <div>
@@ -522,7 +522,7 @@ export const MenuManagementPage: React.FC = () => {
                       value={variantPrice}
                       onChange={(e) => setVariantPrice(e.target.value)}
                       required
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-white"
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-ink"
                     />
                   </div>
                 </div>
@@ -538,7 +538,7 @@ export const MenuManagementPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
                 >
                   Save Dish
                 </button>

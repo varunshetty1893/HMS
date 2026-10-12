@@ -82,7 +82,7 @@ export const TopStatusHeader: React.FC = () => {
           className="hidden sm:flex items-center gap-1.5 text-xs font-mono px-3 py-1 rounded-xl"
           style={clockStyle}
         >
-          <span className="font-sans font-medium" style={{ color: isLight ? '#9b8e7a' : '#64748b' }}>IST:</span>
+          <span className="font-sans font-medium" style={{ color: isLight ? '#756a56' : '#64748b' }}>IST:</span>
           <span>{currentTime || '—'}</span>
         </div>
       </div>

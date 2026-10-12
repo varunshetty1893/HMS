@@ -65,7 +65,7 @@ export const AuditLogsPage: React.FC = () => {
       key: 'action_type',
       header: 'Action Event',
       render: (row: AuditLog) => (
-        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950/70 text-indigo-300 border border-indigo-800/50">
+        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-brand-950/70 text-brand-300 border border-brand-800/50">
           {row.action_type}
         </span>
       ),
@@ -75,7 +75,7 @@ export const AuditLogsPage: React.FC = () => {
       header: 'Actor & Role',
       render: (row: AuditLog) => (
         <div className="text-xs">
-          <span className="font-semibold text-white">@{row.actor_role}</span>
+          <span className="font-semibold text-ink">@{row.actor_role}</span>
           {row.actor_user_id && (
             <span className="block text-[11px] font-mono text-slate-500">
               {row.actor_user_id.slice(0, 8)}...
@@ -111,7 +111,7 @@ export const AuditLogsPage: React.FC = () => {
         <button
           onClick={() => setSelectedLog(row)}
           title="Inspect State Snapshots"
-          className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40 border border-transparent hover:border-indigo-800/50 transition cursor-pointer"
+          className="p-1.5 rounded-lg text-brand-400 hover:text-brand-300 hover:bg-brand-950/40 border border-transparent hover:border-brand-800/50 transition cursor-pointer"
         >
           <Eye className="w-4 h-4" />
         </button>
@@ -124,8 +124,8 @@ export const AuditLogsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
-            <ShieldAlert className="w-6 h-6 text-indigo-400" />
+          <h1 className="text-2xl font-black tracking-tight text-ink flex items-center gap-2.5">
+            <ShieldAlert className="w-6 h-6 text-brand-400" />
             <span>Immutable Audit Log Viewer</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
@@ -153,7 +153,7 @@ export const AuditLogsPage: React.FC = () => {
         <select
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
-          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none"
+          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink focus:outline-none"
         >
           <option value="">All Action Types</option>
           <option value="PRICE_VARIANT_PRICE_CHANGED">PRICE_VARIANT_PRICE_CHANGED</option>
@@ -174,7 +174,7 @@ export const AuditLogsPage: React.FC = () => {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none"
+          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink focus:outline-none"
         >
           <option value="">All Actor Roles</option>
           <option value="ADMIN">ADMIN</option>
@@ -207,10 +207,10 @@ export const AuditLogsPage: React.FC = () => {
           <div className="w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between pb-4 border-b border-slate-800">
               <div>
-                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/50">
+                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-brand-950 text-brand-300 border border-brand-800/50">
                   {selectedLog.action_type}
                 </span>
-                <h3 className="text-base font-bold text-white mt-2">
+                <h3 className="text-base font-bold text-ink mt-2">
                   Target: {selectedLog.entity_type} #{selectedLog.entity_id}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -219,7 +219,7 @@ export const AuditLogsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-ink p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -7,7 +7,8 @@
  * stored refresh_token so that WebSocket connections are never rejected with 403.
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// In dev, go through the Vite proxy (/api -> backend) so CORS / port mismatches can't break requests.
+const BASE_URL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || '/api/v1');
 
 type EventHandler = (data: any) => void;
 type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED';

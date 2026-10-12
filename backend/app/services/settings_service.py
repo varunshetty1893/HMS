@@ -40,7 +40,6 @@ class SettingsService:
                 kitchen_can_toggle_availability=True,
                 limit_includes_estimated_tax=False,
                 apply_outstanding_limit_to_waiter_orders=False,
-                allow_waiter_discount=False,
                 waiter_max_discount_percentage=Decimal("0.00"),
             )
             db.add(settings)
@@ -64,6 +63,8 @@ class SettingsService:
         settings = await cls.get_settings(db)
 
         update_dict = payload.model_dump(exclude_unset=True)
+        # `allow_waiter_discount` has no database column; ignore it instead of crashing.
+        update_dict.pop("allow_waiter_discount", None)
         if not update_dict:
             return RestaurantSettingsResponse.model_validate(settings)
 

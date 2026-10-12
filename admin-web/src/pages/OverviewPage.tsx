@@ -56,9 +56,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   } as React.CSSProperties;
 
   const headingColor = L ? '#282820' : '#f8fafc';
-  const labelColor = L ? '#9b8e7a' : '#64748b';
+  const labelColor = L ? '#756a56' : '#64748b';
   const valueColor = L ? '#282820' : '#f8fafc';
-  const subColor = L ? '#9b8e7a' : '#64748b';
+  const subColor = L ? '#756a56' : '#64748b';
 
   if (isLoading) {
     return (

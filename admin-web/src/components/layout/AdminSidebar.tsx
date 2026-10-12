@@ -106,7 +106,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const footerStyle: React.CSSProperties = {
     borderTopColor: isLight ? '#e4d9c8' : 'rgba(30,41,59,0.8)',
-    color: isLight ? '#9b8e7a' : '#64748b',
+    color: isLight ? '#756a56' : '#64748b',
   };
 
   return (
@@ -116,12 +116,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center gap-3 px-6 border-b" style={brandBorderStyle}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#D95D2B] to-[#EB7444] flex items-center justify-center text-white font-black shadow-lg shadow-orange-600/30">
-          🌶️
-        </div>
+        <img
+          src="/logo.png"
+          alt="Spice Hub"
+          className="w-10 h-10 rounded-full shrink-0 shadow-md shadow-black/20"
+        />
         <div>
-          <h1 className="text-sm font-bold tracking-tight" style={{ color: isLight ? '#282820' : '#f8fafc' }}>HMS Admin</h1>
-          <p className="text-[11px] font-medium" style={{ color: '#D95D2B' }}>SpiceHub Ops</p>
+          <h1 className="text-sm font-bold tracking-tight" style={{ color: isLight ? '#282820' : '#f8fafc' }}>Spice Hub</h1>
+          <p className="text-[11px] font-medium" style={{ color: '#D95D2B' }}>Admin Portal</p>
         </div>
       </div>
 

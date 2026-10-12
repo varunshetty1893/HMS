@@ -119,14 +119,14 @@ export const StaffManagementPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Staff Account Administration</h1>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Staff Account Administration</h1>
           <p className="text-sm text-slate-400 mt-1">
             Waiters, Kitchen and Admin credentials, session revocation, and lockout management
           </p>
         </div>
         <button
           onClick={() => setIsCreateOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>New Staff Member</span>
@@ -147,8 +147,8 @@ export const StaffManagementPage: React.FC = () => {
             onClick={() => setRoleFilter(r)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
               roleFilter === r
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                : 'bg-slate-900 text-slate-400 hover:text-ink border border-slate-800'
             }`}
           >
             {r === 'ALL' ? 'All Roles' : `${r}s`}
@@ -180,11 +180,11 @@ export const StaffManagementPage: React.FC = () => {
                 <tr key={user.id} className="hover:bg-slate-800/30 transition">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center font-bold text-white text-xs">
+                      <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center font-bold text-ink text-xs">
                         {user.username.slice(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-semibold text-white">{user.full_name}</div>
+                        <div className="font-semibold text-ink">{user.full_name}</div>
                         <div className="text-xs font-mono text-slate-500">@{user.username}</div>
                       </div>
                     </div>
@@ -222,7 +222,7 @@ export const StaffManagementPage: React.FC = () => {
                       <button
                         onClick={() => setResetTargetUser(user)}
                         title="Reset Password"
-                        className="p-2 rounded-xl text-xs font-semibold text-indigo-400 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 transition cursor-pointer"
+                        className="p-2 rounded-xl text-xs font-semibold text-brand-400 bg-brand-950/40 hover:bg-brand-900/50 border border-brand-800/50 transition cursor-pointer"
                       >
                         <KeyRound className="w-4 h-4" />
                       </button>
@@ -253,8 +253,8 @@ export const StaffManagementPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Create Staff Account</h3>
-              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-white">
+              <h3 className="text-lg font-bold text-ink">Create Staff Account</h3>
+              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -267,7 +267,7 @@ export const StaffManagementPage: React.FC = () => {
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="waiter_rahul"
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
@@ -279,7 +279,7 @@ export const StaffManagementPage: React.FC = () => {
                   onChange={(e) => setNewFullName(e.target.value)}
                   placeholder="Rahul Kumar"
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
@@ -288,7 +288,7 @@ export const StaffManagementPage: React.FC = () => {
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value as UserRole)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 >
                   <option value="WAITER">WAITER (Floor orders & bill settlement)</option>
                   <option value="KITCHEN">KITCHEN (KDS ticket processing)</option>
@@ -305,7 +305,7 @@ export const StaffManagementPage: React.FC = () => {
                   placeholder="••••••••••••"
                   required
                   minLength={6}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
@@ -319,7 +319,7 @@ export const StaffManagementPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
                 >
                   Create Account
                 </button>
@@ -333,7 +333,7 @@ export const StaffManagementPage: React.FC = () => {
       {resetTargetUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Reset Staff Password</h3>
+            <h3 className="text-base font-bold text-ink">Reset Staff Password</h3>
             <p className="text-xs text-slate-400 mt-1">For @{resetTargetUser.username}</p>
             <form onSubmit={handleResetPassword} className="mt-4 space-y-4">
               <div>
@@ -345,7 +345,7 @@ export const StaffManagementPage: React.FC = () => {
                   placeholder="••••••••••••"
                   required
                   minLength={6}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -358,7 +358,7 @@ export const StaffManagementPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-500 text-white"
                 >
                   Set Password
                 </button>

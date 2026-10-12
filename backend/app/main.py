@@ -119,6 +119,30 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             )
         return await call_next(request)
 
+    # 1c. Catch-all: unhandled errors become a JSON 500 *inside* the CORS layer, so the
+    #     browser receives a readable error (not an opaque "Failed to fetch") and the
+    #     traceback is logged in the backend terminal.
+    @app.middleware("http")
+    async def unhandled_error_middleware(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        try:
+            return await call_next(request)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": {
+                        "code": "INTERNAL_SERVER_ERROR",
+                        "message": f"Server error: {type(exc).__name__}: {exc}",
+                    }
+                },
+            )
+
     # 2. Strict CORS configuration (wildcard '*' is forbidden by Settings validator)
     if settings.cors_allowed_origins:
         app.add_middleware(

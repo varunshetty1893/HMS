@@ -55,7 +55,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       ? 'bg-rose-600 hover:bg-rose-500 text-white'
       : variant === 'warning'
         ? 'bg-amber-600 hover:bg-amber-500 text-white'
-        : 'bg-indigo-600 hover:bg-indigo-500 text-white';
+        : 'bg-brand-600 hover:bg-brand-500 text-white';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
@@ -72,14 +72,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">{title}</h3>
+              <h3 className="text-lg font-bold text-ink">{title}</h3>
               <p className="text-sm text-slate-400 mt-1">{description}</p>
             </div>
           </div>
           <button
             onClick={onCancel}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-white p-1 rounded-lg"
+            className="text-slate-400 hover:text-ink p-1 rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
@@ -95,7 +95,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onChange={(e) => setReason(e.target.value)}
               placeholder={reasonPlaceholder}
               rows={3}
-              className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-ink placeholder-slate-500 focus:outline-none focus:border-brand-500"
             />
           </div>
         )}

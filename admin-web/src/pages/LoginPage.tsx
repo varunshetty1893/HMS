@@ -50,20 +50,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       >
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div
-            className="inline-flex w-16 h-16 rounded-2xl items-center justify-center text-white text-3xl font-black mb-4 shadow-lg"
-            style={{
-              background: 'linear-gradient(135deg, #D95D2B 0%, #EB7444 100%)',
-              boxShadow: '0 8px 20px -4px rgba(217, 93, 43, 0.35)',
-            }}
-          >
-            🌶️
-          </div>
+          <img
+            src="/logo.png"
+            alt="Spice Hub Family Restaurant"
+            className="mx-auto w-28 h-28 mb-3 drop-shadow-lg"
+          />
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#282820' }}>
-            HMS Admin Portal
+            Admin Portal
           </h1>
           <p className="text-sm mt-1.5 font-medium" style={{ color: '#7A7568' }}>
-            SpiceHub Family Restaurant • Control Plane
+            Spice Hub Family Restaurant • Control Panel
           </p>
         </div>
 

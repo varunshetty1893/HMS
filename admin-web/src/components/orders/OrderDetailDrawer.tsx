@@ -30,14 +30,14 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
         <div className="p-6 border-b border-slate-800 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black text-white">{order.order_number}</h2>
+              <h2 className="text-xl font-black text-ink">{order.order_number}</h2>
               <StatusBadge status={order.status} />
             </div>
             <p className="text-xs text-slate-400 mt-1">
               Table #{order.table_number || '—'} • Source: {order.source} • Placed: {formatDateTimeIst(order.placed_at)}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-ink">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -55,10 +55,10 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                   <div key={item.id} className="p-3.5 flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-800/40">
+                        <span className="text-xs font-mono font-bold text-brand-400 bg-brand-950/50 px-1.5 py-0.5 rounded border border-brand-800/40">
                           {item.item_code}
                         </span>
-                        <span className="text-sm font-semibold text-white">{item.item_name}</span>
+                        <span className="text-sm font-semibold text-ink">{item.item_name}</span>
                         <span className="text-xs text-slate-400">({item.variant_name})</span>
                       </div>
                       {item.item_notes && (
@@ -75,7 +75,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                         <span>{formatInr(item.unit_price_snapshot)} each</span>
                       </div>
                     </div>
-                    <div className="text-right font-mono font-semibold text-sm text-white">
+                    <div className="text-right font-mono font-semibold text-sm text-ink">
                       {formatInr(item.line_subtotal)}
                     </div>
                   </div>
@@ -87,7 +87,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
             <div className="mt-4 flex items-center justify-between px-2">
               <span className="text-sm text-slate-400">Subtotal:</span>
-              <span className="text-base font-bold font-mono text-white">
+              <span className="text-base font-bold font-mono text-ink">
                 {formatInr(order.order_subtotal)}
               </span>
             </div>
@@ -113,7 +113,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                       </span>
                     </div>
                     <p className="text-slate-300">
-                      Qty: {ev.previous_quantity} → <strong className="text-white">{ev.new_quantity}</strong> by{' '}
+                      Qty: {ev.previous_quantity} → <strong className="text-ink">{ev.new_quantity}</strong> by{' '}
                       <span className="text-amber-400 font-mono">@{ev.modified_by_role}</span>
                     </p>
                     <p className="text-slate-400 italic">"{ev.reason}"</p>

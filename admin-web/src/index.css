@@ -45,7 +45,7 @@
   --border-subtle:   #ede5d8;
   --text-primary:    #282820;     /* charcoal */
   --text-secondary:  #5a5545;
-  --text-muted:      #9b8e7a;
+  --text-muted:      #756a56;
   --text-accent:     var(--spice-orange);
   --scrollbar-track: #e8dfd0;
   --scrollbar-thumb: #c9bba8;
@@ -120,34 +120,126 @@
 .theme-text-muted { color: var(--text-muted); }
 .theme-border     { border-color: var(--border-color); }
 
-/* ─── Light-theme overrides for Tailwind dark hardcoded classes ──────────── */
-[data-theme="light"] .bg-slate-950,
-[data-theme="light"] .bg-slate-900\/60,
-[data-theme="light"] .bg-slate-950\/60 {
-  background-color: var(--bg-base) !important;
+/* ─── Brand palette (from the Spice Hub logo: orange / gold / charcoal) ──── */
+:root {
+  --brand-300: #f7b590; --brand-400: #f29467; --brand-500: #eb7444; --brand-600: #d95d2b;
+  --brand-700: #b84a20; --brand-800: #7c3416; --brand-900: #5a2610; --brand-950: #2e1408;
+  --gold: #e9a92c;
+  --ink: #f8fafc;
 }
-[data-theme="light"] .bg-slate-900 {
-  background-color: var(--bg-surface) !important;
+[data-theme="light"] {
+  --brand-300: #b84a20; --brand-400: #c4501f; --brand-500: #d95d2b; --brand-600: #d95d2b;
+  --brand-700: #b84a20; --brand-800: #f6cdb4; --brand-900: #fbe0cf; --brand-950: #fff0e6;
+  --ink: #282820;
+  /* slightly darker light-mode greys for readable contrast */
+  --text-secondary: #5a5545;
+  --text-muted:     #756a56;
 }
-[data-theme="light"] .bg-slate-800 {
-  background-color: var(--bg-card) !important;
+@theme inline {
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+  --color-gold: var(--gold);
+  --color-ink: var(--ink);
 }
-[data-theme="light"] .text-white,
-[data-theme="light"] .text-slate-50,
-[data-theme="light"] .text-slate-100,
-[data-theme="light"] .text-slate-200 {
-  color: var(--text-primary) !important;
-}
-[data-theme="light"] .text-slate-400 {
-  color: var(--text-secondary) !important;
-}
-[data-theme="light"] .text-slate-500 {
-  color: var(--text-muted) !important;
-}
-[data-theme="light"] .border-slate-800,
-[data-theme="light"] .border-slate-700 {
-  border-color: var(--border-color) !important;
-}
+
+/* ─── Light-theme overrides for the hardcoded dark Tailwind classes ───────── */
+/* Surfaces, text, borders and status colours get light equivalents so text is
+   never dark-on-dark. (Generated from the classes actually used in src/.)   */
+[data-theme="light"] body { background-color: var(--bg-base) !important; }
+[data-theme="light"] select option { background: #ffffff; color: #282820; }
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder { color: #8a7e69; }
+[data-theme="light"] thead { background-color: #f5ece0 !important; color: #5a5545 !important; }
+[data-theme="light"] .shadow-xl,
+[data-theme="light"] .shadow-2xl { --tw-shadow-color: rgba(120, 80, 30, 0.12); }
+
+[data-theme="light"] .bg-amber-950\/20 { background-color: #fffbeb; }
+[data-theme="light"] .bg-amber-950\/40 { background-color: #fffbeb; }
+[data-theme="light"] .bg-amber-950\/60 { background-color: #fffbeb; }
+[data-theme="light"] .bg-blue-950\/60 { background-color: #eff6ff; }
+[data-theme="light"] .bg-emerald-950 { background-color: #ecfdf5; }
+[data-theme="light"] .bg-emerald-950\/40 { background-color: #ecfdf5; }
+[data-theme="light"] .bg-emerald-950\/60 { background-color: #ecfdf5; }
+[data-theme="light"] .bg-green-950\/60 { background-color: #f0fdf4; }
+[data-theme="light"] .bg-purple-950\/60 { background-color: #faf5ff; }
+[data-theme="light"] .bg-rose-950 { background-color: #fff1f2; }
+[data-theme="light"] .bg-rose-950\/20 { background-color: #fff1f2; }
+[data-theme="light"] .bg-rose-950\/40 { background-color: #fff1f2; }
+[data-theme="light"] .bg-rose-950\/60 { background-color: #fff1f2; }
+[data-theme="light"] .bg-slate-800 { background-color: #f3ece0; }
+[data-theme="light"] .bg-slate-800\/80 { background-color: #f3ece0; }
+[data-theme="light"] .bg-slate-900 { background-color: #ffffff; }
+[data-theme="light"] .bg-slate-900\/40 { background-color: #faf7f2; }
+[data-theme="light"] .bg-slate-900\/50 { background-color: #faf7f2; }
+[data-theme="light"] .bg-slate-900\/60 { background-color: #ffffff; }
+[data-theme="light"] .bg-slate-900\/80 { background-color: #ffffff; }
+[data-theme="light"] .bg-slate-900\/90 { background-color: #ffffff; }
+[data-theme="light"] .bg-slate-950 { background-color: #faf7f2; }
+[data-theme="light"] .bg-slate-950\/40 { background-color: #faf7f2; }
+[data-theme="light"] .bg-slate-950\/60 { background-color: #faf7f2; }
+[data-theme="light"] .bg-slate-950\/70 { background-color: #faf7f2; }
+[data-theme="light"] .bg-teal-950\/60 { background-color: #f0fdfa; }
+[data-theme="light"] .border-amber-700\/50 { border-color: #fcd34d; }
+[data-theme="light"] .border-amber-800\/40 { border-color: #fcd34d; }
+[data-theme="light"] .border-amber-800\/50 { border-color: #fcd34d; }
+[data-theme="light"] .border-amber-900\/30 { border-color: #fcd34d; }
+[data-theme="light"] .border-amber-900\/40 { border-color: #fcd34d; }
+[data-theme="light"] .border-blue-700\/50 { border-color: #93c5fd; }
+[data-theme="light"] .border-emerald-700\/40 { border-color: #6ee7b7; }
+[data-theme="light"] .border-emerald-700\/50 { border-color: #6ee7b7; }
+[data-theme="light"] .border-emerald-800 { border-color: #6ee7b7; }
+[data-theme="light"] .border-emerald-800\/40 { border-color: #6ee7b7; }
+[data-theme="light"] .border-emerald-800\/50 { border-color: #6ee7b7; }
+[data-theme="light"] .border-green-700\/50 { border-color: #86efac; }
+[data-theme="light"] .border-purple-700\/50 { border-color: #d8b4fe; }
+[data-theme="light"] .border-rose-700\/50 { border-color: #fda4af; }
+[data-theme="light"] .border-rose-800 { border-color: #fda4af; }
+[data-theme="light"] .border-rose-800\/40 { border-color: #fda4af; }
+[data-theme="light"] .border-rose-800\/50 { border-color: #fda4af; }
+[data-theme="light"] .border-rose-800\/60 { border-color: #fda4af; }
+[data-theme="light"] .border-rose-900\/40 { border-color: #fda4af; }
+[data-theme="light"] .border-slate-700 { border-color: #d6c8b2; }
+[data-theme="light"] .border-slate-700\/60 { border-color: #d6c8b2; }
+[data-theme="light"] .border-slate-800 { border-color: #e4d9c8; }
+[data-theme="light"] .border-slate-800\/50 { border-color: #e4d9c8; }
+[data-theme="light"] .border-slate-800\/60 { border-color: #e4d9c8; }
+[data-theme="light"] .border-slate-800\/80 { border-color: #e4d9c8; }
+[data-theme="light"] .border-teal-700\/50 { border-color: #5eead4; }
+[data-theme="light"] .divide-slate-800 > :not(:last-child) { border-color: #e4d9c8; }
+[data-theme="light"] .divide-slate-800\/60 > :not(:last-child) { border-color: #e4d9c8; }
+[data-theme="light"] .hover\:bg-amber-900\/50:hover { background-color: #fef3c7; }
+[data-theme="light"] .hover\:bg-amber-950\/30:hover { background-color: #fffbeb; }
+[data-theme="light"] .hover\:bg-emerald-900\/50:hover { background-color: #d1fae5; }
+[data-theme="light"] .hover\:bg-rose-900\/50:hover { background-color: #ffe4e6; }
+[data-theme="light"] .hover\:bg-rose-900\/60:hover { background-color: #ffe4e6; }
+[data-theme="light"] .hover\:bg-slate-700:hover { background-color: #f8e4cc; }
+[data-theme="light"] .hover\:bg-slate-800:hover { background-color: #fbeedd; }
+[data-theme="light"] .hover\:bg-slate-800\/30:hover { background-color: #fef6ea; }
+[data-theme="light"] .hover\:border-slate-700:hover { border-color: #d6c8b2; }
+[data-theme="light"] .hover\:text-slate-200:hover { color: #282820; }
+[data-theme="light"] .text-amber-300 { color: #b45309; }
+[data-theme="light"] .text-amber-400 { color: #b45309; }
+[data-theme="light"] .text-amber-400\/90 { color: #b45309; }
+[data-theme="light"] .text-blue-300 { color: #1d4ed8; }
+[data-theme="light"] .text-emerald-300 { color: #047857; }
+[data-theme="light"] .text-emerald-400 { color: #047857; }
+[data-theme="light"] .text-green-300 { color: #15803d; }
+[data-theme="light"] .text-purple-300 { color: #7e22ce; }
+[data-theme="light"] .text-rose-200 { color: #be123c; }
+[data-theme="light"] .text-rose-300 { color: #be123c; }
+[data-theme="light"] .text-rose-400 { color: #be123c; }
+[data-theme="light"] .text-slate-200 { color: #282820; }
+[data-theme="light"] .text-slate-300 { color: #3f3a2e; }
+[data-theme="light"] .text-slate-400 { color: #5a5545; }
+[data-theme="light"] .text-slate-500 { color: #756a56; }
+[data-theme="light"] .text-slate-600 { color: #5a5545; }
+[data-theme="light"] .text-teal-300 { color: #0f766e; }
 
 /* Printable Standee styles */
 @media print {

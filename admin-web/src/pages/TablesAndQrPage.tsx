@@ -95,14 +95,14 @@ export const TablesAndQrPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Dining Tables & QR Management</h1>
+          <h1 className="text-2xl font-black tracking-tight text-ink">Dining Tables & QR Management</h1>
           <p className="text-sm text-slate-400 mt-1">
             Physical table registry, cryptographic QR token rotation, and printable standees
           </p>
         </div>
         <button
           onClick={() => setIsAddTableOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Add Dining Table</span>
@@ -132,7 +132,7 @@ export const TablesAndQrPage: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-black text-white">{table.display_name}</span>
+                    <span className="text-xl font-black text-ink">{table.display_name}</span>
                     <span className="text-xs font-mono text-slate-500">#{table.table_number}</span>
                   </div>
                   <StatusBadge status={table.occupancy_status || 'AVAILABLE'} size="sm" />
@@ -153,7 +153,7 @@ export const TablesAndQrPage: React.FC = () => {
                 {/* QR Metadata */}
                 <div className="mt-4 p-3 rounded-2xl bg-slate-950/70 border border-slate-800/60 flex items-center justify-between text-xs font-mono">
                   <div className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-indigo-400" />
+                    <QrCode className="w-4 h-4 text-brand-400" />
                     <span className="text-slate-300">v{table.active_qr_version || 1}</span>
                   </div>
                   <span className="text-[11px] text-slate-500">{table.active_qr_prefix || 'prefix-**'}</span>
@@ -187,8 +187,8 @@ export const TablesAndQrPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Create Dining Table</h3>
-              <button onClick={() => setIsAddTableOpen(false)} className="text-slate-400 hover:text-white">
+              <h3 className="text-lg font-bold text-ink">Create Dining Table</h3>
+              <button onClick={() => setIsAddTableOpen(false)} className="text-slate-400 hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -206,7 +206,7 @@ export const TablesAndQrPage: React.FC = () => {
                     }}
                     required
                     min={1}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
                   />
                 </div>
                 <div>
@@ -217,7 +217,7 @@ export const TablesAndQrPage: React.FC = () => {
                     onChange={(e) => setSeatingCapacity(Number(e.target.value))}
                     min={1}
                     max={30}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -230,7 +230,7 @@ export const TablesAndQrPage: React.FC = () => {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Table 12"
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
@@ -241,7 +241,7 @@ export const TablesAndQrPage: React.FC = () => {
                   value={floorOrZone}
                   onChange={(e) => setFloorOrZone(e.target.value)}
                   placeholder="Ground Floor, Rooftop, Terrace..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
                 />
               </div>
 
@@ -255,7 +255,7 @@ export const TablesAndQrPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
                 >
                   Create & Generate QR v1
                 </button>

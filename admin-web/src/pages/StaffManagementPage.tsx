@@ -15,7 +15,7 @@ import { User, UserRole } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
 
 export const StaffManagementPage: React.FC = () => {
-  const { L, heading, sub, muted, border, tableWrap, thead, tbodyRow, tbodyRowHover, tabInactive, card, modalInner } = usePageTheme();
+  const { L, heading, sub, muted, border, tableWrap, thead, tbodyRow, tbodyRowHover, tabInactive, card } = usePageTheme();
   const [staffList, setStaffList] = useState<User[]>([]);
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);

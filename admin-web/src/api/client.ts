@@ -5,8 +5,14 @@
 
 import { handleMockRequest } from './mockRouter';
 
-// In dev, go through the Vite proxy (/api -> backend) so CORS / port mismatches can't break requests.
-const BASE_URL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || '/api/v1');
+function resolveAdminBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!envUrl) return '/api/v1';
+  return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl}/api/v1`;
+}
+
+// In dev without explicit VITE_API_BASE_URL, go through the Vite proxy (/api -> backend)
+const BASE_URL = resolveAdminBaseUrl();
 
 export class ApiError extends Error {
   code: string;

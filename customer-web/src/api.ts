@@ -11,7 +11,13 @@ import type {
   OrderResponse,
 } from './types';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+function resolveBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!envUrl) return '/api/v1';
+  return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl}/api/v1`;
+}
+
+const BASE = resolveBaseUrl();
 
 let _sessionToken: string | null = sessionStorage.getItem('hms_customer_token');
 

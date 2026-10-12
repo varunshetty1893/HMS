@@ -6,8 +6,6 @@ import {
   MenuCategory,
   MenuItem,
   Order,
-  OrderReportItem,
-  Payment,
   RestaurantSettings,
   RestaurantTable,
   User,

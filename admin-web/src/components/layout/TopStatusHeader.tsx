@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { adminWs } from '@/realtime/adminWs';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { LogOut, Moon, Sun, Wifi, WifiOff, Smartphone } from 'lucide-react';
+import { LogOut, Moon, Sun, Wifi, Smartphone } from 'lucide-react';
 
 export const TopStatusHeader: React.FC = () => {
   const { user, logout } = useAuth();

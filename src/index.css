@@ -51,20 +51,20 @@
   --spice-orange:    #D95D2B;
   --spice-orange-lt: #EB7444;
   --herb-green:      #315B42;
-  --warm-cream:      #FFF8ED;
-  --charcoal:        #282820;
+  --warm-cream:      #f8fafc;
+  --charcoal:        #0f172a;
 
-  /* Admin Web Dark Theme (Default for Admin) */
-  --admin-bg-base:         #020617;     /* slate-950 */
-  --admin-bg-surface:      #0f172a;     /* slate-900 */
-  --admin-bg-card:         #1e293b;     /* slate-800 */
-  --admin-bg-hover:        #293548;
-  --admin-border-color:    #334155;     /* slate-700 */
-  --admin-border-subtle:   #1e293b;
-  --admin-text-primary:    #f8fafc;     /* slate-50 */
-  --admin-text-secondary:  #94a3b8;     /* slate-400 */
-  --admin-text-muted:      #64748b;     /* slate-500 */
-  --admin-text-accent:     var(--spice-orange-lt);
+  /* Admin Web Light Theme (Default for Admin) */
+  --admin-bg-base:         #f8fafc;
+  --admin-bg-surface:      #ffffff;
+  --admin-bg-card:         #ffffff;     /* crisp white */
+  --admin-bg-hover:        #f1f5f9;
+  --admin-border-color:    #e2e8f0;
+  --admin-border-subtle:   #f1f5f9;
+  --admin-text-primary:    #0f172a;     /* charcoal */
+  --admin-text-secondary:  #475569;
+  --admin-text-muted:      #64748b;
+  --admin-text-accent:     var(--spice-orange);
 }
 
 @layer base {

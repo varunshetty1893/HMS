@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSession } from '../context/SessionContext';
 import { formatInr } from '../utils/currency';
-import { UtensilsCrossed, Clock, AlertTriangle } from 'lucide-react';
+import { UtensilsCrossed, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface HeaderBarProps {
   activeTab: 'menu' | 'orders';
@@ -56,44 +56,60 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div
-            className="flex items-center p-0.5 rounded-xl flex-shrink-0"
-            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
-          >
-            <button
-              id="tab-menu"
-              onClick={() => onTabChange('menu')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={
-                activeTab === 'menu'
-                  ? { background: 'var(--primary)', color: '#fff' }
-                  : { color: 'var(--text-secondary)', background: 'transparent' }
-              }
+          {/* Navigation Tabs & Admin switch */}
+          <div className="flex items-center gap-2">
+            <div
+              className="flex items-center p-0.5 rounded-xl flex-shrink-0"
+              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
             >
-              <UtensilsCrossed size={13} />
-              <span>Menu</span>
-            </button>
+              <button
+                id="tab-menu"
+                onClick={() => onTabChange('menu')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                style={
+                  activeTab === 'menu'
+                    ? { background: 'var(--primary)', color: '#fff' }
+                    : { color: 'var(--text-secondary)', background: 'transparent' }
+                }
+              >
+                <UtensilsCrossed size={13} />
+                <span>Menu</span>
+              </button>
+              <button
+                id="tab-orders"
+                onClick={() => onTabChange('orders')}
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                style={
+                  activeTab === 'orders'
+                    ? { background: 'var(--primary)', color: '#fff' }
+                    : { color: 'var(--text-secondary)', background: 'transparent' }
+                }
+              >
+                <Clock size={13} />
+                <span>Orders</span>
+                {ordersCount > 0 && (
+                  <span
+                    className="ml-0.5 px-1.5 rounded-full text-[10px] font-bold"
+                    style={{ background: '#F59E0B', color: '#fff' }}
+                  >
+                    {ordersCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
             <button
-              id="tab-orders"
-              onClick={() => onTabChange('orders')}
-              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={
-                activeTab === 'orders'
-                  ? { background: 'var(--primary)', color: '#fff' }
-                  : { color: 'var(--text-secondary)', background: 'transparent' }
-              }
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('view', 'admin');
+                window.history.pushState({}, '', url.toString());
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              title="Return to Admin Management Portal"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-stone-600 hover:text-stone-900 border border-stone-300 hover:bg-stone-100 transition cursor-pointer"
             >
-              <Clock size={13} />
-              <span>Orders</span>
-              {ordersCount > 0 && (
-                <span
-                  className="ml-0.5 px-1.5 rounded-full text-[10px] font-bold"
-                  style={{ background: '#F59E0B', color: '#fff' }}
-                >
-                  {ordersCount}
-                </span>
-              )}
+              <ShieldCheck size={13} className="text-emerald-600" />
+              <span>Admin</span>
             </button>
           </div>
         </div>

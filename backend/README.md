@@ -91,6 +91,13 @@ The initial migration runs `CREATE EXTENSION IF NOT EXISTS pg_trgm`. On PostgreS
 
 ### 3.4 Run the FastAPI server locally
 
+**For development with physical devices (Android phone / Waiter App on LAN):**
+```powershell
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+Binding to `0.0.0.0` allows devices on your local trusted Wi-Fi/Ethernet network (such as your physical Android phone) to connect to the computer's LAN IPv4 address (e.g. `http://192.168.1.x:8000`).
+
+**For local computer-only testing (loopback):**
 ```powershell
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```

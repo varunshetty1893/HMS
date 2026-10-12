@@ -104,10 +104,24 @@ export interface QrResolutionResponse {
 }
 
 export async function resolveQrToken(qrToken: string): Promise<QrResolutionResponse> {
-  return request<QrResolutionResponse>('/public/qr/resolve', {
-    method: 'POST',
-    body: JSON.stringify({ qr_token: qrToken }),
-  });
+  try {
+    return await request<QrResolutionResponse>('/public/qr/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ qr_token: qrToken }),
+    });
+  } catch (_err) {
+    // Offline / Standalone fallback: extract table number if available
+    const match = qrToken.match(/table-?(\d+)/i);
+    const tableNum = match ? parseInt(match[1], 10) : 4;
+    return {
+      session_token: `demo-token-table-${tableNum}`,
+      table_number: tableNum,
+      table_display_name: `Table ${tableNum}`,
+      table_id: `table-demo-${tableNum}`,
+      session_id: `session-demo-${tableNum}-${Date.now()}`,
+      expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+    };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +132,17 @@ import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder, cancelDemoOrder 
 
 export async function getSession(): Promise<CustomerSession> {
   if (_sessionToken?.startsWith('demo-')) {
-    return DEMO_SESSION;
+    const tableNum = sessionStorage.getItem('hms_table_number')
+      ? parseInt(sessionStorage.getItem('hms_table_number')!, 10)
+      : DEMO_SESSION.table_number;
+    const tableName = sessionStorage.getItem('hms_table_name') || `Table ${tableNum}`;
+    return {
+      ...DEMO_SESSION,
+      table_number: tableNum,
+      table_display_name: tableName,
+      table_id: sessionStorage.getItem('hms_table_id') || `table-demo-${tableNum}`,
+      session_id: sessionStorage.getItem('hms_table_session_id') || `demo-session-${tableNum}`,
+    };
   }
   try {
     return await request<CustomerSession>('/customer/session');

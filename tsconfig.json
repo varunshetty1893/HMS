@@ -29,6 +29,7 @@
   "include": [
     "src",
     "vite.config.ts",
-    "admin-web/src"
+    "admin-web/src",
+    "customer-web/src"
   ]
 }

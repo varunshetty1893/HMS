@@ -11,8 +11,10 @@ import {
   X,
 } from 'lucide-react';
 import { MenuCategory, MenuItem } from '@/types/api';
+import { usePageTheme } from '@/hooks/usePageTheme';
 
 export const MenuManagementPage: React.FC = () => {
+  const { L, heading, sub, muted, border, card, cardInner } = usePageTheme();
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -98,35 +100,26 @@ export const MenuManagementPage: React.FC = () => {
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim() || !newItemCode.trim() || !newItemCatId) {
-      alert('Please fill all required dish details');
+      alert('Please fill dish name, short code, and category');
       return;
     }
-
-    const payload = {
-      category_id: newItemCatId,
-      item_code: newItemCode.trim().toUpperCase(),
-      name: newItemName.trim(),
-      description: newItemDesc.trim() || null,
-      dietary_type: newItemDiet,
-      spice_level: newItemSpice,
-      is_available: true,
-      display_order: items.length + 1,
-      variants: [
-        {
-          variant_code: variantCode.trim().toUpperCase() || `${newItemCode.trim().toUpperCase()}-1`,
-          variant_name: variantName.trim() || 'Standard',
-          quantity_value: '1.00',
-          unit: 'PORTION',
-          price: variantPrice,
-          is_default: true,
-          is_available: true,
-          display_order: 1,
-        },
-      ],
-    };
-
     try {
-      await menuApi.createItem(payload);
+      await menuApi.createItem({
+        category_id: newItemCatId,
+        item_code: newItemCode.trim().toUpperCase(),
+        name: newItemName.trim(),
+        description: newItemDesc.trim() || null,
+        dietary_type: newItemDiet,
+        spice_level: newItemSpice,
+        variants: [
+          {
+            variant_name: variantName.trim() || 'Standard',
+            variant_code: variantCode.trim().toUpperCase() || `${newItemCode.trim().toUpperCase()}-STD`,
+            price: parseFloat(variantPrice) || 100.0,
+            is_active: true,
+          },
+        ],
+      });
       setIsItemModalOpen(false);
       setNewItemName('');
       setNewItemCode('');
@@ -169,22 +162,24 @@ export const MenuManagementPage: React.FC = () => {
       {/* Header & Primary Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-ink">Menu & Catalog Manager</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: heading }}>
+            Menu & Catalog Manager
+          </h1>
+          <p className="text-sm mt-1" style={{ color: sub }}>
             Categories, dishes, price variants, short codes, and 86'd stock availability
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs transition cursor-pointer"
           >
-            <FolderPlus className="w-4 h-4" />
+            <FolderPlus className="w-4 h-4 text-slate-500" />
             <span>New Category</span>
           </button>
           <button
             onClick={() => setIsItemModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Dish</span>
@@ -193,7 +188,7 @@ export const MenuManagementPage: React.FC = () => {
       </div>
 
       {error && (
-        <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-800 text-xs text-rose-300">
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
           {error}
         </div>
       )}
@@ -204,10 +199,10 @@ export const MenuManagementPage: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
           <button
             onClick={() => setSelectedCategory('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition cursor-pointer ${
               selectedCategory === 'ALL'
                 ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                : 'bg-slate-900 text-slate-400 hover:text-ink border border-slate-800'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
             }`}
           >
             All Items ({items.length})
@@ -216,10 +211,10 @@ export const MenuManagementPage: React.FC = () => {
             <button
               key={c.id}
               onClick={() => setSelectedCategory(c.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition cursor-pointer ${
                 selectedCategory === c.id
                   ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-ink border border-slate-800'
+                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
               {c.name}
@@ -229,22 +224,22 @@ export const MenuManagementPage: React.FC = () => {
 
         {/* Search Input */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search dish or code (CB)..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand-500 shadow-xs"
           />
         </div>
       </div>
 
       {/* Dishes Grid */}
       {isLoading ? (
-        <div className="p-12 text-center text-slate-500">Loading catalog...</div>
+        <div className="p-12 text-center text-slate-400">Loading catalog...</div>
       ) : filteredItems.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl bg-slate-900/40 border border-slate-800 text-slate-400">
+        <div className="p-12 text-center rounded-2xl bg-white border border-slate-200 text-slate-500 shadow-xs">
           No dishes match your filter.
         </div>
       ) : (
@@ -252,24 +247,24 @@ export const MenuManagementPage: React.FC = () => {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`rounded-3xl border p-5 flex flex-col justify-between transition ${
+              className={`rounded-2xl border p-5 flex flex-col justify-between transition ${
                 item.is_available
-                  ? 'bg-slate-900/80 border-slate-800'
-                  : 'bg-slate-950/70 border-rose-900/40 opacity-75'
+                  ? 'bg-white border-slate-200 shadow-xs hover:shadow-md'
+                  : 'bg-slate-50/70 border-rose-200 opacity-80'
               }`}
             >
               {/* Top Details */}
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-brand-950 text-brand-400 border border-brand-800/50">
+                    <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-orange-50 text-orange-700 border border-orange-200">
                       {item.item_code}
                     </span>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         item.dietary_type === 'VEG'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/40'
-                          : 'bg-rose-950 text-rose-400 border border-rose-800/40'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
                       {item.dietary_type}
@@ -283,49 +278,49 @@ export const MenuManagementPage: React.FC = () => {
                     className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
                   >
                     {item.is_available ? (
-                      <span className="flex items-center gap-1 text-emerald-400">
-                        <ToggleRight className="w-5 h-5" />
+                      <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                        <ToggleRight className="w-5 h-5 text-emerald-500" />
                         <span>In Stock</span>
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-rose-400">
-                        <ToggleLeft className="w-5 h-5" />
+                      <span className="flex items-center gap-1 text-rose-600 font-medium">
+                        <ToggleLeft className="w-5 h-5 text-rose-400" />
                         <span>Sold Out</span>
                       </span>
                     )}
                   </button>
                 </div>
 
-                <h3 className="text-base font-bold text-ink mt-3">{item.name}</h3>
+                <h3 className="text-base font-bold text-slate-900 mt-3">{item.name}</h3>
                 {item.description && (
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.description}</p>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.description}</p>
                 )}
               </div>
 
               {/* Price Variants */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                   Portions & Prices
                 </div>
                 <div className="space-y-1.5">
                   {item.variants.map((v) => (
                     <div
                       key={v.id}
-                      className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800/50"
+                      className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200"
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-slate-400 text-[10px]">{v.variant_code}</span>
-                        <span className="font-medium text-slate-200">{v.variant_name}</span>
+                        <span className="font-mono text-slate-500 text-[10px]">{v.variant_code}</span>
+                        <span className="font-medium text-slate-800">{v.variant_name}</span>
                       </div>
-                      <span className="font-mono font-bold text-ink">{formatInr(v.price)}</span>
+                      <span className="font-mono font-bold text-slate-900">{formatInr(v.price)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Image & Action bar */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-                <label className="flex items-center gap-1.5 text-brand-400 hover:text-brand-300 cursor-pointer font-medium">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <label className="flex items-center gap-1.5 text-orange-600 hover:text-orange-700 cursor-pointer font-medium">
                   <Camera className="w-4 h-4" />
                   <span>{uploadingItemId === item.id ? 'Uploading...' : item.image_url ? 'Replace Photo' : 'Add Photo'}</span>
                   <input
@@ -335,7 +330,7 @@ export const MenuManagementPage: React.FC = () => {
                     className="hidden"
                   />
                 </label>
-                {item.image_url && <span className="text-emerald-400 font-medium text-[11px]">✓ Photo attached</span>}
+                {item.image_url && <span className="text-emerald-600 font-medium text-[11px]">✓ Photo attached</span>}
               </div>
             </div>
           ))}
@@ -344,47 +339,47 @@ export const MenuManagementPage: React.FC = () => {
 
       {/* New Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-ink">Create Menu Category</h3>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-ink">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">Create Menu Category</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleCreateCategory} className="mt-4 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Category Name</label>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Category Name</label>
                 <input
                   type="text"
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
                   placeholder="Biriyani, Starters, Beverages..."
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Description (Optional)</label>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Description (Optional)</label>
                 <input
                   type="text"
                   value={categoryDesc}
                   onChange={(e) => setCategoryDesc(e.target.value)}
                   placeholder="Traditional dum biriyanis cooked over coal..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800"
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-xs cursor-pointer"
                 >
                   Create Category
                 </button>
@@ -396,29 +391,29 @@ export const MenuManagementPage: React.FC = () => {
 
       {/* New Dish Modal */}
       {isItemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-ink">Add New Dish</h3>
-              <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-ink">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">Add New Dish</h3>
+              <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleCreateItem} className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Dish Name</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Dish Name</label>
                   <input
                     type="text"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder="Chicken Biryani"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                     Short Code (1-16 chars)
                   </label>
                   <input
@@ -427,17 +422,17 @@ export const MenuManagementPage: React.FC = () => {
                     onChange={(e) => setNewItemCode(e.target.value.toUpperCase())}
                     placeholder="CB"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-ink focus:outline-none focus:border-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-mono text-slate-900 focus:outline-none focus:border-brand-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Category</label>
                 <select
                   value={newItemCatId}
                   onChange={(e) => setNewItemCatId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -449,11 +444,11 @@ export const MenuManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Dietary Tag</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Dietary Tag</label>
                   <select
                     value={newItemDiet}
                     onChange={(e) => setNewItemDiet(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                   >
                     <option value="VEG">VEG</option>
                     <option value="NON_VEG">NON-VEG</option>
@@ -461,11 +456,11 @@ export const MenuManagementPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Spice Level</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Spice Level</label>
                   <select
                     value={newItemSpice}
                     onChange={(e) => setNewItemSpice(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                   >
                     <option value="NONE">None</option>
                     <option value="MILD">Mild</option>
@@ -477,52 +472,52 @@ export const MenuManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Description</label>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Description</label>
                 <textarea
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
                   placeholder="Rich spices, long-grain basmati rice, tender chicken..."
                   rows={2}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-ink focus:outline-none focus:border-brand-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500"
                 />
               </div>
 
               {/* Initial Price Variant */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-brand-400">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-orange-700">
                   Initial Portion & Price
                 </span>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Portion Name</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Portion Name</label>
                     <input
                       type="text"
                       value={variantName}
                       onChange={(e) => setVariantName(e.target.value)}
                       placeholder="Full / Half"
                       required
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-ink"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Variant Code</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Variant Code</label>
                     <input
                       type="text"
                       value={variantCode}
                       onChange={(e) => setVariantCode(e.target.value.toUpperCase())}
                       placeholder="CB-F"
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-ink"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Price (₹)</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Price (₹)</label>
                     <input
                       type="number"
                       step="0.01"
                       value={variantPrice}
                       onChange={(e) => setVariantPrice(e.target.value)}
                       required
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-ink"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900"
                     />
                   </div>
                 </div>
@@ -532,13 +527,13 @@ export const MenuManagementPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsItemModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800"
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-xs cursor-pointer"
                 >
                   Save Dish
                 </button>

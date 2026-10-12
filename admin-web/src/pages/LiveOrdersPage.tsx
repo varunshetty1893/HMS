@@ -289,7 +289,7 @@ export const LiveOrdersPage: React.FC = () => {
                   <th className="px-6 py-4 font-semibold text-right">Total Amount</th>
                 </tr>
               </thead>
-              <tbody style={{ divideColor: border }}>
+              <tbody className="divide-y" style={{ borderColor: border }}>
                 {paginatedOrders.map((o, idx) => {
                   const rowKey = o.order_id || (o as any).id || o.order_number || `live-ord-${startIndex + idx}`;
                   return (

@@ -70,7 +70,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _apiClient.post(
-        '/api/v1/auth/login',
+        '/auth/login',
         body: {'username': username.trim(), 'password': password},
       );
 

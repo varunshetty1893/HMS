@@ -18,25 +18,43 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl overflow-hidden relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+      <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 p-6 shadow-2xl overflow-hidden relative">
         {/* Controls - Hidden during print */}
-        <div className="no-print flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="no-print flex items-center justify-between pb-4 border-b border-gray-200">
           <div>
-            <h3 className="text-base font-bold text-ink">Table QR Standee Card</h3>
-            <p className="text-xs text-slate-400">Token v{cardData.token_version} • Prefix {cardData.token_prefix}</p>
+            <h3 className="text-base font-bold text-gray-900">Table QR Standee Card</h3>
+            <p className="text-xs text-gray-500">Token v{cardData.token_version} • Prefix {cardData.token_prefix}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => {
+                sessionStorage.setItem('hms_table_number', cardData.table_number.toString());
+                sessionStorage.setItem('hms_table_name', cardData.display_name);
+                sessionStorage.setItem('hms_table_id', cardData.table_id);
+                sessionStorage.setItem('hms_customer_token', `demo-token-table-${cardData.table_number}`);
+                const url = new URL(window.location.href);
+                url.searchParams.set('view', 'customer');
+                url.searchParams.set('table', cardData.table_number.toString());
+                window.history.pushState({}, '', url.toString());
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                onClose();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition cursor-pointer"
+              title="Test the mobile QR ordering view for this table"
+            >
+              <span>📱 Test Order View</span>
+            </button>
+            <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-600/30 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Print Card</span>
             </button>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-ink p-1 rounded-lg"
+              className="text-gray-400 hover:text-gray-700 p-1 rounded-lg cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

@@ -58,28 +58,28 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         : 'bg-brand-600 hover:bg-brand-500 text-white';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+      <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 p-6 shadow-2xl">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div
               className={`p-2.5 rounded-xl ${
                 variant === 'danger'
-                  ? 'bg-rose-950/60 text-rose-400 border border-rose-800/40'
-                  : 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                  : 'bg-amber-50 text-amber-600 border border-amber-200'
               }`}
             >
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-ink">{title}</h3>
-              <p className="text-sm text-slate-400 mt-1">{description}</p>
+              <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+              <p className="text-sm text-gray-500 mt-1">{description}</p>
             </div>
           </div>
           <button
             onClick={onCancel}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-ink p-1 rounded-lg"
+            className="text-gray-400 hover:text-gray-700 p-1 rounded-lg cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -87,7 +87,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
         {requireReason && (
           <div className="mt-4">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 mb-1">
               Mandatory Audit Reason
             </label>
             <textarea
@@ -95,19 +95,19 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               onChange={(e) => setReason(e.target.value)}
               placeholder={reasonPlaceholder}
               rows={3}
-              className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-sm text-ink placeholder-slate-500 focus:outline-none focus:border-brand-500"
+              className="w-full rounded-xl bg-slate-50 border border-gray-300 p-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
             />
           </div>
         )}
 
-        {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
 
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 border border-slate-700/60"
+            className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 border border-gray-300 cursor-pointer"
           >
             {cancelLabel}
           </button>
@@ -115,7 +115,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             type="button"
             onClick={handleConfirm}
             disabled={isSubmitting}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${buttonColors}`}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer ${buttonColors}`}
           >
             {isSubmitting ? 'Processing...' : confirmLabel}
           </button>

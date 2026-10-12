@@ -153,7 +153,7 @@ export const AuditLogsPage: React.FC = () => {
         <select
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
-          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink focus:outline-none"
+          className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none shadow-xs"
         >
           <option value="">All Action Types</option>
           <option value="PRICE_VARIANT_PRICE_CHANGED">Dish Price Changed</option>
@@ -174,7 +174,7 @@ export const AuditLogsPage: React.FC = () => {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-ink focus:outline-none"
+          className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none shadow-xs"
         >
           <option value="">All Actor Roles</option>
           <option value="ADMIN">ADMIN</option>
@@ -203,23 +203,23 @@ export const AuditLogsPage: React.FC = () => {
 
       {/* Detail State Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
-            <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
               <div>
-                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-brand-950 text-brand-300 border border-brand-800/50">
+                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-orange-50 text-orange-700 border border-orange-200">
                   {selectedLog.action_type}
                 </span>
-                <h3 className="text-base font-bold text-ink mt-2">
+                <h3 className="text-base font-bold text-slate-900 mt-2">
                   Target: {selectedLog.entity_type} #{selectedLog.entity_id}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Logged {formatDateTimeIst(selectedLog.created_at)} by @{selectedLog.actor_role}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-ink p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -227,19 +227,19 @@ export const AuditLogsPage: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1">
               {selectedLog.reason && (
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
-                  <span className="font-bold text-slate-400 block mb-0.5">Audit Reason:</span>
-                  <span className="text-slate-200">"{selectedLog.reason}"</span>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <span className="font-bold text-slate-500 block mb-0.5">Audit Reason:</span>
+                  <span className="text-slate-800">"{selectedLog.reason}"</span>
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Previous State */}
                 <div className="space-y-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-400 block">
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-600 block">
                     Previous State
                   </span>
-                  <pre className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto max-h-60">
+                  <pre className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 overflow-x-auto max-h-60">
                     {selectedLog.old_value_json
                       ? JSON.stringify(selectedLog.old_value_json, null, 2)
                       : 'null'}
@@ -248,10 +248,10 @@ export const AuditLogsPage: React.FC = () => {
 
                 {/* New State */}
                 <div className="space-y-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 block">
                     New State
                   </span>
-                  <pre className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto max-h-60">
+                  <pre className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 overflow-x-auto max-h-60">
                     {selectedLog.new_value_json
                       ? JSON.stringify(selectedLog.new_value_json, null, 2)
                       : 'null'}
@@ -261,10 +261,10 @@ export const AuditLogsPage: React.FC = () => {
 
               {selectedLog.metadata_json && (
                 <div className="space-y-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                     Event Metadata
                   </span>
-                  <pre className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-400 overflow-x-auto max-h-36">
+                  <pre className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-500 overflow-x-auto max-h-36">
                     {JSON.stringify(selectedLog.metadata_json, null, 2)}
                   </pre>
                 </div>

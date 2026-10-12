@@ -96,22 +96,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   ];
 
   const sidebarStyle: React.CSSProperties = {
-    backgroundColor: isLight ? '#FFF8ED' : '#0f172a',
-    borderRightColor: isLight ? '#e4d9c8' : '#1e293b',
+    backgroundColor: '#ffffff',
+    borderRightColor: '#e2e8f0',
   };
 
   const brandBorderStyle: React.CSSProperties = {
-    borderBottomColor: isLight ? '#e4d9c8' : '#1e293b',
+    borderBottomColor: '#e2e8f0',
   };
 
   const footerStyle: React.CSSProperties = {
-    borderTopColor: isLight ? '#e4d9c8' : 'rgba(30,41,59,0.8)',
-    color: isLight ? '#756a56' : '#64748b',
+    borderTopColor: '#e2e8f0',
+    color: '#64748b',
   };
 
   return (
     <aside
-      className="w-64 shrink-0 border-r flex flex-col h-full no-print"
+      className="w-64 shrink-0 border-r flex flex-col h-full no-print bg-white"
       style={sidebarStyle}
     >
       {/* Brand Header */}
@@ -119,11 +119,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         <img
           src="/logo.png"
           alt="Spice Hub"
-          className="w-10 h-10 rounded-full shrink-0 shadow-md shadow-black/20"
+          className="w-10 h-10 rounded-full shrink-0 shadow-sm"
         />
         <div>
-          <h1 className="text-sm font-bold tracking-tight" style={{ color: isLight ? '#282820' : '#f8fafc' }}>Spice Hub</h1>
-          <p className="text-[11px] font-medium" style={{ color: '#D95D2B' }}>Admin Portal</p>
+          <h1 className="text-sm font-bold tracking-tight text-gray-900">Spice Hub</h1>
+          <p className="text-[11px] font-semibold text-brand-600">Admin Portal</p>
         </div>
       </div>
 
@@ -142,30 +142,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   ? {
                       backgroundColor: '#D95D2B',
                       color: '#ffffff',
-                      boxShadow: '0 2px 8px rgba(217,93,43,0.35)',
+                      boxShadow: '0 2px 8px rgba(217,93,43,0.3)',
                     }
                   : {
-                      color: isLight ? '#5a5545' : '#94a3b8',
+                      color: '#475569',
                       backgroundColor: 'transparent',
                     }
               }
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = isLight
-                    ? '#fef3e2'
-                    : 'rgba(30,41,59,0.6)';
-                  (e.currentTarget as HTMLButtonElement).style.color = isLight ? '#282820' : '#f1f5f9';
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f8fafc';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#0f172a';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
                   (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                  (e.currentTarget as HTMLButtonElement).style.color = isLight ? '#5a5545' : '#94a3b8';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#475569';
                 }
               }}
             >
               <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4" style={{ color: isActive ? '#fff' : (isLight ? '#D95D2B' : '#94a3b8') }} />
+                <Icon className="w-4 h-4" style={{ color: isActive ? '#fff' : '#D95D2B' }} />
                 <span>{item.label}</span>
               </div>
               {item.badge !== undefined && (

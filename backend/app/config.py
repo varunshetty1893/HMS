@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     )
     debug: bool = Field(default=False)
     api_v1_prefix: str = Field(default="/api/v1")
-    host: str = Field(default="127.0.0.1")
+    host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000, ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(default="INFO")
 

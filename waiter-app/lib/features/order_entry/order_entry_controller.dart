@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
@@ -82,47 +83,65 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
 
   OrderEntryController(this._apiClient) : super(const OrderEntryState());
 
-  Future<void> search(String query) async {
+  Timer? _debounce;
+  int _searchSeq = 0;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// Debounced entry point (call from TextField.onChanged).
+  void search(String query) {
     final trimmed = query.trim();
-    state = state.copyWith(searchQuery: trimmed, searchError: null);
+    _debounce?.cancel();
+    _searchSeq++; // purani in-flight responses ignore hongi
 
     if (trimmed.isEmpty) {
-      state = state.copyWith(searchResults: [], isSearching: false);
+      state = state.copyWith(
+          searchQuery: '', searchResults: [], isSearching: false, searchError: null);
       return;
     }
 
-    state = state.copyWith(isSearching: true);
+    state = state.copyWith(searchQuery: trimmed, isSearching: true, searchError: null);
+    _debounce = Timer(const Duration(milliseconds: 300), () => _runSearch(trimmed));
+  }
+
+  Future<void> _runSearch(String trimmed) async {
+    final seq = ++_searchSeq;
     try {
       dynamic res;
-      // Short code format e.g. "CB-H" or "PZ-M"
       final isShortCode = RegExp(r'^[A-Za-z]{2}-[A-Za-z]').hasMatch(trimmed);
       if (isShortCode) {
-        res = await _apiClient
-            .get('/api/v1/waiter/menu/code-search?code=${Uri.encodeQueryComponent(trimmed.toUpperCase())}');
+        res = await _apiClient.get(
+            '/api/v1/waiter/menu/code-search?code=${Uri.encodeQueryComponent(trimmed.toUpperCase())}');
       } else {
         res = await _apiClient
             .get('/api/v1/waiter/menu/search?q=${Uri.encodeQueryComponent(trimmed)}');
       }
 
-      List<MenuItemResult> items = [];
+      if (seq != _searchSeq) return; // newer search aa chuki hai
+
+      // Backend shape: { "query": "...", "results": [ {item_id, item_code, name, ...} ] }
+      List<dynamic> raw = const [];
       if (res is List) {
-        items = res
-            .map((e) => MenuItemResult.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } else if (res is Map && res['items'] != null) {
-        items = (res['items'] as List)
-            .map((e) => MenuItemResult.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } else if (res is Map) {
-        // Single item code-search result
-        items = [MenuItemResult.fromJson(res as Map<String, dynamic>)];
+        raw = res;
+      } else if (res is Map && res['results'] is List) {
+        raw = res['results'] as List;
+      } else if (res is Map && res['items'] is List) {
+        raw = res['items'] as List;
       }
 
-      state = state.copyWith(
-          searchResults: items, isSearching: false, searchError: null);
+      final items = raw
+          .map((e) => MenuItemResult.fromJson(e as Map<String, dynamic>))
+          .where((i) => i.id.isNotEmpty && i.name.isNotEmpty)
+          .toList();
+
+      state = state.copyWith(searchResults: items, isSearching: false, searchError: null);
     } catch (e) {
-      state =
-          state.copyWith(isSearching: false, searchError: e.toString());
+      if (seq != _searchSeq) return;
+      state = state.copyWith(isSearching: false, searchError: e.toString());
     }
   }
 
@@ -167,13 +186,12 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
     state = state.copyWith(isSubmitting: true, submitError: null);
 
     final idempotencyKey = _generateIdempotencyKey();
+    // Backend (WaiterOrderCreate / OrderItemCreate) strict hai: sirf yehi fields allowed.
     final items = state.cart.values.map((ci) {
       return {
-        'menu_item_id': ci.item.id,
         'variant_id': ci.variant.id,
         'quantity': ci.quantity,
-        if (ci.specialInstructions != null)
-          'special_instructions': ci.specialInstructions,
+        if (ci.specialInstructions != null) 'item_notes': ci.specialInstructions,
       };
     }).toList();
 
@@ -181,7 +199,7 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
       'table_id': table.id,
       'items': items,
       if (specialRequestNotes != null && specialRequestNotes.trim().isNotEmpty)
-        'special_request_notes': specialRequestNotes.trim(),
+        'special_instructions': specialRequestNotes.trim(),
     };
 
     try {

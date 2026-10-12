@@ -28,8 +28,12 @@ class ApiClient {
   ///   => `http://192.168.1.5:8000/api/v1/auth/login` (prefix retained)
   /// - `baseUrl: 'http://192.168.1.5:8000'`, `path: '/auth/login'`
   ///   => `http://192.168.1.5:8000/api/v1/auth/login` (prefix added)
+<<<<<<< HEAD
   static Uri resolveUri(String baseUrl, String path,
       {Map<String, String>? queryParams}) {
+=======
+  static Uri resolveUri(String baseUrl, String path, {Map<String, String>? queryParams}) {
+>>>>>>> 6ad4aadb1bcc2205233719a435fa8b3dbdfeb90b
     // 1. Strip trailing slashes from baseUrl
     String cleanBase = baseUrl.trim();
     while (cleanBase.endsWith('/')) {
@@ -45,8 +49,12 @@ class ApiClient {
     // 3. Prevent duplicate or missing /api/v1
     const v1Prefix = '/api/v1';
     final baseHasV1 = cleanBase.endsWith(v1Prefix);
+<<<<<<< HEAD
     final pathHasV1 =
         cleanPath.startsWith('$v1Prefix/') || cleanPath == v1Prefix;
+=======
+    final pathHasV1 = cleanPath.startsWith('$v1Prefix/') || cleanPath == v1Prefix;
+>>>>>>> 6ad4aadb1bcc2205233719a435fa8b3dbdfeb90b
 
     if (baseHasV1 && pathHasV1) {
       // Both base and path contain /api/v1 -> remove from path to prevent duplication

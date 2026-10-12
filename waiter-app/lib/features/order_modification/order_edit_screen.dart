@@ -90,15 +90,15 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       }).toList();
 
       final data = {
-        'version': widget.order.version,
+        'expected_version': widget.order.version,
         'items': itemsPayload,
-        if (_reasonController.text.trim().isNotEmpty)
-          'modification_reason': _reasonController.text.trim(),
+        'reason': _reasonController.text.trim().isNotEmpty
+            ? _reasonController.text.trim()
+            : 'Updated by waiter',
       };
 
       final apiClient = ref.read(apiClientProvider);
-      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}',
-          data: data);
+      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}', data: data);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -24,8 +24,12 @@ import 'package:flutter/foundation.dart';
 ///    Uses `127.0.0.1:8000`.
 class EnvConfig {
   static const String _apiHost = String.fromEnvironment('API_HOST');
+<<<<<<< HEAD
   static const String _apiPort =
       String.fromEnvironment('API_PORT', defaultValue: '8000');
+=======
+  static const String _apiPort = String.fromEnvironment('API_PORT', defaultValue: '8000');
+>>>>>>> 6ad4aadb1bcc2205233719a435fa8b3dbdfeb90b
   static const String _rawApiBaseUrl = String.fromEnvironment('API_BASE_URL');
   static const String _rawWsUrl = String.fromEnvironment('WS_URL');
 
@@ -55,9 +59,13 @@ class EnvConfig {
   static String get apiBaseUrl {
     if (_rawApiBaseUrl.isNotEmpty) {
       final trimmed = _rawApiBaseUrl.trim();
+<<<<<<< HEAD
       return trimmed.endsWith('/')
           ? trimmed.substring(0, trimmed.length - 1)
           : trimmed;
+=======
+      return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+>>>>>>> 6ad4aadb1bcc2205233719a435fa8b3dbdfeb90b
     }
     return 'http://$apiHost:$apiPort/api/v1';
   }
@@ -66,9 +74,13 @@ class EnvConfig {
   static String get wsUrl {
     if (_rawWsUrl.isNotEmpty) {
       final trimmed = _rawWsUrl.trim();
+<<<<<<< HEAD
       return trimmed.endsWith('/')
           ? trimmed.substring(0, trimmed.length - 1)
           : trimmed;
+=======
+      return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+>>>>>>> 6ad4aadb1bcc2205233719a435fa8b3dbdfeb90b
     }
     return 'ws://$apiHost:$apiPort/api/v1/ws';
   }

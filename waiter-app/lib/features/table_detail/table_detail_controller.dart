@@ -77,9 +77,21 @@ class TableDetailController extends StateNotifier<TableDetailState> {
     }
   }
 
+  /// Optimistic-concurrency version of an order from the loaded session detail.
+  int _versionOf(String orderId) {
+    final orders = state.sessionDetail?.activeOrders ?? const [];
+    for (final o in orders) {
+      if (o.id == orderId) return o.version;
+    }
+    return 1;
+  }
+
   Future<bool> markOrderServed(String orderId) async {
     try {
-      await _apiClient.post('/api/v1/waiter/orders/$orderId/serve');
+      await _apiClient.post(
+        '/api/v1/waiter/orders/$orderId/serve',
+        data: {'expected_version': _versionOf(orderId)},
+      );
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
@@ -92,7 +104,10 @@ class TableDetailController extends StateNotifier<TableDetailState> {
     try {
       await _apiClient.post(
         '/api/v1/waiter/orders/$orderId/cancel',
-        data: {'cancellation_reason': reason},
+        data: {
+          'expected_version': _versionOf(orderId),
+          'cancellation_reason': reason,
+        },
       );
       await loadSessionDetail(silent: true);
       return true;

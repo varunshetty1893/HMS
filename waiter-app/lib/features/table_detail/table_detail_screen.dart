@@ -5,7 +5,6 @@ import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../models/order_model.dart';
 import '../../models/table_model.dart';
-import '../../widgets/limit_progress_bar.dart';
 import '../../widgets/modification_badge.dart';
 import '../../widgets/status_badge.dart';
 import '../billing/bill_preview_screen.dart';
@@ -25,7 +24,8 @@ class TableDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(tableDetailControllerProvider(table.id));
-    final controller = ref.read(tableDetailControllerProvider(table.id).notifier);
+    final controller =
+        ref.read(tableDetailControllerProvider(table.id).notifier);
     final detail = state.sessionDetail;
 
     return Scaffold(
@@ -100,10 +100,13 @@ class TableDetailScreen extends ConsumerWidget {
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              LimitProgressBar(
-                                currentExposure: detail.currentExposure,
-                                limit: detail.unpaidSpendLimit,
-                                remainingLimit: detail.remainingLimit,
+                              Text(
+                                'Unpaid spend: ${CurrencyFormatter.format(detail.currentExposure)}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -163,19 +166,24 @@ class TableDetailScreen extends ConsumerWidget {
                                 child: SizedBox(
                                   height: 50,
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.add_shopping_cart, size: 20),
+                                    icon: const Icon(Icons.add_shopping_cart,
+                                        size: 20),
                                     label: const Text(
                                       'Take Order',
                                       style: TextStyle(
-                                          fontSize: 15, fontWeight: FontWeight.bold),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     onPressed: () async {
                                       final created =
-                                          await Navigator.of(context).push<bool>(
+                                          await Navigator.of(context)
+                                              .push<bool>(
                                         MaterialPageRoute(
-                                          builder: (_) => ManualOrderEntryScreen(
+                                          builder: (_) =>
+                                              ManualOrderEntryScreen(
                                             table: detail.table,
-                                            remainingLimit: detail.remainingLimit,
+                                            remainingLimit:
+                                                detail.remainingLimit,
                                           ),
                                         ),
                                       );
@@ -193,22 +201,28 @@ class TableDetailScreen extends ConsumerWidget {
                                   child: SizedBox(
                                     height: 50,
                                     child: OutlinedButton.icon(
-                                      icon: const Icon(Icons.receipt_long, size: 20),
+                                      icon: const Icon(Icons.receipt_long,
+                                          size: 20),
                                       label: const Text(
                                         'Bill & Settle',
                                         style: TextStyle(
-                                            fontSize: 15, fontWeight: FontWeight.bold),
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: AppTheme.accentColor,
-                                        side: const BorderSide(color: AppTheme.accentColor, width: 1.5),
+                                        side: const BorderSide(
+                                            color: AppTheme.accentColor,
+                                            width: 1.5),
                                       ),
                                       onPressed: () async {
                                         await Navigator.of(context).push(
                                           MaterialPageRoute(
                                             builder: (_) => BillPreviewScreen(
-                                              tableNumber: detail.table.tableNumber,
-                                              tableDisplayName: detail.table.displayName,
+                                              tableNumber:
+                                                  detail.table.tableNumber,
+                                              tableDisplayName:
+                                                  detail.table.displayName,
                                             ),
                                           ),
                                         );
@@ -296,7 +310,8 @@ class TableDetailScreen extends ConsumerWidget {
                     ),
                     if (order.hasUnacknowledgedMods) ...[
                       const SizedBox(width: 6),
-                      OrderModificationBadge(hasUnacknowledgedMods: order.hasUnacknowledgedMods),
+                      OrderModificationBadge(
+                          hasUnacknowledgedMods: order.hasUnacknowledgedMods),
                     ],
                   ],
                 ),
@@ -393,8 +408,7 @@ class TableDetailScreen extends ConsumerWidget {
                   if (canEdit) ...[
                     OutlinedButton(
                       onPressed: () async {
-                        final modified =
-                            await Navigator.of(context).push<bool>(
+                        final modified = await Navigator.of(context).push<bool>(
                           MaterialPageRoute(
                             builder: (_) => OrderEditScreen(order: order),
                           ),

@@ -16,9 +16,9 @@ class MenuVariantResult {
 
   factory MenuVariantResult.fromJson(Map<String, dynamic> json) {
     return MenuVariantResult(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ??
-          json['variant_name']?.toString(),
+      id: json['variant_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['variant_name']?.toString() ??
+          json['name']?.toString(),
       price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
       variantCode: json['variant_code']?.toString() ??
           json['code']?.toString(),

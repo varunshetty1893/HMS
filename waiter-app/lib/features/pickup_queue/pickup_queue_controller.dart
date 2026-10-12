@@ -88,7 +88,13 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
     final newMarking = Set<String>.from(state.markingServedIds)..add(orderId);
     state = state.copyWith(markingServedIds: newMarking);
     try {
-      await _apiClient.post('/api/v1/waiter/orders/$orderId/serve');
+      final version = state.readyOrders
+          .firstWhere((o) => o.id == orderId, orElse: () => state.readyOrders.first)
+          .version;
+      await _apiClient.post(
+        '/api/v1/waiter/orders/$orderId/serve',
+        data: {'expected_version': version},
+      );
       // Remove served order from list immediately for snappy UX
       final updated =
           state.readyOrders.where((o) => o.id != orderId).toList();

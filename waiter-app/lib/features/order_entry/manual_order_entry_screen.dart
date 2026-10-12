@@ -111,22 +111,6 @@ class _ManualOrderEntryScreenState
               ),
             ),
           ),
-          // Remaining limit info
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet,
-                    size: 14, color: AppTheme.textSecondary),
-                const SizedBox(width: 4),
-                Text(
-                  'Remaining limit: ${CurrencyFormatter.format(widget.remainingLimit)}',
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 8),
           // Search results / hints
           Expanded(
@@ -306,16 +290,33 @@ class _ManualOrderEntryScreenState
     final inCart = state.cart.containsKey(key);
     final cartQty = inCart ? state.cart[key]!.quantity : 0;
 
+    Widget stepBtn(IconData icon, VoidCallback onTap) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppTheme.accentColor,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 18, color: Colors.white),
+        ),
+      );
+    }
+
     return GestureDetector(
-      onTap: () => controller.addToCart(item, variant),
+      onTap: inCart ? null : () => controller.addToCart(item, variant),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+            horizontal: inCart ? 8 : 12, vertical: inCart ? 5 : 8),
         decoration: BoxDecoration(
           color: inCart
               ? AppTheme.accentColor.withOpacity(0.15)
               : AppTheme.cardAltColor,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: inCart ? AppTheme.accentColor : AppTheme.borderColor,
             width: inCart ? 1.5 : 1.0,
@@ -341,21 +342,22 @@ class _ManualOrderEntryScreenState
               ),
             ),
             if (inCart) ...[
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+              const SizedBox(width: 8),
+              stepBtn(Icons.remove,
+                  () => controller.updateCartQuantity(key, cartQty - 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
                   '$cartQty',
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
+                    color: AppTheme.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+              stepBtn(Icons.add,
+                  () => controller.updateCartQuantity(key, cartQty + 1)),
             ],
           ],
         ),

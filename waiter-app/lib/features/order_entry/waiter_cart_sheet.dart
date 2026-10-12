@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../models/table_model.dart';
-import '../../widgets/limit_progress_bar.dart';
 import 'order_entry_controller.dart';
 
 class WaiterCartSheet extends ConsumerStatefulWidget {
@@ -39,7 +38,7 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
     final projectedExposure =
         (widget.remainingLimit >= 5000 ? 0 : (5000 - widget.remainingLimit)) +
             state.cartTotal;
-    final exceedsLimit = state.cartTotal > widget.remainingLimit;
+    const exceedsLimit = false; // waiter ke liye table spend limit nahi
 
     return Container(
       margin: EdgeInsets.only(bottom: bottomInset),
@@ -99,40 +98,6 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
               ],
             ),
           ),
-          // Limit progress bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: LimitProgressBar(
-              currentExposure: 5000 - widget.remainingLimit,
-              limit: 5000,
-              remainingLimit: widget.remainingLimit,
-              cartAddition: state.cartTotal,
-            ),
-          ),
-          if (exceedsLimit)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppTheme.errorColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.errorColor.withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber,
-                      color: AppTheme.errorColor, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Cart total exceeds the ₹5,000 table spend limit. Remove items before submitting.',
-                      style: const TextStyle(
-                          color: AppTheme.errorColor, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           const SizedBox(height: 8),
           // Cart items list
           Flexible(

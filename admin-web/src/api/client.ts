@@ -4,12 +4,7 @@
  */
 
 import { handleMockRequest } from './mockRouter';
-
-function resolveAdminBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
-  if (!envUrl) return '/api/v1';
-  return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl}/api/v1`;
-}
+import { isDevMockAllowed, resolveAdminBaseUrl } from '../utils/env';
 
 // In dev without explicit VITE_API_BASE_URL, go through the Vite proxy (/api -> backend)
 const BASE_URL = resolveAdminBaseUrl();
@@ -67,13 +62,34 @@ export async function apiClient<T>(
     response = await fetch(url, { ...options, headers });
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
-      return handleMockRequest<T>(endpoint, options);
+      if (isDevMockAllowed()) {
+        console.warn('[DEV MOCK] HTML response received, routing to mock router for:', endpoint);
+        return handleMockRequest<T>(endpoint, options);
+      }
+      throw new ApiError(
+        'Unexpected HTML response received from server. Check API URL configuration.',
+        'UNEXPECTED_HTML',
+        response.status
+      );
     }
     if (!response.ok && (response.status === 404 || response.status === 502 || response.status === 503)) {
+      if (isDevMockAllowed()) {
+        console.warn(`[DEV MOCK] HTTP ${response.status} received, routing to mock router for:`, endpoint);
+        return handleMockRequest<T>(endpoint, options);
+      }
+      // In production / non-mock mode, fall through to structured HTTP error handling
+    }
+  } catch (err: any) {
+    if (err instanceof ApiError) throw err;
+    if (isDevMockAllowed()) {
+      console.warn('[DEV MOCK] Network error, routing to mock router for:', endpoint);
       return handleMockRequest<T>(endpoint, options);
     }
-  } catch (_err: any) {
-    return handleMockRequest<T>(endpoint, options);
+    throw new ApiError(
+      err?.message || 'Network connection failed. Unable to reach backend server.',
+      'NETWORK_ERROR',
+      0
+    );
   }
 
   // Handle 401 Token Expiration -> Trigger Refresh
@@ -146,7 +162,14 @@ export async function apiClient<T>(
 
   try {
     return await response.json();
-  } catch {
-    return handleMockRequest<T>(endpoint, options);
+  } catch (err: any) {
+    if (isDevMockAllowed()) {
+      return handleMockRequest<T>(endpoint, options);
+    }
+    throw new ApiError(
+      'Invalid JSON response received from backend server',
+      'INVALID_JSON_RESPONSE',
+      response.status
+    );
   }
 }

@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -480,6 +481,17 @@ async def seed_tables_and_qr(session: AsyncSession) -> None:
 async def run_seed() -> None:
     """Execute all seed tasks in a single database transaction."""
     settings = get_settings()
+
+    # Safety guard: Prevent accidental seed data contamination in production
+    if settings.environment == "production" and os.getenv("FORCE_DEV_SEED_IN_PRODUCTION", "").lower() != "true":
+        print("=" * 65)
+        print("FATAL ERROR: seed_dev.py cannot be executed in ENVIRONMENT='production'!")
+        print("Development seed data contains synthetic staff accounts, demo tables,")
+        print("and hardcoded passwords that compromise production security.")
+        print("Use backend/scripts/init_production.py to bootstrap a production instance.")
+        print("=" * 65)
+        sys.exit(1)
+
     engine = create_async_engine(settings.database_url, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 

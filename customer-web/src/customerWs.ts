@@ -8,29 +8,9 @@
 // - 250-event deduplication ring buffer (sequence-based)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function resolveWsBase(): string {
-  const customWs = import.meta.env.VITE_WS_URL;
-  if (customWs && typeof customWs === 'string' && customWs.trim()) {
-    return customWs.trim().replace(/\/+$/, '');
-  }
-  const apiBase = import.meta.env.VITE_API_BASE_URL;
-  if (apiBase && typeof apiBase === 'string' && apiBase.trim()) {
-    const cleanApi = apiBase.trim().replace(/\/+$/, '');
-    const wsScheme = cleanApi.startsWith('https://') ? 'wss://' : 'ws://';
-    const withoutScheme = cleanApi.replace(/^https?:\/\//, '');
-    const baseWithWs = withoutScheme.endsWith('/api/v1')
-      ? `${withoutScheme}/ws`
-      : `${withoutScheme}/api/v1/ws`;
-    return `${wsScheme}${baseWithWs}`;
-  }
-  if (typeof window !== 'undefined' && window.location) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/api/v1/ws`;
-  }
-  return 'ws://localhost:8000/api/v1/ws';
-}
+import { resolveWsBaseUrl } from './utils/env';
 
-const WS_BASE = resolveWsBase();
+const WS_BASE = resolveWsBaseUrl();
 const MAX_BACKOFF_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_DEDUPE_RING = 250;

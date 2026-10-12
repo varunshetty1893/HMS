@@ -37,73 +37,76 @@ export function usePageTheme(): PageTheme {
   const { theme } = useTheme();
   const L = theme === 'light';
 
-  const border = L ? '#e4d9c8' : '#1e293b';
+  const border = '#e2e8f0';
   const accent = '#D95D2B';
 
   return {
     L,
-    heading: L ? '#282820' : '#f8fafc',
-    sub: L ? '#6b6150' : '#94a3b8',
-    muted: L ? '#8a7e69' : '#64748b',
-    value: L ? '#282820' : '#f8fafc',
+    heading: '#0f172a',
+    sub: '#475569',
+    muted: '#64748b',
+    value: '#0f172a',
     accent,
     border,
 
     card: {
-      backgroundColor: L ? '#ffffff' : 'rgba(15,23,42,0.9)',
+      backgroundColor: '#ffffff',
       border: `1px solid ${border}`,
+      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
     },
     cardInner: {
-      backgroundColor: L ? '#faf7f2' : '#020617',
+      backgroundColor: '#f8fafc',
       border: `1px solid ${border}`,
     },
     tableWrap: {
-      backgroundColor: L ? '#ffffff' : 'rgba(15,23,42,0.6)',
+      backgroundColor: '#ffffff',
       border: `1px solid ${border}`,
+      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
     },
     thead: {
-      backgroundColor: L ? '#f5f0e8' : 'rgba(2,6,23,0.7)',
+      backgroundColor: '#f8fafc',
       borderBottomColor: border,
-      color: L ? '#6b6150' : '#94a3b8',
+      color: '#475569',
     },
     tbodyRow: {
-      color: L ? '#282820' : '#cbd5e1',
+      color: '#0f172a',
     },
     tbodyRowHover: {
-      backgroundColor: L ? '#fef3e2' : 'rgba(30,41,59,0.4)',
+      backgroundColor: '#f1f5f9',
     },
     emptyState: {
-      backgroundColor: L ? '#faf7f2' : 'rgba(15,23,42,0.4)',
+      backgroundColor: '#f8fafc',
       border: `1px solid ${border}`,
-      color: L ? '#756a56' : '#64748b',
+      color: '#64748b',
     },
     input: {
-      backgroundColor: L ? '#faf7f2' : '#0f172a',
-      border: `1px solid ${border}`,
-      color: L ? '#282820' : '#f8fafc',
+      backgroundColor: '#ffffff',
+      border: '1px solid #cbd5e1',
+      color: '#0f172a',
     },
     select: {
-      backgroundColor: L ? '#faf7f2' : '#0f172a',
-      border: `1px solid ${border}`,
-      color: L ? '#282820' : '#f8fafc',
+      backgroundColor: '#ffffff',
+      border: '1px solid #cbd5e1',
+      color: '#0f172a',
     },
     tabActive: {
       backgroundColor: accent,
       color: '#ffffff',
-      boxShadow: `0 2px 8px rgba(217,93,43,0.35)`,
-      border: `1px solid transparent`,
+      boxShadow: '0 2px 8px rgba(217,93,43,0.3)',
+      border: '1px solid transparent',
     },
     tabInactive: {
-      backgroundColor: L ? '#faf7f2' : '#0f172a',
-      color: L ? '#5a5545' : '#94a3b8',
+      backgroundColor: '#ffffff',
+      color: '#475569',
       border: `1px solid ${border}`,
     },
     modal: {
-      backgroundColor: L ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.75)',
+      backgroundColor: 'rgba(15,23,42,0.4)',
     },
     modalInner: {
-      backgroundColor: L ? '#ffffff' : '#0f172a',
+      backgroundColor: '#ffffff',
       border: `1px solid ${border}`,
+      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
     },
     divider: border,
   };

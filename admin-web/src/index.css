@@ -1,57 +1,70 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-300: #f7b590;
+  --color-brand-400: #f29467;
+  --color-brand-500: #eb7444;
+  --color-brand-600: #d95d2b;
+  --color-brand-700: #b84a20;
+  --color-brand-800: #7c3416;
+  --color-brand-900: #5a2610;
+  --color-brand-950: #2e1408;
+  --color-gold: #e9a92c;
+  --color-ink: #282820;
+}
+
 /* ─── SpiceHub Design Tokens ─────────────────────────────────────────────── */
 :root {
   /* Brand */
   --spice-orange:    #D95D2B;
   --spice-orange-lt: #EB7444;
   --herb-green:      #315B42;
-  --warm-cream:      #FFF8ED;
-  --charcoal:        #282820;
+  --warm-cream:      #f8fafc;
+  --charcoal:        #0f172a;
 
-  /* Dark theme (default) */
-  --bg-base:         #020617;     /* slate-950 */
-  --bg-surface:      #0f172a;     /* slate-900 */
-  --bg-card:         #1e293b;     /* slate-800 */
-  --bg-hover:        #293548;
-  --border-color:    #334155;     /* slate-700 */
-  --border-subtle:   #1e293b;
-  --text-primary:    #f8fafc;     /* slate-50 */
-  --text-secondary:  #94a3b8;     /* slate-400 */
-  --text-muted:      #64748b;     /* slate-500 */
-  --text-accent:     var(--spice-orange-lt);
-  --scrollbar-track: #0f172a;
-  --scrollbar-thumb: #334155;
-  --scrollbar-hover: #475569;
-
-  /* Semantic status colors (dark) */
-  --status-success-bg:   #052e16;
-  --status-success-text: #4ade80;
-  --status-warn-bg:      #431407;
-  --status-warn-text:    #fb923c;
-  --status-error-bg:     #450a0a;
-  --status-error-text:   #f87171;
-  --status-info-bg:      #0c1a2e;
-  --status-info-text:    #60a5fa;
-}
-
-/* ─── Light Theme Overrides ──────────────────────────────────────────────── */
-[data-theme="light"] {
-  --bg-base:         #f5f0e8;
-  --bg-surface:      #FFF8ED;     /* warm-cream */
-  --bg-card:         #ffffff;
-  --bg-hover:        #fef3e2;
-  --border-color:    #e4d9c8;
-  --border-subtle:   #ede5d8;
-  --text-primary:    #282820;     /* charcoal */
-  --text-secondary:  #5a5545;
-  --text-muted:      #756a56;
+  /* Clean Light theme (standard) */
+  --bg-base:         #f8fafc;     /* clean light background */
+  --bg-surface:      #ffffff;     /* crisp white */
+  --bg-card:         #ffffff;     /* crisp white cards */
+  --bg-hover:        #f1f5f9;     /* subtle hover */
+  --border-color:    #e2e8f0;     /* light border */
+  --border-subtle:   #f1f5f9;
+  --text-primary:    #0f172a;     /* charcoal/slate-900 */
+  --text-secondary:  #475569;
+  --text-muted:      #64748b;
   --text-accent:     var(--spice-orange);
-  --scrollbar-track: #e8dfd0;
-  --scrollbar-thumb: #c9bba8;
-  --scrollbar-hover: #b5a491;
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
 
   /* Semantic status colors (light) */
+  --status-success-bg:   #dcfce7;
+  --status-success-text: #15803d;
+  --status-warn-bg:      #fff7ed;
+  --status-warn-text:    #c2410c;
+  --status-error-bg:     #fee2e2;
+  --status-error-text:   #b91c1c;
+  --status-info-bg:      #eff6ff;
+  --status-info-text:    #1d4ed8;
+}
+
+/* Ensure clean light theme remains consistent */
+[data-theme="dark"] {
+  --color-ink:       #0f172a;
+  --bg-base:         #f8fafc;
+  --bg-surface:      #ffffff;
+  --bg-card:         #ffffff;
+  --bg-hover:        #f1f5f9;
+  --border-color:    #e2e8f0;
+  --border-subtle:   #f1f5f9;
+  --text-primary:    #0f172a;
+  --text-secondary:  #475569;
+  --text-muted:      #64748b;
+  --text-accent:     var(--spice-orange);
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+
   --status-success-bg:   #dcfce7;
   --status-success-text: #15803d;
   --status-warn-bg:      #fff7ed;
@@ -120,127 +133,6 @@
 .theme-text-muted { color: var(--text-muted); }
 .theme-border     { border-color: var(--border-color); }
 
-/* ─── Brand palette (from the Spice Hub logo: orange / gold / charcoal) ──── */
-:root {
-  --brand-300: #f7b590; --brand-400: #f29467; --brand-500: #eb7444; --brand-600: #d95d2b;
-  --brand-700: #b84a20; --brand-800: #7c3416; --brand-900: #5a2610; --brand-950: #2e1408;
-  --gold: #e9a92c;
-  --ink: #f8fafc;
-}
-[data-theme="light"] {
-  --brand-300: #b84a20; --brand-400: #c4501f; --brand-500: #d95d2b; --brand-600: #d95d2b;
-  --brand-700: #b84a20; --brand-800: #f6cdb4; --brand-900: #fbe0cf; --brand-950: #fff0e6;
-  --ink: #282820;
-  /* slightly darker light-mode greys for readable contrast */
-  --text-secondary: #5a5545;
-  --text-muted:     #756a56;
-}
-@theme inline {
-  --color-brand-300: var(--brand-300);
-  --color-brand-400: var(--brand-400);
-  --color-brand-500: var(--brand-500);
-  --color-brand-600: var(--brand-600);
-  --color-brand-700: var(--brand-700);
-  --color-brand-800: var(--brand-800);
-  --color-brand-900: var(--brand-900);
-  --color-brand-950: var(--brand-950);
-  --color-gold: var(--gold);
-  --color-ink: var(--ink);
-}
-
-/* ─── Light-theme overrides for the hardcoded dark Tailwind classes ───────── */
-/* Surfaces, text, borders and status colours get light equivalents so text is
-   never dark-on-dark. (Generated from the classes actually used in src/.)   */
-[data-theme="light"] body { background-color: var(--bg-base) !important; }
-[data-theme="light"] select option { background: #ffffff; color: #282820; }
-[data-theme="light"] input::placeholder,
-[data-theme="light"] textarea::placeholder { color: #8a7e69; }
-[data-theme="light"] thead { background-color: #f5ece0 !important; color: #5a5545 !important; }
-[data-theme="light"] .shadow-xl,
-[data-theme="light"] .shadow-2xl { --tw-shadow-color: rgba(120, 80, 30, 0.12); }
-
-[data-theme="light"] .bg-amber-950\/20 { background-color: #fffbeb; }
-[data-theme="light"] .bg-amber-950\/40 { background-color: #fffbeb; }
-[data-theme="light"] .bg-amber-950\/60 { background-color: #fffbeb; }
-[data-theme="light"] .bg-blue-950\/60 { background-color: #eff6ff; }
-[data-theme="light"] .bg-emerald-950 { background-color: #ecfdf5; }
-[data-theme="light"] .bg-emerald-950\/40 { background-color: #ecfdf5; }
-[data-theme="light"] .bg-emerald-950\/60 { background-color: #ecfdf5; }
-[data-theme="light"] .bg-green-950\/60 { background-color: #f0fdf4; }
-[data-theme="light"] .bg-purple-950\/60 { background-color: #faf5ff; }
-[data-theme="light"] .bg-rose-950 { background-color: #fff1f2; }
-[data-theme="light"] .bg-rose-950\/20 { background-color: #fff1f2; }
-[data-theme="light"] .bg-rose-950\/40 { background-color: #fff1f2; }
-[data-theme="light"] .bg-rose-950\/60 { background-color: #fff1f2; }
-[data-theme="light"] .bg-slate-800 { background-color: #f3ece0; }
-[data-theme="light"] .bg-slate-800\/80 { background-color: #f3ece0; }
-[data-theme="light"] .bg-slate-900 { background-color: #ffffff; }
-[data-theme="light"] .bg-slate-900\/40 { background-color: #faf7f2; }
-[data-theme="light"] .bg-slate-900\/50 { background-color: #faf7f2; }
-[data-theme="light"] .bg-slate-900\/60 { background-color: #ffffff; }
-[data-theme="light"] .bg-slate-900\/80 { background-color: #ffffff; }
-[data-theme="light"] .bg-slate-900\/90 { background-color: #ffffff; }
-[data-theme="light"] .bg-slate-950 { background-color: #faf7f2; }
-[data-theme="light"] .bg-slate-950\/40 { background-color: #faf7f2; }
-[data-theme="light"] .bg-slate-950\/60 { background-color: #faf7f2; }
-[data-theme="light"] .bg-slate-950\/70 { background-color: #faf7f2; }
-[data-theme="light"] .bg-teal-950\/60 { background-color: #f0fdfa; }
-[data-theme="light"] .border-amber-700\/50 { border-color: #fcd34d; }
-[data-theme="light"] .border-amber-800\/40 { border-color: #fcd34d; }
-[data-theme="light"] .border-amber-800\/50 { border-color: #fcd34d; }
-[data-theme="light"] .border-amber-900\/30 { border-color: #fcd34d; }
-[data-theme="light"] .border-amber-900\/40 { border-color: #fcd34d; }
-[data-theme="light"] .border-blue-700\/50 { border-color: #93c5fd; }
-[data-theme="light"] .border-emerald-700\/40 { border-color: #6ee7b7; }
-[data-theme="light"] .border-emerald-700\/50 { border-color: #6ee7b7; }
-[data-theme="light"] .border-emerald-800 { border-color: #6ee7b7; }
-[data-theme="light"] .border-emerald-800\/40 { border-color: #6ee7b7; }
-[data-theme="light"] .border-emerald-800\/50 { border-color: #6ee7b7; }
-[data-theme="light"] .border-green-700\/50 { border-color: #86efac; }
-[data-theme="light"] .border-purple-700\/50 { border-color: #d8b4fe; }
-[data-theme="light"] .border-rose-700\/50 { border-color: #fda4af; }
-[data-theme="light"] .border-rose-800 { border-color: #fda4af; }
-[data-theme="light"] .border-rose-800\/40 { border-color: #fda4af; }
-[data-theme="light"] .border-rose-800\/50 { border-color: #fda4af; }
-[data-theme="light"] .border-rose-800\/60 { border-color: #fda4af; }
-[data-theme="light"] .border-rose-900\/40 { border-color: #fda4af; }
-[data-theme="light"] .border-slate-700 { border-color: #d6c8b2; }
-[data-theme="light"] .border-slate-700\/60 { border-color: #d6c8b2; }
-[data-theme="light"] .border-slate-800 { border-color: #e4d9c8; }
-[data-theme="light"] .border-slate-800\/50 { border-color: #e4d9c8; }
-[data-theme="light"] .border-slate-800\/60 { border-color: #e4d9c8; }
-[data-theme="light"] .border-slate-800\/80 { border-color: #e4d9c8; }
-[data-theme="light"] .border-teal-700\/50 { border-color: #5eead4; }
-[data-theme="light"] .divide-slate-800 > :not(:last-child) { border-color: #e4d9c8; }
-[data-theme="light"] .divide-slate-800\/60 > :not(:last-child) { border-color: #e4d9c8; }
-[data-theme="light"] .hover\:bg-amber-900\/50:hover { background-color: #fef3c7; }
-[data-theme="light"] .hover\:bg-amber-950\/30:hover { background-color: #fffbeb; }
-[data-theme="light"] .hover\:bg-emerald-900\/50:hover { background-color: #d1fae5; }
-[data-theme="light"] .hover\:bg-rose-900\/50:hover { background-color: #ffe4e6; }
-[data-theme="light"] .hover\:bg-rose-900\/60:hover { background-color: #ffe4e6; }
-[data-theme="light"] .hover\:bg-slate-700:hover { background-color: #f8e4cc; }
-[data-theme="light"] .hover\:bg-slate-800:hover { background-color: #fbeedd; }
-[data-theme="light"] .hover\:bg-slate-800\/30:hover { background-color: #fef6ea; }
-[data-theme="light"] .hover\:border-slate-700:hover { border-color: #d6c8b2; }
-[data-theme="light"] .hover\:text-slate-200:hover { color: #282820; }
-[data-theme="light"] .text-amber-300 { color: #b45309; }
-[data-theme="light"] .text-amber-400 { color: #b45309; }
-[data-theme="light"] .text-amber-400\/90 { color: #b45309; }
-[data-theme="light"] .text-blue-300 { color: #1d4ed8; }
-[data-theme="light"] .text-emerald-300 { color: #047857; }
-[data-theme="light"] .text-emerald-400 { color: #047857; }
-[data-theme="light"] .text-green-300 { color: #15803d; }
-[data-theme="light"] .text-purple-300 { color: #7e22ce; }
-[data-theme="light"] .text-rose-200 { color: #be123c; }
-[data-theme="light"] .text-rose-300 { color: #be123c; }
-[data-theme="light"] .text-rose-400 { color: #be123c; }
-[data-theme="light"] .text-slate-200 { color: #282820; }
-[data-theme="light"] .text-slate-300 { color: #3f3a2e; }
-[data-theme="light"] .text-slate-400 { color: #5a5545; }
-[data-theme="light"] .text-slate-500 { color: #756a56; }
-[data-theme="light"] .text-slate-600 { color: #5a5545; }
-[data-theme="light"] .text-teal-300 { color: #0f766e; }
-
 /* Printable Standee styles */
 @media print {
   body {
@@ -254,3 +146,4 @@
     display: block !important;
   }
 }
+

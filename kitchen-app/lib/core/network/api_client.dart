@@ -16,6 +16,42 @@ class ApiClient {
 
   String get _baseUrl => EnvConfig.apiBaseUrl;
 
+  /// Resolves the absolute [Uri] from [baseUrl] and [path], ensuring the
+  /// FastAPI version prefix (`/api/v1`) is neither omitted nor duplicated.
+  static Uri resolveUri(String baseUrl, String path, {Map<String, String>? queryParams}) {
+    // 1. Strip trailing slashes from baseUrl
+    String cleanBase = baseUrl.trim();
+    while (cleanBase.endsWith('/')) {
+      cleanBase = cleanBase.substring(0, cleanBase.length - 1);
+    }
+
+    // 2. Normalize path: ensure leading slash
+    String cleanPath = path.trim();
+    if (!cleanPath.startsWith('/')) {
+      cleanPath = '/$cleanPath';
+    }
+
+    // 3. Prevent duplicate or missing /api/v1
+    const v1Prefix = '/api/v1';
+    final baseHasV1 = cleanBase.endsWith(v1Prefix);
+    final pathHasV1 = cleanPath.startsWith('$v1Prefix/') || cleanPath == v1Prefix;
+
+    if (baseHasV1 && pathHasV1) {
+      // Both base and path contain /api/v1 -> remove from path to prevent duplication
+      cleanPath = cleanPath.substring(v1Prefix.length);
+    } else if (!baseHasV1 && !pathHasV1) {
+      // Neither base nor path has /api/v1 -> prepend to path for FastAPI route match
+      cleanPath = '$v1Prefix$cleanPath';
+    }
+
+    final fullUrl = '$cleanBase$cleanPath';
+    var uri = Uri.parse(fullUrl);
+    if (queryParams != null && queryParams.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
+    return uri;
+  }
+
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -74,7 +110,8 @@ class ApiClient {
     required String username,
     required String password,
   }) async {
-    final url = Uri.parse('$_baseUrl/auth/staff/login');
+    // Route in FastAPI is /api/v1/auth/login
+    final url = resolveUri(_baseUrl, '/auth/login');
     final res = await _httpClient.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -101,14 +138,14 @@ class ApiClient {
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getActiveQueue({String? statusFilter}) async {
-    final query = statusFilter != null ? '?status=$statusFilter' : '';
-    final url = Uri.parse('$_baseUrl/kitchen/orders/active$query');
+    final queryParams = statusFilter != null ? {'status': statusFilter} : null;
+    final url = resolveUri(_baseUrl, '/kitchen/orders/active', queryParams: queryParams);
     final res = await _httpClient.get(url, headers: await _headers());
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> acceptOrder(String orderId, int expectedVersion) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/$orderId/accept');
+    final url = resolveUri(_baseUrl, '/kitchen/orders/$orderId/accept');
     final res = await _httpClient.post(
       url,
       headers: await _headers(),
@@ -122,7 +159,7 @@ class ApiClient {
     int expectedVersion,
     String reason,
   ) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/$orderId/reject');
+    final url = resolveUri(_baseUrl, '/kitchen/orders/$orderId/reject');
     final res = await _httpClient.post(
       url,
       headers: await _headers(),
@@ -138,7 +175,7 @@ class ApiClient {
     String orderId,
     int expectedVersion,
   ) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/$orderId/preparing');
+    final url = resolveUri(_baseUrl, '/kitchen/orders/$orderId/preparing');
     final res = await _httpClient.post(
       url,
       headers: await _headers(),
@@ -151,7 +188,7 @@ class ApiClient {
     String orderId,
     int expectedVersion,
   ) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/$orderId/ready');
+    final url = resolveUri(_baseUrl, '/kitchen/orders/$orderId/ready');
     final res = await _httpClient.post(
       url,
       headers: await _headers(),
@@ -161,7 +198,7 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> acknowledgeModifications(String orderId) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/$orderId/acknowledge-modifications');
+    final url = resolveUri(_baseUrl, '/kitchen/orders/$orderId/acknowledge-modifications');
     final res = await _httpClient.post(
       url,
       headers: await _headers(),
@@ -171,7 +208,14 @@ class ApiClient {
   }
 
   Future<List<dynamic>> getOrderHistory({int page = 1, int pageSize = 20}) async {
-    final url = Uri.parse('$_baseUrl/kitchen/orders/history?page=$page&page_size=$pageSize');
+    final url = resolveUri(
+      _baseUrl,
+      '/kitchen/orders/history',
+      queryParams: {
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
+      },
+    );
     final res = await _httpClient.get(url, headers: await _headers());
     return _handleResponse(res) as List<dynamic>;
   }

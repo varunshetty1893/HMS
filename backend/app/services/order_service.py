@@ -1014,9 +1014,8 @@ class OrderService:
                 .with_for_update()
             )
             table = await db.scalar(table_stmt)
-            if table and table.current_session_id == table_session.id:
-                table.status = "AVAILABLE"
-                table.current_session_id = None
+            if table:
+                # Occupancy is derived from table_sessions; session is closed above.
                 table_reset = True
 
         order.status = OrderStatus.REJECTED.value
@@ -1448,8 +1447,7 @@ class OrderService:
             db.add(table_session)
             await db.flush()
 
-            table.status = "OCCUPIED"
-            table.current_session_id = table_session.id
+            # Occupancy is derived from the ACTIVE table_session just created.
             is_first_order = True
 
         # ── 6. ₹5,000 cap enforcement ─────────────────────────────────────
@@ -1879,9 +1877,8 @@ class OrderService:
                     .with_for_update()
                 )
                 table = await db.scalar(t_stmt)
-                if table and table.current_session_id == table_session.id:
-                    table.status = "AVAILABLE"
-                    table.current_session_id = None
+                if table:
+                    # Occupancy is derived from table_sessions; session is closed above.
                     table_reset = True
         elif is_post_accept:
             order.has_unacknowledged_mods = True
@@ -2084,9 +2081,8 @@ class OrderService:
                 .with_for_update()
             )
             table = await db.scalar(t_stmt)
-            if table and table.current_session_id == table_session.id:
-                table.status = "AVAILABLE"
-                table.current_session_id = None
+            if table:
+                # Occupancy is derived from table_sessions; session is closed above.
                 table_reset = True
 
         await AuditService.record_event(
@@ -2436,7 +2432,7 @@ class OrderService:
             table_id=table.id,
             table_number=table.table_number,
             table_display_name=table.display_name,
-            table_status=table.status,
+            table_status="OCCUPIED" if session else "AVAILABLE",
             session_id=session.id if session else None,
             session_code=session.session_code if session else None,
             session_status=session.status if session else None,

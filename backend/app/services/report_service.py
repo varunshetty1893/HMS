@@ -560,7 +560,7 @@ class ReportService:
             placed = (
                 await db.scalar(
                     select(func.count(Order.id)).where(
-                        Order.waiter_id == w.id,
+                        Order.created_by_user_id == w.id,
                         Order.placed_at >= start_utc,
                         Order.placed_at <= end_utc,
                     )

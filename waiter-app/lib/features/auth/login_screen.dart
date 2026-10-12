@@ -56,7 +56,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           decoration: BoxDecoration(
                             color: WaiterTheme.primary.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: WaiterTheme.primary, width: 2),
+                            border: Border.all(
+                                color: WaiterTheme.primary, width: 2),
                           ),
                           child: const Icon(
                             Icons.restaurant_menu_rounded,
@@ -92,12 +93,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           decoration: BoxDecoration(
                             color: WaiterTheme.errorRedBg,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: WaiterTheme.errorRed, width: 1),
+                            border: Border.all(
+                                color: WaiterTheme.errorRed, width: 1),
                           ),
                           child: Text(
                             authState.error!,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: WaiterTheme.errorRed,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -110,7 +112,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: const TextStyle(color: WaiterTheme.textPrimary),
                         decoration: const InputDecoration(
                           labelText: 'Staff Username / ID',
-                          prefixIcon: Icon(Icons.badge_outlined, color: WaiterTheme.textMuted),
+                          prefixIcon: Icon(Icons.badge_outlined,
+                              color: WaiterTheme.textMuted),
                         ),
                         textInputAction: TextInputAction.next,
                       ),
@@ -121,13 +124,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: const TextStyle(color: WaiterTheme.textPrimary),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock_outline, color: WaiterTheme.textMuted),
+                          prefixIcon: const Icon(Icons.lock_outline,
+                              color: WaiterTheme.textMuted),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: WaiterTheme.textMuted,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                           ),
                         ),
                         onSubmitted: (_) => _submit(),
@@ -136,15 +143,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ElevatedButton(
                         onPressed: authState.isLoading ? null : _submit,
                         child: authState.isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                              ),
-                            )
-                          : const Text('Sign In to Floor Grid'),
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Text('Sign In to Floor Grid'),
                       ),
                     ],
                   ),

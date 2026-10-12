@@ -111,11 +111,13 @@ class FloorTablesScreen extends ConsumerWidget {
                       fillColor: AppTheme.cardColor,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppTheme.borderColor),
+                        borderSide:
+                            const BorderSide(color: AppTheme.borderColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppTheme.borderColor),
+                        borderSide:
+                            const BorderSide(color: AppTheme.borderColor),
                       ),
                     ),
                   ),
@@ -176,7 +178,8 @@ class FloorTablesScreen extends ConsumerWidget {
                           children: [
                             Text(
                               state.error!,
-                              style: const TextStyle(color: AppTheme.errorColor),
+                              style:
+                                  const TextStyle(color: AppTheme.errorColor),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 12),
@@ -241,9 +244,8 @@ class FloorTablesScreen extends ConsumerWidget {
       label: Text(
         label,
         style: TextStyle(
-          color: isSelected
-              ? Colors.black
-              : badgeColor ?? AppTheme.textSecondary,
+          color:
+              isSelected ? Colors.white : badgeColor ?? AppTheme.textSecondary,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           fontSize: 12,
         ),

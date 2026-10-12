@@ -1,44 +1,48 @@
 import 'package:flutter/material.dart';
 
 class WaiterTheme {
-  static const Color background = Color(0xFF0F172A); // Slate 900
-  static const Color surface = Color(0xFF1E293B); // Slate 800
-  static const Color surfaceVariant = Color(0xFF334155); // Slate 700
-  static const Color surfaceLight = Color(0xFF475569); // Slate 600
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFE2E8F0);
+  static const Color surfaceLight = Color(0xFFCBD5E1);
 
-  static const Color primary = Color(0xFFD95D2B); // Spice Orange
-  static const Color primaryDark = Color(0xFFC84E1D); // Dark Spice
-  static const Color primaryLight = Color(0xFFFED7AA); // Warm Peach
+  static const Color primary = Color(0xFFD95D2B);
+  static const Color primaryDark = Color(0xFFC84E1D);
+  static const Color primaryLight = Color(0xFFFED7AA);
 
-  static const Color availableGreen = Color(0xFF315B42); // Herb Green
-  static const Color availableGreenBg = Color(0xFF1B3526); // Deep Herb
-  static const Color occupiedBlue = Color(0xFF3B82F6); // Blue 500
-  static const Color occupiedBlueBg = Color(0xFF1E3A8A); // Blue 900
-  static const Color readyAmber = Color(0xFFD95D2B); // Spice Orange
-  static const Color readyAmberBg = Color(0xFF5A2510); // Deep Spice
-  static const Color errorRed = Color(0xFFEF4444); // Red 500
-  static const Color errorRedBg = Color(0xFF7F1D1D); // Red 900
+  static const Color availableGreen = Color(0xFF15803D);
+  static const Color availableGreenBg = Color(0xFFDCFCE7);
+  static const Color occupiedBlue = Color(0xFF1D4ED8);
+  static const Color occupiedBlueBg = Color(0xFFDBEAFE);
+  static const Color readyAmber = Color(0xFFC2410C);
+  static const Color readyAmberBg = Color(0xFFFFEDD5);
+  static const Color errorRed = Color(0xFFB91C1C);
+  static const Color errorRedBg = Color(0xFFFEE2E2);
 
-  static const Color textPrimary = Color(0xFFF8FAFC); // Slate 50
-  static const Color textSecondary = Color(0xFFCBD5E1); // Slate 300
-  static const Color textMuted = Color(0xFF94A3B8); // Slate 400
+  static const Color textPrimary = Color(0xFF0F172A);
+  static const Color textSecondary = Color(0xFF475569);
+  static const Color textMuted = Color(0xFF64748B);
 
-  static ThemeData get darkTheme {
+  static ThemeData get lightTheme {
     return ThemeData(
-      brightness: Brightness.dark,
+      useMaterial3: true,
+      brightness: Brightness.light,
       scaffoldBackgroundColor: background,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: const ColorScheme.light(
         primary: primary,
         secondary: primaryDark,
         surface: surface,
         error: errorRed,
-        onPrimary: Colors.black,
-        onSecondary: Colors.black,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
         onSurface: textPrimary,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: surface,
+        foregroundColor: textPrimary,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 1,
         centerTitle: false,
         titleTextStyle: TextStyle(
           color: textPrimary,
@@ -50,7 +54,8 @@ class WaiterTheme {
       ),
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 2,
+        surfaceTintColor: Colors.transparent,
+        elevation: 1,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: surfaceVariant, width: 1),
@@ -59,7 +64,7 @@ class WaiterTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceVariant,
+        fillColor: Color(0xFFF1F5F9),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: const TextStyle(color: textMuted, fontSize: 15),
@@ -75,10 +80,9 @@ class WaiterTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: Colors.black,
+          foregroundColor: Colors.white,
           elevation: 0,
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -132,5 +136,5 @@ class AppTheme {
   static const Color textSecondary = WaiterTheme.textSecondary;
   static const Color textMuted = WaiterTheme.textMuted;
 
-  static ThemeData get darkTheme => WaiterTheme.darkTheme;
+  static ThemeData get lightTheme => WaiterTheme.lightTheme;
 }

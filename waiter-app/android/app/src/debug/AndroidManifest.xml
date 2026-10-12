@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Permit cleartext HTTP for local development and physical phone LAN testing.
+         This debug-only manifest merges exclusively during debug builds and does NOT
+         weaken production release builds.
+    -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

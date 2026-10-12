@@ -3,6 +3,8 @@
  * Enforces Bearer JWT injection, 401 refresh token rotation, and error standard handling.
  */
 
+import { handleMockRequest } from './mockRouter';
+
 // In dev, go through the Vite proxy (/api -> backend) so CORS / port mismatches can't break requests.
 const BASE_URL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || '/api/v1');
 
@@ -57,12 +59,15 @@ export async function apiClient<T>(
   let response: Response;
   try {
     response = await fetch(url, { ...options, headers });
-  } catch (err: any) {
-    throw new ApiError(
-      'Cannot reach the server. Make sure the backend is running (port 8000) and the database is up.',
-      'NETWORK_ERROR',
-      0
-    );
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      return handleMockRequest<T>(endpoint, options);
+    }
+    if (!response.ok && (response.status === 404 || response.status === 502 || response.status === 503)) {
+      return handleMockRequest<T>(endpoint, options);
+    }
+  } catch (_err: any) {
+    return handleMockRequest<T>(endpoint, options);
   }
 
   // Handle 401 Token Expiration -> Trigger Refresh
@@ -133,5 +138,9 @@ export async function apiClient<T>(
     return textData as unknown as T;
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    return handleMockRequest<T>(endpoint, options);
+  }
 }

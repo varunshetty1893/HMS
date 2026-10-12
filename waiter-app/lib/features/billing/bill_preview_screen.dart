@@ -25,18 +25,22 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(billingControllerProvider.notifier).loadTableBill(widget.tableNumber);
+      ref
+          .read(billingControllerProvider.notifier)
+          .loadTableBill(widget.tableNumber);
     });
   }
 
-  void _showGenerateConfirmDialog(BuildContext context, TableBillModel tableBill) {
+  void _showGenerateConfirmDialog(
+      BuildContext context, TableBillModel tableBill) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.cardColor,
         title: Text(
           'Generate Final Bill — Table ${widget.tableNumber}',
-          style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Total: ${CurrencyFormatter.format(tableBill.previewGrandTotal ?? 0.0)}\n\n'
@@ -46,7 +50,8 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppTheme.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -55,7 +60,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final bill = await ref.read(billingControllerProvider.notifier).generateBill(
+              final bill = await ref
+                  .read(billingControllerProvider.notifier)
+                  .generateBill(
                     tableNumber: widget.tableNumber,
                   );
               if (bill != null && mounted) {
@@ -86,8 +93,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                ref.read(billingControllerProvider.notifier).loadTableBill(widget.tableNumber),
+            onPressed: () => ref
+                .read(billingControllerProvider.notifier)
+                .loadTableBill(widget.tableNumber),
           ),
         ],
       ),
@@ -100,12 +108,14 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, size: 48, color: AppTheme.errorColor),
+                        const Icon(Icons.error_outline,
+                            size: 48, color: AppTheme.errorColor),
                         const SizedBox(height: 12),
                         Text(
                           state.error!,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppTheme.errorColor, fontSize: 16),
+                          style: const TextStyle(
+                              color: AppTheme.errorColor, fontSize: 16),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
@@ -119,23 +129,27 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                   ),
                 )
               : tableBill == null
-                  ? const Center(child: Text('No billing information available'))
+                  ? const Center(
+                      child: Text('No billing information available'))
                   : Column(
                       children: [
                         // Status & Warnings Header
                         if (tableBill.hasUnacceptedPlacedOrders)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
                             color: Colors.red.withOpacity(0.15),
                             child: const Row(
                               children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
+                                Icon(Icons.warning_amber_rounded,
+                                    color: Color(0xFFC2410C)),
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Unaccepted PLACED orders exist. Kitchen must accept/reject first.',
-                                    style: TextStyle(color: Colors.orangeAccent, fontSize: 13),
+                                    style: TextStyle(
+                                        color: Color(0xFFC2410C), fontSize: 13),
                                   ),
                                 ),
                               ],
@@ -144,16 +158,19 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                         else if (tableBill.hasUnservedOrders)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
                             color: Colors.amber.withOpacity(0.15),
                             child: const Row(
                               children: [
-                                Icon(Icons.info_outline, color: Colors.amber),
+                                Icon(Icons.info_outline,
+                                    color: Color(0xFFB45309)),
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Active unserved orders remain. Mark all items SERVED before bill generation.',
-                                    style: TextStyle(color: Colors.amber, fontSize: 13),
+                                    style: TextStyle(
+                                        color: Color(0xFFB45309), fontSize: 13),
                                   ),
                                 ),
                               ],
@@ -179,7 +196,8 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                           padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(
                             color: AppTheme.surfaceColor,
-                            border: Border(top: BorderSide(color: AppTheme.borderColor)),
+                            border: Border(
+                                top: BorderSide(color: AppTheme.borderColor)),
                           ),
                           child: bill != null
                               ? SizedBox(
@@ -189,7 +207,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                     icon: const Icon(Icons.payment),
                                     label: Text(
                                       'Proceed to Record Payment (${CurrencyFormatter.format(bill.grandTotal)})',
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppTheme.readyColor,
@@ -198,7 +218,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                     onPressed: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => PaymentRecordingScreen(bill: bill),
+                                          builder: (_) =>
+                                              PaymentRecordingScreen(
+                                                  bill: bill),
                                         ),
                                       );
                                     },
@@ -211,7 +233,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                     icon: const Icon(Icons.receipt_long),
                                     label: const Text(
                                       'Generate Final Bill',
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: tableBill.canGenerateBill
@@ -219,8 +243,10 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                           : Colors.grey.shade700,
                                       foregroundColor: Colors.white,
                                     ),
-                                    onPressed: tableBill.canGenerateBill && !state.isSubmitting
-                                        ? () => _showGenerateConfirmDialog(context, tableBill)
+                                    onPressed: tableBill.canGenerateBill &&
+                                            !state.isSubmitting
+                                        ? () => _showGenerateConfirmDialog(
+                                            context, tableBill)
                                         : null,
                                   ),
                                 ),
@@ -255,11 +281,14 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
               if (tableBill.tableDisplayName != null)
                 Text(
                   tableBill.tableDisplayName!,
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary, fontSize: 13),
                 ),
               const SizedBox(height: 4),
               Text(
-                bill != null ? 'Bill #${bill.billNumber}' : 'Session: ${tableBill.sessionCode}',
+                bill != null
+                    ? 'Bill #${bill.billNumber}'
+                    : 'Session: ${tableBill.sessionCode}',
                 style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
               ),
             ],
@@ -267,13 +296,15 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: bill != null ? AppTheme.readyColor.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+              color: bill != null
+                  ? AppTheme.readyColor.withOpacity(0.2)
+                  : Colors.orange.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               bill != null ? bill.status : 'PREVIEW',
               style: TextStyle(
-                color: bill != null ? AppTheme.readyColor : Colors.orangeAccent,
+                color: bill != null ? AppTheme.readyColor : Color(0xFFC2410C),
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -299,13 +330,17 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
         children: [
           const Text(
             'Itemized Line Items',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary),
           ),
           const Divider(color: AppTheme.borderColor),
           if (items.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No active billable items found.', style: TextStyle(color: AppTheme.textMuted)),
+              child: Text('No active billable items found.',
+                  style: TextStyle(color: AppTheme.textMuted)),
             )
           else
             ...items.map((item) {
@@ -328,7 +363,8 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                           ),
                           Text(
                             '${item.itemCode} • ${item.variantName} @ ${CurrencyFormatter.format(item.unitPriceSnapshot)}',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                            style: const TextStyle(
+                                color: AppTheme.textMuted, fontSize: 12),
                           ),
                         ],
                       ),
@@ -351,12 +387,18 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
   }
 
   Widget _buildFinancialSummaryCard(TableBillModel tableBill, BillModel? bill) {
-    final subtotal = bill != null ? bill.subtotalAmount : (tableBill.previewSubtotal ?? 0.0);
+    final subtotal =
+        bill != null ? bill.subtotalAmount : (tableBill.previewSubtotal ?? 0.0);
     final discount = bill?.discountAmount ?? 0.0;
-    final taxable = bill != null ? bill.taxableAmount : (tableBill.previewTaxable ?? subtotal);
-    final cgst = bill != null ? bill.cgstAmount : (tableBill.previewCgst ?? 0.0);
-    final sgst = bill != null ? bill.sgstAmount : (tableBill.previewSgst ?? 0.0);
-    final grandTotal = bill != null ? bill.grandTotal : (tableBill.previewGrandTotal ?? 0.0);
+    final taxable = bill != null
+        ? bill.taxableAmount
+        : (tableBill.previewTaxable ?? subtotal);
+    final cgst =
+        bill != null ? bill.cgstAmount : (tableBill.previewCgst ?? 0.0);
+    final sgst =
+        bill != null ? bill.sgstAmount : (tableBill.previewSgst ?? 0.0);
+    final grandTotal =
+        bill != null ? bill.grandTotal : (tableBill.previewGrandTotal ?? 0.0);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -410,7 +452,9 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+          Text(label,
+              style:
+                  const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
           Text(
             value,
             style: TextStyle(

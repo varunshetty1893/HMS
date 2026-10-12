@@ -63,7 +63,8 @@ class _ManualOrderEntryScreenState
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             Text(
               'Table ${widget.table.tableNumber}${widget.table.displayName != null ? " • ${widget.table.displayName}" : ""}',
-              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style:
+                  const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -134,8 +135,7 @@ class _ManualOrderEntryScreenState
                 : state.searchError != null
                     ? Center(
                         child: Text(state.searchError!,
-                            style:
-                                const TextStyle(color: AppTheme.errorColor)))
+                            style: const TextStyle(color: AppTheme.errorColor)))
                     : state.searchQuery.isEmpty
                         ? _buildSearchHint()
                         : state.searchResults.isEmpty
@@ -143,7 +143,8 @@ class _ManualOrderEntryScreenState
                                 child: Text(
                                   'No items found.\nTry a different name or short-code.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(color: AppTheme.textSecondary),
+                                  style:
+                                      TextStyle(color: AppTheme.textSecondary),
                                 ),
                               )
                             : _buildSearchResults(state, controller),
@@ -155,7 +156,7 @@ class _ManualOrderEntryScreenState
           ? FloatingActionButton.extended(
               onPressed: _openCart,
               backgroundColor: AppTheme.accentColor,
-              foregroundColor: Colors.black,
+              foregroundColor: Colors.white,
               icon: const Icon(Icons.shopping_cart),
               label: Text(
                 '${state.cartItemCount} items • ${CurrencyFormatter.format(state.cartTotal)}',
@@ -220,8 +221,7 @@ class _ManualOrderEntryScreenState
     );
   }
 
-  Widget _buildMenuItemCard(
-      dynamic item, OrderEntryController controller) {
+  Widget _buildMenuItemCard(dynamic item, OrderEntryController controller) {
     final menuItem = item as dynamic;
 
     return Container(
@@ -283,8 +283,7 @@ class _ManualOrderEntryScreenState
           // Variants as pills
           if (menuItem.variants != null && menuItem.variants.isNotEmpty)
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -344,8 +343,7 @@ class _ManualOrderEntryScreenState
             if (inCart) ...[
               const SizedBox(width: 4),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppTheme.accentColor,
                   borderRadius: BorderRadius.circular(10),
@@ -353,7 +351,7 @@ class _ManualOrderEntryScreenState
                 child: Text(
                   '$cartQty',
                   style: const TextStyle(
-                      color: Colors.black,
+                      color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.bold),
                 ),

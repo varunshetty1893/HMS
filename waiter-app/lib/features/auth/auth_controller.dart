@@ -5,7 +5,8 @@ import '../../core/storage/secure_token_storage.dart';
 import '../../models/user.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
-final secureStorageProvider = Provider<SecureTokenStorage>((ref) => SecureTokenStorage());
+final secureStorageProvider =
+    Provider<SecureTokenStorage>((ref) => SecureTokenStorage());
 final wsClientProvider = Provider<WsClient>((ref) => WsClient());
 
 class AuthState {
@@ -60,7 +61,8 @@ class AuthController extends StateNotifier<AuthState> {
       final fullName = await _tokenStorage.getFullName() ?? '';
       final role = await _tokenStorage.getRole() ?? 'WAITER';
 
-      final user = User(id: userId, username: username, fullName: fullName, role: role);
+      final user =
+          User(id: userId, username: username, fullName: fullName, role: role);
       state = state.copyWith(isAuthenticated: true, user: user);
       _wsClient.connect(token);
     }
@@ -70,7 +72,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _apiClient.post(
-        '/api/v1/auth/login',
+        '/auth/login',
         body: {'username': username.trim(), 'password': password},
       );
 

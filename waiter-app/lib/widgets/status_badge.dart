@@ -29,18 +29,18 @@ class StatusBadge extends StatelessWidget {
         label = 'OCCUPIED';
         break;
       case 'PLACED':
-        bg = const Color(0xFF334155);
-        fg = const Color(0xFFCBD5E1);
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF475569);
         label = 'PLACED';
         break;
       case 'ACCEPTED':
-        bg = const Color(0xFF1E3A8A);
-        fg = const Color(0xFF60A5FA);
+        bg = const Color(0xFFDBEAFE);
+        fg = const Color(0xFF1D4ED8);
         label = 'ACCEPTED';
         break;
       case 'PREPARING':
-        bg = const Color(0xFF1E3A8A);
-        fg = const Color(0xFF93C5FD);
+        bg = const Color(0xFFE0E7FF);
+        fg = const Color(0xFF4338CA);
         label = 'PREPARING';
         break;
       case 'READY':

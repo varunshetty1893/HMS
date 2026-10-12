@@ -120,7 +120,8 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber, color: AppTheme.errorColor, size: 18),
+                  const Icon(Icons.warning_amber,
+                      color: AppTheme.errorColor, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -222,8 +223,7 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
             child: TextField(
               controller: _notesController,
               maxLines: 2,
-              style:
-                  const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Special request notes for kitchen (optional)...',
                 filled: true,
@@ -280,7 +280,7 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.black),
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.send),
                     label: Text(
@@ -292,7 +292,7 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
                       backgroundColor: exceedsLimit
                           ? AppTheme.textMuted
                           : AppTheme.accentColor,
-                      foregroundColor: Colors.black,
+                      foregroundColor: Colors.white,
                       disabledBackgroundColor: AppTheme.textMuted,
                     ),
                     onPressed: exceedsLimit || state.isSubmitting
@@ -307,8 +307,7 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
                             if (success && mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content:
-                                      Text('Order sent to kitchen! ✓'),
+                                  content: Text('Order sent to kitchen! ✓'),
                                   backgroundColor: AppTheme.successColor,
                                 ),
                               );

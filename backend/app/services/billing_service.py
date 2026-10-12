@@ -808,10 +808,8 @@ class BillingService:
                 cs.status = CustomerSessionStatus.CLOSED_BY_PAYMENT.value
                 cs.closed_at = now
 
-        # 11. Reset RestaurantTable to AVAILABLE
-        if table:
-            table.status = "AVAILABLE"
-            table.current_session_id = None
+        # 11. Table returns to AVAILABLE automatically (occupancy is derived from
+        #     table_sessions; the session was closed above).
 
         # 12. Audit event
         await AuditService.record_event(

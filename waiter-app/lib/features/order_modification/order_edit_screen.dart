@@ -97,7 +97,8 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       };
 
       final apiClient = ref.read(apiClientProvider);
-      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}', data: data);
+      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}',
+          data: data);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -369,7 +370,7 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.accentColor,
-                      foregroundColor: Colors.black,
+                      foregroundColor: Colors.white,
                     ),
                     onPressed: _isSubmitting || !_hasChanges
                         ? null
@@ -380,7 +381,7 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.black,
+                              color: Colors.white,
                             ),
                           )
                         : const Text(

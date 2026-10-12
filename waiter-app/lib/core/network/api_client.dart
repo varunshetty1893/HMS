@@ -16,6 +16,54 @@ class ApiClient {
 
   String get _baseUrl => EnvConfig.apiBaseUrl;
 
+  /// Resolves the absolute [Uri] from [baseUrl] and [path], ensuring the
+  /// FastAPI version prefix (`/api/v1`) is neither omitted nor duplicated.
+  ///
+  /// Examples:
+  /// - `baseUrl: 'http://192.168.1.5:8000/api/v1'`, `path: '/api/v1/auth/login'`
+  ///   => `http://192.168.1.5:8000/api/v1/auth/login` (duplicate stripped)
+  /// - `baseUrl: 'http://192.168.1.5:8000/api/v1'`, `path: '/auth/login'`
+  ///   => `http://192.168.1.5:8000/api/v1/auth/login` (clean composition)
+  /// - `baseUrl: 'http://192.168.1.5:8000'`, `path: '/api/v1/auth/login'`
+  ///   => `http://192.168.1.5:8000/api/v1/auth/login` (prefix retained)
+  /// - `baseUrl: 'http://192.168.1.5:8000'`, `path: '/auth/login'`
+  ///   => `http://192.168.1.5:8000/api/v1/auth/login` (prefix added)
+  static Uri resolveUri(String baseUrl, String path,
+      {Map<String, String>? queryParams}) {
+    // 1. Strip trailing slashes from baseUrl
+    String cleanBase = baseUrl.trim();
+    while (cleanBase.endsWith('/')) {
+      cleanBase = cleanBase.substring(0, cleanBase.length - 1);
+    }
+
+    // 2. Normalize path: ensure leading slash
+    String cleanPath = path.trim();
+    if (!cleanPath.startsWith('/')) {
+      cleanPath = '/$cleanPath';
+    }
+
+    // 3. Prevent duplicate or missing /api/v1
+    const v1Prefix = '/api/v1';
+    final baseHasV1 = cleanBase.endsWith(v1Prefix);
+    final pathHasV1 =
+        cleanPath.startsWith('$v1Prefix/') || cleanPath == v1Prefix;
+
+    if (baseHasV1 && pathHasV1) {
+      // Both base and path contain /api/v1 -> remove from path to prevent duplication
+      cleanPath = cleanPath.substring(v1Prefix.length);
+    } else if (!baseHasV1 && !pathHasV1) {
+      // Neither base nor path has /api/v1 -> prepend to path for FastAPI route match
+      cleanPath = '$v1Prefix$cleanPath';
+    }
+
+    final fullUrl = '$cleanBase$cleanPath';
+    var uri = Uri.parse(fullUrl);
+    if (queryParams != null && queryParams.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
+    return uri;
+  }
+
   Future<Map<String, String>> _buildHeaders({
     Map<String, String>? extra,
     String? idempotencyKey,
@@ -53,7 +101,8 @@ class ApiClient {
         final err = body['error'];
         code = err['code'] ?? code;
         message = err['message'] ?? message;
-        details = err['details'] is Map<String, dynamic> ? err['details'] : null;
+        details =
+            err['details'] is Map<String, dynamic> ? err['details'] : null;
       }
     } catch (_) {}
 
@@ -64,17 +113,15 @@ class ApiClient {
       throw ConflictException(code: code, message: message);
     }
     if (res.statusCode == 422 && code == 'LIMIT_EXCEEDED') {
-      throw TableLimitExceededException(code: code, message: message, details: details);
+      throw TableLimitExceededException(
+          code: code, message: message, details: details);
     }
 
     throw ApiException(code: code, message: message, details: details);
   }
 
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
-    var uri = Uri.parse('$_baseUrl$path');
-    if (queryParams != null && queryParams.isNotEmpty) {
-      uri = uri.replace(queryParameters: queryParams);
-    }
+    final uri = resolveUri(_baseUrl, path, queryParams: queryParams);
     final headers = await _buildHeaders();
     final res = await _httpClient.get(uri, headers: headers);
     return _handleResponse(res);
@@ -88,7 +135,7 @@ class ApiClient {
     String? idempotencyKey,
     Map<String, String>? headers,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = resolveUri(_baseUrl, path);
     final payload = data ?? body;
     final builtHeaders = await _buildHeaders(
       extra: headers,
@@ -110,7 +157,7 @@ class ApiClient {
     Map<String, String>? headers,
   }) async {
     final payload = data ?? body;
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = resolveUri(_baseUrl, path);
     final builtHeaders = await _buildHeaders(extra: headers);
     final res = await _httpClient.patch(
       uri,

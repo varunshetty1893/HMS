@@ -15,7 +15,7 @@ class WaiterApp extends ConsumerWidget {
     return MaterialApp(
       title: 'HMS Waiter',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       home: authState.isAuthenticated
           ? const FloorTablesScreen()
           : const LoginScreen(),

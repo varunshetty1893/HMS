@@ -1014,8 +1014,7 @@ class OrderService:
                 .with_for_update()
             )
             table = await db.scalar(table_stmt)
-            if table:
-                # Occupancy is derived from table_sessions; session is closed above.
+            if table:  # occupancy derived from table_sessions
                 table_reset = True
 
         order.status = OrderStatus.REJECTED.value
@@ -1442,17 +1441,20 @@ class OrderService:
                 custom_outstanding_limit=Decimal("5000.00"),
                 opened_by_source=OrderSource.WAITER.value,
                 opened_by_user_id=staff_user.id,
-                opened_at=now,
+                started_at=now,
             )
             db.add(table_session)
             await db.flush()
 
-            # Occupancy is derived from the ACTIVE table_session just created.
             is_first_order = True
 
         # ── 6. ₹5,000 cap enforcement ─────────────────────────────────────
         new_outstanding = table_session.current_outstanding_amount + order_subtotal
-        if new_outstanding > table_session.custom_outstanding_limit:
+        _cfg = (
+            await db.execute(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+        ).scalar_one_or_none()
+        _enforce_cap = bool(_cfg and _cfg.apply_outstanding_limit_to_waiter_orders)
+        if _enforce_cap and new_outstanding > table_session.custom_outstanding_limit:
             remaining = _two_dp(
                 table_session.custom_outstanding_limit - table_session.current_outstanding_amount
             )
@@ -1507,7 +1509,7 @@ class OrderService:
                 quantity_value_snapshot=variant.quantity_value,
                 unit_snapshot=variant.unit,
                 unit_price_snapshot=unit_price,
-                tax_rate_snapshot=menu_item.tax_rate,
+                tax_rate_snapshot=menu_item.tax_rate_override or Decimal("0.00"),
                 original_quantity=qty,
                 active_quantity=qty,
                 cancelled_quantity=0,
@@ -1554,14 +1556,14 @@ class OrderService:
 
         if idempotency_key:
             idem_row = IdempotencyKey(
-                key=idempotency_key,
+                idempotency_key=idempotency_key,
                 actor_scope=str(staff_user.id),
                 endpoint_path="/api/v1/waiter/orders",
                 request_hash=hashlib.sha256(
                     json.dumps(payload.model_dump(mode="json"), sort_keys=True).encode()
                 ).hexdigest(),
-                response_body=response_body.model_dump(mode="json"),
-                status_code=201,
+                response_body_json=response_body.model_dump(mode="json"),
+                response_status_code=201,
                 expires_at=now + _IDEMPOTENCY_TTL,
             )
             db.add(idem_row)
@@ -1670,7 +1672,7 @@ class OrderService:
 
         if order.status == OrderStatus.PREPARING.value and staff_user.role != UserRole.ADMIN:
             settings = await db.scalar(select(RestaurantSettings))
-            if not (settings and settings.allow_waiter_post_accept_cancellation):
+            if not (settings and settings.allow_waiter_cancel_preparing_item):
                 raise DomainValidationError(
                     "PREPARING_MODIFICATION_BLOCKED",
                     "Order is already in PREPARING status; modification requires "
@@ -1757,7 +1759,7 @@ class OrderService:
                 # Adding a new line to this existing order
                 v_stmt = (
                     select(MenuPriceVariant)
-                    .options(selectinload(MenuPriceVariant.menu_item))
+                    .options(selectinload(MenuPriceVariant.item))
                     .where(MenuPriceVariant.id == mod.variant_id)
                 )
                 variant = await db.scalar(v_stmt)
@@ -1765,7 +1767,7 @@ class OrderService:
                     raise ResourceNotFoundError(
                         "VARIANT_NOT_FOUND", f"Variant {mod.variant_id} not found or inactive."
                     )
-                menu_item = variant.menu_item
+                menu_item = variant.item
                 if not menu_item or not menu_item.is_active or not menu_item.is_available:
                     raise DomainValidationError(
                         "ITEM_NOT_AVAILABLE",
@@ -1792,7 +1794,7 @@ class OrderService:
                     quantity_value_snapshot=variant.quantity_value,
                     unit_snapshot=variant.unit,
                     unit_price_snapshot=unit_price,
-                    tax_rate_snapshot=menu_item.tax_rate,
+                    tax_rate_snapshot=menu_item.tax_rate_override or Decimal("0.00"),
                     original_quantity=mod.new_quantity,
                     active_quantity=mod.new_quantity,
                     cancelled_quantity=0,
@@ -1827,7 +1829,11 @@ class OrderService:
 
         # ── ₹5,000 table cap enforcement on net increase ──────────────────
         new_outstanding = table_session.current_outstanding_amount + net_price_delta
-        if net_price_delta > 0 and new_outstanding > table_session.custom_outstanding_limit:
+        _cfg = (
+            await db.execute(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+        ).scalar_one_or_none()
+        _enforce_cap = bool(_cfg and _cfg.apply_outstanding_limit_to_waiter_orders)
+        if _enforce_cap and net_price_delta > 0 and new_outstanding > table_session.custom_outstanding_limit:
             remaining = _two_dp(
                 table_session.custom_outstanding_limit - table_session.current_outstanding_amount
             )
@@ -1877,8 +1883,7 @@ class OrderService:
                     .with_for_update()
                 )
                 table = await db.scalar(t_stmt)
-                if table:
-                    # Occupancy is derived from table_sessions; session is closed above.
+                if table:  # occupancy derived from table_sessions
                     table_reset = True
         elif is_post_accept:
             order.has_unacknowledged_mods = True
@@ -2081,8 +2086,7 @@ class OrderService:
                 .with_for_update()
             )
             table = await db.scalar(t_stmt)
-            if table:
-                # Occupancy is derived from table_sessions; session is closed above.
+            if table:  # occupancy derived from table_sessions
                 table_reset = True
 
         await AuditService.record_event(

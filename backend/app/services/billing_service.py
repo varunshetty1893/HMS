@@ -587,10 +587,10 @@ class BillingService:
             db,
             actor_user_id=staff_user.id,
             actor_role=staff_user.role,
-            action="BILL_GENERATED",
+            action_type="BILL_GENERATED",
             entity_type="BILL",
-            entity_id=bill.id,
-            changes={
+            entity_id=str(bill.id),
+            new_value={
                 "bill_number": bill.bill_number,
                 "table_number": table.table_number,
                 "subtotal_amount": str(bill.subtotal_amount),
@@ -806,20 +806,22 @@ class BillingService:
             cust_sessions = (await db.execute(cust_stmt)).scalars().all()
             for cs in cust_sessions:
                 cs.status = CustomerSessionStatus.CLOSED_BY_PAYMENT.value
-                cs.closed_at = now
+                cs.revoked_at = now
+                cs.revoked_reason = "Table session closed by payment"
 
-        # 11. Table returns to AVAILABLE automatically (occupancy is derived from
-        #     table_sessions; the session was closed above).
+        # 11. Reset RestaurantTable to AVAILABLE
+        # Table occupancy is derived from table_sessions (closed above),
+        # so nothing to reset on the table row itself.
 
         # 12. Audit event
         await AuditService.record_event(
             db,
             actor_user_id=staff_user.id,
             actor_role=staff_user.role,
-            action="PAYMENT_RECORDED",
+            action_type="PAYMENT_RECORDED",
             entity_type="PAYMENT",
-            entity_id=payment.id,
-            changes={
+            entity_id=str(payment.id),
+            new_value={
                 "bill_id": str(bill.id),
                 "bill_number": bill.bill_number,
                 "amount_paid": str(amount_paid),
@@ -978,10 +980,10 @@ class BillingService:
             db,
             actor_user_id=admin_user.id,
             actor_role=admin_user.role,
-            action="BILL_DISCOUNT_APPLIED",
+            action_type="BILL_DISCOUNT_APPLIED",
             entity_type="BILL",
-            entity_id=bill.id,
-            changes={
+            entity_id=str(bill.id),
+            new_value={
                 "discount_amount": str(discount_amount),
                 "discount_reason": payload.discount_reason,
                 "new_grand_total": str(bill.grand_total),
@@ -1041,10 +1043,10 @@ class BillingService:
             db,
             actor_user_id=admin_user.id,
             actor_role=admin_user.role,
-            action="BILL_VOIDED_FOR_REVISION",
+            action_type="BILL_VOIDED_FOR_REVISION",
             entity_type="BILL",
-            entity_id=bill.id,
-            changes={"void_reason": payload.void_reason},
+            entity_id=str(bill.id),
+            new_value={"void_reason": payload.void_reason},
             client_ip=client_ip,
         )
 

@@ -70,7 +70,7 @@ class KdsHistoryScreen extends ConsumerWidget {
                           Text(
                             '${order.tableDisplayName} • #${order.orderNumber}',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: KdsTheme.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),

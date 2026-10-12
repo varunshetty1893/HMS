@@ -1,3 +1,4 @@
+import '../../config/theme.dart';
 import 'package:flutter/material.dart';
 
 class RejectOrderDialog extends StatefulWidget {
@@ -35,7 +36,7 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: KdsTheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
@@ -44,7 +45,7 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
           Expanded(
             child: Text(
               'Reject Order #${widget.orderNumber}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: KdsTheme.textPrimary),
             ),
           ),
         ],
@@ -56,7 +57,7 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
           children: [
             const Text(
               'Select a mandatory reason to notify the table and waiter:',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(color: KdsTheme.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),
             ..._presetReasons.map((reason) {
@@ -64,7 +65,7 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 activeColor: Colors.orange,
-                title: Text(reason, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                title: Text(reason, style: const TextStyle(color: KdsTheme.textPrimary, fontSize: 14)),
                 value: reason,
                 groupValue: _selectedReason,
                 onChanged: (val) {
@@ -76,15 +77,15 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _customReasonController,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: const TextStyle(color: KdsTheme.textPrimary, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Enter specific rejection reason...',
-                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                  hintStyle: const TextStyle(color: KdsTheme.textMuted, fontSize: 13),
                   filled: true,
-                  fillColor: const Color(0xFF0F172A),
+                  fillColor: KdsTheme.background,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.white24),
+                    borderSide: const BorderSide(color: KdsTheme.border),
                   ),
                 ),
               ),
@@ -95,7 +96,7 @@ class _RejectOrderDialogState extends State<RejectOrderDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          child: const Text('Cancel', style: TextStyle(color: KdsTheme.textSecondary)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(

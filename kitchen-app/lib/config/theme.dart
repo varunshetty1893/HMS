@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 class KdsTheme {
-  // Backgrounds
-  static const Color background = Color(0xFF0F172A); // slate-950
-  static const Color surface = Color(0xFF1E293B); // slate-800
-  static const Color surfaceVariant = Color(0xFF334155); // slate-700
-  static const Color border = Color(0xFF475569); // slate-600
+  // Backgrounds (light)
+  static const Color background = Color(0xFFF8FAFC); // slate-50
+  static const Color surface = Color(0xFFFFFFFF); // white
+  static const Color surfaceVariant = Color(0xFFE2E8F0); // slate-200
+  static const Color border = Color(0xFFCBD5E1); // slate-300
 
   // Semantic KDS column colors
   static const Color placedColor = Color(0xFFD95D2B); // SpiceHub Spice Orange
@@ -19,27 +19,34 @@ class KdsTheme {
   static const Color alertCancel = Color(0xFFF43F5E); // rose
 
   // Typography Colors
-  static const Color textPrimary = Color(0xFFF8FAFC);
-  static const Color textSecondary = Color(0xFF94A3B8);
+  static const Color textPrimary = Color(0xFF0F172A);
+  static const Color textSecondary = Color(0xFF475569);
   static const Color textMuted = Color(0xFF64748B);
 
-  static ThemeData get darkTheme {
+  static ThemeData get lightTheme {
     return ThemeData(
-      brightness: Brightness.dark,
+      useMaterial3: true,
+      brightness: Brightness.light,
       scaffoldBackgroundColor: background,
       primaryColor: placedColor,
       cardColor: surface,
       dividerColor: border,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: const ColorScheme.light(
         primary: placedColor,
         secondary: preparingColor,
         surface: surface,
         error: rejectedColor,
+        onPrimary: Colors.white,
+        onSurface: textPrimary,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0B1120),
+        backgroundColor: surface,
+        foregroundColor: textPrimary,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 1,
         centerTitle: false,
+        iconTheme: IconThemeData(color: textPrimary),
         titleTextStyle: TextStyle(
           color: textPrimary,
           fontSize: 20,

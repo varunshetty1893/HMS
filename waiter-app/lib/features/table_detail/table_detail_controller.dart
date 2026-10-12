@@ -48,7 +48,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
 
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
-      final type = msg['type'] as String?;
+      final type = (msg['event'] ?? msg['type'])?.toString();
       if (type == 'order.created' ||
           type == 'order.status_changed' ||
           type == 'order.modified' ||
@@ -67,9 +67,11 @@ class TableDetailController extends StateNotifier<TableDetailState> {
       state = state.copyWith(isLoading: true, error: null);
     }
     try {
-      final res = await _apiClient.get('/api/v1/waiter/tables/$tableId/session');
+      final res =
+          await _apiClient.get('/api/v1/waiter/tables/$tableId/session');
       final detail = TableSessionDetail.fromJson(res as Map<String, dynamic>);
-      state = state.copyWith(sessionDetail: detail, isLoading: false, error: null);
+      state =
+          state.copyWith(sessionDetail: detail, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
         state = state.copyWith(isLoading: false, error: e.toString());

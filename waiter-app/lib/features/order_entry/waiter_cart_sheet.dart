@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../models/table_model.dart';
+import '../floor_grid/floor_grid_controller.dart';
 import 'order_entry_controller.dart';
 
 class WaiterCartSheet extends ConsumerStatefulWidget {
@@ -270,6 +271,10 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
                               specialRequestNotes: _notesController.text,
                             );
                             if (success && mounted) {
+                              // Refresh floor grid immediately (don't rely only on WebSocket)
+                              ref
+                                  .read(floorGridControllerProvider.notifier)
+                                  .loadTables(silent: true);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Order sent to kitchen! ✓'),

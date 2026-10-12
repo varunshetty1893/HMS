@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:usesCleartextTraffic="true"
-        android:label="waiter_app"
+        android:label="SpiceHub Waiter"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

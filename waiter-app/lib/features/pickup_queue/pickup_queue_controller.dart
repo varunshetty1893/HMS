@@ -51,7 +51,7 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
 
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
-      final type = msg['type'] as String?;
+      final type = (msg['event'] ?? msg['type'])?.toString();
       if (type == 'order.ready' || type == 'order.served') {
         loadReadyOrders(silent: true);
       }
@@ -61,8 +61,8 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
   Future<void> loadReadyOrders({bool silent = false}) async {
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final res = await _apiClient
-          .get('/api/v1/waiter/orders/active?status=READY');
+      final res =
+          await _apiClient.get('/api/v1/waiter/orders/active?status=READY');
       final List<OrderModel> orders;
       if (res is List) {
         orders = res
@@ -75,8 +75,8 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
       } else {
         orders = [];
       }
-      state = state.copyWith(
-          readyOrders: orders, isLoading: false, error: null);
+      state =
+          state.copyWith(readyOrders: orders, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
         state = state.copyWith(isLoading: false, error: e.toString());
@@ -89,15 +89,15 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
     state = state.copyWith(markingServedIds: newMarking);
     try {
       final version = state.readyOrders
-          .firstWhere((o) => o.id == orderId, orElse: () => state.readyOrders.first)
+          .firstWhere((o) => o.id == orderId,
+              orElse: () => state.readyOrders.first)
           .version;
       await _apiClient.post(
         '/api/v1/waiter/orders/$orderId/serve',
         data: {'expected_version': version},
       );
       // Remove served order from list immediately for snappy UX
-      final updated =
-          state.readyOrders.where((o) => o.id != orderId).toList();
+      final updated = state.readyOrders.where((o) => o.id != orderId).toList();
       final newMarking2 = Set<String>.from(state.markingServedIds)
         ..remove(orderId);
       state =
@@ -105,8 +105,8 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
     } catch (e) {
       final newMarking2 = Set<String>.from(state.markingServedIds)
         ..remove(orderId);
-      state = state.copyWith(
-          error: e.toString(), markingServedIds: newMarking2);
+      state =
+          state.copyWith(error: e.toString(), markingServedIds: newMarking2);
     }
   }
 }

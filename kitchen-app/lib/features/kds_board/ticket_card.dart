@@ -65,7 +65,7 @@ class TicketCard extends StatelessWidget {
                       child: Text(
                         order.tableDisplayName,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: KdsTheme.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -123,9 +123,9 @@ class TicketCard extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
+                  color: KdsTheme.background,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white12),
+                  border: Border.all(color: KdsTheme.border),
                 ),
                 child: Row(
                   children: [
@@ -135,7 +135,7 @@ class TicketCard extends StatelessWidget {
                       child: Text(
                         order.specialInstructions!,
                         style: const TextStyle(
-                          color: Colors.white70,
+                          color: KdsTheme.textSecondary,
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
                         ),
@@ -156,14 +156,14 @@ class TicketCard extends StatelessWidget {
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF334155),
+                        color: KdsTheme.surfaceVariant,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         '${item.activeQuantity}x',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: KdsTheme.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),
@@ -179,7 +179,7 @@ class TicketCard extends StatelessWidget {
                               Text(
                                 item.itemName,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: KdsTheme.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),

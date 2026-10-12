@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../config/env_config.dart';
+import '../storage/secure_token_storage.dart';
 
 typedef WsEventHandler = void Function(Map<String, dynamic> event);
 
@@ -57,7 +58,15 @@ class WaiterWebSocketClient {
     _handlers.remove(handler);
   }
 
-  void _doConnect() {
+  Future<void> _doConnect() async {
+    if (_destroyed) return;
+
+    // Always connect with the freshest access token (it may have been renewed
+    // by the REST client since the socket was first opened).
+    try {
+      final fresh = await SecureTokenStorage().getAccessToken();
+      if (fresh != null && fresh.isNotEmpty) _token = fresh;
+    } catch (_) {}
     if (_destroyed) return;
 
     try {

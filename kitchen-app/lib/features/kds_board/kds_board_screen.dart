@@ -73,13 +73,13 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
                 children: [
                   CircleAvatar(
                     radius: 4,
-                    backgroundColor: state.isConnected ? Colors.greenAccent : Colors.redAccent,
+                    backgroundColor: state.isConnected ? Colors.green : Colors.redAccent,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     state.isConnected ? 'LIVE' : 'OFFLINE',
                     style: TextStyle(
-                      color: state.isConnected ? Colors.greenAccent : Colors.white,
+                      color: state.isConnected ? Colors.green.shade700 : KdsTheme.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -119,7 +119,7 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
                 return Container(
                   height: 48,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF0F172A),
+                    color: KdsTheme.surface,
                     border: Border(bottom: BorderSide(color: KdsTheme.border)),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -200,7 +200,7 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: KdsTheme.textPrimary,
               letterSpacing: 0.5,
             ),
           ),

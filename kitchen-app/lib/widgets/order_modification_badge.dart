@@ -1,3 +1,4 @@
+import '../config/theme.dart';
 import 'package:flutter/material.dart';
 import '../models/kitchen_item_model.dart';
 
@@ -78,7 +79,7 @@ class OrderModificationBadge extends StatelessWidget {
                     child: Text(
                       '${mod.itemName}: ${mod.previousQuantity} → ${mod.newQuantity} (${mod.reason})',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: KdsTheme.textPrimary,
                         fontSize: 12,
                       ),
                       overflow: TextOverflow.ellipsis,

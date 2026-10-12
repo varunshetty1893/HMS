@@ -13,9 +13,9 @@ class KdsApp extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
 
     return MaterialApp(
-      title: 'HMS Kitchen Display System',
+      title: 'SpiceHub Chef',
       debugShowCheckedModeBanner: false,
-      theme: KdsTheme.darkTheme,
+      theme: KdsTheme.lightTheme,
       home: authState.isAuthenticated ? const KdsBoardScreen() : const LoginScreen(),
     );
   }

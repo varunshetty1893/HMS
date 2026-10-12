@@ -1548,6 +1548,19 @@ class OrderService:
             },
         )
 
+        # Flush so items/history are persisted, then eagerly reload the order with its
+        # items. Reading `order.items` lazily inside an async session raises
+        # MissingGreenlet, so the relationship must be loaded explicitly.
+        await db.flush()
+        order = (
+            await db.execute(
+                select(Order)
+                .options(selectinload(Order.items))
+                .where(Order.id == order.id)
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one()
+
         response_body = OrderCreateResponse(
             order=_build_order_response(order),
             table_session=_build_session_info(table_session, is_first_order=is_first_order),

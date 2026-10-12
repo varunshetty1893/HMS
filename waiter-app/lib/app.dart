@@ -13,7 +13,7 @@ class WaiterApp extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
 
     return MaterialApp(
-      title: 'HMS Waiter',
+      title: 'SpiceHub Waiter',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: authState.isAuthenticated

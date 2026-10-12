@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../config/env_config.dart';
 import '../storage/secure_token_storage.dart';
 import 'api_exceptions.dart';
+import 'auth_refresh_client.dart';
 
 class ApiClient {
   final http.Client _httpClient;
@@ -11,8 +12,11 @@ class ApiClient {
   ApiClient({
     http.Client? httpClient,
     SecureTokenStorage? tokenStorage,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _tokenStorage = tokenStorage ?? SecureTokenStorage();
+  }) : this._internal(httpClient, tokenStorage ?? SecureTokenStorage());
+
+  ApiClient._internal(http.Client? httpClient, SecureTokenStorage storage)
+      : _httpClient = httpClient ?? AuthRefreshClient(storage),
+        _tokenStorage = storage;
 
   String get _baseUrl => EnvConfig.apiBaseUrl;
 

@@ -74,7 +74,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: KdsTheme.textPrimary,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -94,18 +94,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade900.withOpacity(0.3),
+                          color: Colors.red.shade50,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.red.shade700),
+                          border: Border.all(color: const Color(0xFFB91C1C)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                            const Icon(Icons.error_outline, color: const Color(0xFFB91C1C), size: 18),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 authState.errorMessage!,
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                                style: const TextStyle(color: const Color(0xFFB91C1C), fontSize: 12),
                               ),
                             ),
                           ],
@@ -117,13 +117,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // Username Input
                     TextField(
                       controller: _usernameController,
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                      style: const TextStyle(color: KdsTheme.textPrimary, fontSize: 15),
                       decoration: InputDecoration(
                         labelText: 'Staff Username',
                         labelStyle: const TextStyle(color: KdsTheme.textSecondary),
                         prefixIcon: const Icon(Icons.person_outline, color: KdsTheme.textSecondary),
                         filled: true,
-                        fillColor: const Color(0xFF0F172A),
+                        fillColor: KdsTheme.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(color: KdsTheme.border),
@@ -136,7 +136,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     TextField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                      style: const TextStyle(color: KdsTheme.textPrimary, fontSize: 15),
                       onSubmitted: (_) => _handleLogin(),
                       decoration: InputDecoration(
                         labelText: 'Password',
@@ -150,7 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                         filled: true,
-                        fillColor: const Color(0xFF0F172A),
+                        fillColor: KdsTheme.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(color: KdsTheme.border),

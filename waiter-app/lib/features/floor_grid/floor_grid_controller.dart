@@ -15,7 +15,8 @@ class FloorGridState {
   final bool isLoading;
   final String? error;
   final List<TableModel> tables;
-  final String selectedFilter; // 'ALL', 'AVAILABLE', 'OCCUPIED', 'RESERVED', 'READY'
+  final String
+      selectedFilter; // 'ALL', 'AVAILABLE', 'OCCUPIED', 'RESERVED', 'READY'
   final String searchQuery;
 
   const FloorGridState({
@@ -47,8 +48,10 @@ class FloorGridState {
       if (searchQuery.isNotEmpty) {
         final q = searchQuery.toLowerCase();
         final matchesNumber = table.tableNumber.toString().contains(q);
-        final matchesName = table.displayName?.toLowerCase().contains(q) ?? false;
-        final matchesLocation = table.locationDescription?.toLowerCase().contains(q) ?? false;
+        final matchesName =
+            table.displayName?.toLowerCase().contains(q) ?? false;
+        final matchesLocation =
+            table.locationDescription?.toLowerCase().contains(q) ?? false;
         if (!matchesNumber && !matchesName && !matchesLocation) {
           return false;
         }
@@ -80,7 +83,7 @@ class FloorGridController extends StateNotifier<FloorGridState> {
 
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
-      final type = msg['type'] as String?;
+      final type = (msg['event'] ?? msg['type'])?.toString();
       if (type == 'table.status_changed' ||
           type == 'table.session_opened' ||
           type == 'table.session_closed' ||

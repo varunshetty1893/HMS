@@ -94,6 +94,7 @@ class AuthController extends StateNotifier<AuthState> {
         username: user.username,
         fullName: user.fullName,
         role: user.role,
+        refreshToken: res['refresh_token']?.toString(),
       );
 
       state = state.copyWith(

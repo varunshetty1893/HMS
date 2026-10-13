@@ -3,6 +3,7 @@ import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/table_session_detail.dart';
 import '../auth/auth_controller.dart';
+import '../../core/network/api_exceptions.dart';
 
 final tableDetailControllerProvider = StateNotifierProvider.family<
     TableDetailController, TableDetailState, String>((ref, tableId) {
@@ -74,7 +75,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
           state.copyWith(sessionDetail: detail, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
-        state = state.copyWith(isLoading: false, error: e.toString());
+        state = state.copyWith(isLoading: false, error: describeError(e));
       }
     }
   }
@@ -97,7 +98,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: describeError(e));
       return false;
     }
   }
@@ -114,7 +115,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: describeError(e));
       return false;
     }
   }

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:http/http.dart' as http;
+
 class ApiException implements Exception {
   final String code;
   final String message;
@@ -40,4 +43,26 @@ class TableLimitExceededException extends ApiException {
     required super.message,
     super.details,
   });
+}
+
+/// Turns any error into a short, readable message for the UI.
+///
+/// Backend errors show only their human message (never the
+/// `ApiException(CODE): ...` debug form).
+String describeError(Object e) {
+  if (e is ApiException) {
+    switch (e.code) {
+      case 'PREPARING_MODIFICATION_BLOCKED':
+        return 'This order is already being prepared by the kitchen, so it '
+            'can no longer be changed or cancelled here. Please ask an admin.';
+    }
+    return e.message;
+  }
+  if (e is TimeoutException) {
+    return 'The server took too long to respond. Check your connection and try again.';
+  }
+  if (e is http.ClientException) {
+    return 'Network error. Check your connection and try again.';
+  }
+  return 'Something went wrong. Please try again.';
 }

@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../models/menu_search_result.dart';
 import '../../models/table_model.dart';
 import '../auth/auth_controller.dart';
+import '../../core/network/api_exceptions.dart';
 
 // Cart item holds selected variant + quantity
 class CartItem {
@@ -66,7 +67,8 @@ class OrderEntryState {
 
   int get cartItemCount => cart.values.fold(0, (sum, ci) => sum + ci.quantity);
 
-  double get cartTotal => cart.values.fold(0.0, (sum, ci) => sum + ci.lineTotal);
+  double get cartTotal =>
+      cart.values.fold(0.0, (sum, ci) => sum + ci.lineTotal);
 
   List<CartItem> get cartItems => cart.values.toList();
 }
@@ -100,12 +102,17 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
 
     if (trimmed.isEmpty) {
       state = state.copyWith(
-          searchQuery: '', searchResults: [], isSearching: false, searchError: null);
+          searchQuery: '',
+          searchResults: [],
+          isSearching: false,
+          searchError: null);
       return;
     }
 
-    state = state.copyWith(searchQuery: trimmed, isSearching: true, searchError: null);
-    _debounce = Timer(const Duration(milliseconds: 300), () => _runSearch(trimmed));
+    state = state.copyWith(
+        searchQuery: trimmed, isSearching: true, searchError: null);
+    _debounce =
+        Timer(const Duration(milliseconds: 300), () => _runSearch(trimmed));
   }
 
   Future<void> _runSearch(String trimmed) async {
@@ -117,8 +124,8 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
         res = await _apiClient.get(
             '/api/v1/waiter/menu/code-search?code=${Uri.encodeQueryComponent(trimmed.toUpperCase())}');
       } else {
-        res = await _apiClient
-            .get('/api/v1/waiter/menu/search?q=${Uri.encodeQueryComponent(trimmed)}');
+        res = await _apiClient.get(
+            '/api/v1/waiter/menu/search?q=${Uri.encodeQueryComponent(trimmed)}');
       }
 
       if (seq != _searchSeq) return; // newer search aa chuki hai
@@ -138,10 +145,11 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
           .where((i) => i.id.isNotEmpty && i.name.isNotEmpty)
           .toList();
 
-      state = state.copyWith(searchResults: items, isSearching: false, searchError: null);
+      state = state.copyWith(
+          searchResults: items, isSearching: false, searchError: null);
     } catch (e) {
       if (seq != _searchSeq) return;
-      state = state.copyWith(isSearching: false, searchError: e.toString());
+      state = state.copyWith(isSearching: false, searchError: describeError(e));
     }
   }
 
@@ -191,7 +199,8 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
       return {
         'variant_id': ci.variant.id,
         'quantity': ci.quantity,
-        if (ci.specialInstructions != null) 'item_notes': ci.specialInstructions,
+        if (ci.specialInstructions != null)
+          'item_notes': ci.specialInstructions,
       };
     }).toList();
 
@@ -211,7 +220,8 @@ class OrderEntryController extends StateNotifier<OrderEntryState> {
       state = state.copyWith(isSubmitting: false, cart: {});
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, submitError: e.toString());
+      state =
+          state.copyWith(isSubmitting: false, submitError: describeError(e));
       return false;
     }
   }

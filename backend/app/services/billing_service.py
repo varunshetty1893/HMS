@@ -27,6 +27,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.exceptions import (
     DomainValidationError,
@@ -580,7 +581,10 @@ class BillingService:
             db.add(b_item)
             created_bill_items.append(b_item)
 
-        bill.items = created_bill_items
+        # Assigning bill.items directly would lazy-load the old collection, which
+        # raises MissingGreenlet under AsyncSession. The BillItem rows are already
+        # added with bill_id set, so just mark the collection as loaded.
+        set_committed_value(bill, "items", created_bill_items)
 
         # 11. Audit event
         await AuditService.record_event(

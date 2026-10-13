@@ -3,6 +3,7 @@ import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/table_model.dart';
 import '../auth/auth_controller.dart';
+import '../../core/network/api_exceptions.dart';
 
 final floorGridControllerProvider =
     StateNotifierProvider<FloorGridController, FloorGridState>((ref) {
@@ -108,7 +109,7 @@ class FloorGridController extends StateNotifier<FloorGridState> {
       state = state.copyWith(tables: list, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
-        state = state.copyWith(isLoading: false, error: e.toString());
+        state = state.copyWith(isLoading: false, error: describeError(e));
       }
     }
   }

@@ -98,7 +98,8 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       };
 
       final apiClient = ref.read(apiClientProvider);
-      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}', data: data);
+      await apiClient.patch('/api/v1/waiter/orders/${widget.order.id}',
+          data: data);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -117,7 +118,7 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = describeError(e);
         _isSubmitting = false;
       });
     }

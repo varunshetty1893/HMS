@@ -3,6 +3,7 @@ import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/order_model.dart';
 import '../auth/auth_controller.dart';
+import '../../core/network/api_exceptions.dart';
 
 final pickupQueueControllerProvider =
     StateNotifierProvider<PickupQueueController, PickupQueueState>((ref) {
@@ -79,7 +80,7 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
           state.copyWith(readyOrders: orders, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
-        state = state.copyWith(isLoading: false, error: e.toString());
+        state = state.copyWith(isLoading: false, error: describeError(e));
       }
     }
   }
@@ -105,8 +106,8 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
     } catch (e) {
       final newMarking2 = Set<String>.from(state.markingServedIds)
         ..remove(orderId);
-      state =
-          state.copyWith(error: e.toString(), markingServedIds: newMarking2);
+      state = state.copyWith(
+          error: describeError(e), markingServedIds: newMarking2);
     }
   }
 }

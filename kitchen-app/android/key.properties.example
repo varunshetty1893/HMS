@@ -1,0 +1,4 @@
+keyAlias=hms_key
+keyPassword=YOUR_KEY_PASSWORD_HERE
+storeFile=../keystore/release.jks
+storePassword=YOUR_STORE_PASSWORD_HERE

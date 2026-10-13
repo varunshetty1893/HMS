@@ -8,7 +8,9 @@
 // - 250-event deduplication ring buffer (sequence-based)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const WS_BASE = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000/api/v1/ws';
+import { resolveWsBaseUrl } from './utils/env';
+
+const WS_BASE = resolveWsBaseUrl();
 const MAX_BACKOFF_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_DEDUPE_RING = 250;

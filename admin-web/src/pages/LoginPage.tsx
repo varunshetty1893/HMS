@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, User as UserIcon } from 'lucide-react';
+import { isDevDemoEnabled, purgeAdminMockStorageIfProduction } from '@/utils/env';
 
 interface LoginPageProps {
   onSuccess: () => void;
@@ -9,10 +10,14 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const { login } = useAuth();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('AdminPass123!');
+  const [username, setUsername] = useState(() => (isDevDemoEnabled() ? 'admin' : ''));
+  const [password, setPassword] = useState(() => (isDevDemoEnabled() ? 'AdminPass123!' : ''));
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    purgeAdminMockStorageIfProduction();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,23 +112,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           </button>
         </form>
 
-        {/* Staff Credentials Helper Card */}
-        <div className="mt-6 p-4 rounded-xl text-xs bg-slate-50 border border-dashed border-gray-300 text-gray-600 flex flex-col gap-1.5">
-          <div className="flex items-center justify-between font-semibold text-gray-800">
-            <span>🔑 Staff Account Access:</span>
-            <span className="px-2 py-0.5 rounded-md font-mono text-[11px] bg-orange-100 text-brand-700 font-bold">
-              ADMIN
-            </span>
+        {/* Staff Credentials Helper Card (Omitted in Production) */}
+        {isDevDemoEnabled() && (
+          <div className="mt-6 p-4 rounded-xl text-xs bg-slate-50 border border-dashed border-gray-300 text-gray-600 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between font-semibold text-gray-800">
+              <span>🔑 [DEV ONLY] Staff Account Access:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('admin');
+                  setPassword('AdminPass123!');
+                }}
+                className="px-2 py-0.5 rounded-md text-[11px] bg-brand-100 hover:bg-brand-200 text-brand-700 font-bold transition cursor-pointer"
+              >
+                Auto-Fill
+              </button>
+            </div>
+            <div className="flex items-center justify-between font-mono text-[11px] pt-1">
+              <span>
+                Username: <strong className="text-gray-900 font-bold">admin</strong>
+              </span>
+              <span>
+                Password: <strong className="text-gray-900 font-bold">AdminPass123!</strong>
+              </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between font-mono text-[11px] pt-1">
-            <span>
-              Username: <strong className="text-gray-900 font-bold">admin</strong>
-            </span>
-            <span>
-              Password: <strong className="text-gray-900 font-bold">AdminPass123!</strong>
-            </span>
-          </div>
-        </div>
+        )}
 
         <div className="mt-6 pt-4 border-t border-gray-200 text-center">
           <p className="text-xs text-gray-400">

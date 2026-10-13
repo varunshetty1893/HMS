@@ -19,7 +19,7 @@ interface OverviewPageProps {
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
-  const { L, heading, sub, muted, border, card, cardInner } = usePageTheme();
+  const { L, heading, sub, muted, card, cardInner } = usePageTheme();
 
   const [kpis, setKpis] = useState<AdminDashboardKPIs | null>(null);
   const [isLoading, setIsLoading] = useState(true);

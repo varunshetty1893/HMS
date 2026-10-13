@@ -8,7 +8,6 @@ import { usePageTheme } from '@/hooks/usePageTheme';
 import {
   AlertCircle,
   CheckCircle2,
-  CreditCard,
   Percent,
   Receipt,
   RotateCcw,
@@ -25,7 +24,7 @@ const BILL_TABS: { label: string; value: string }[] = [
 ];
 
 export const BillingAndPaymentsPage: React.FC = () => {
-  const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRowHover, input, select, tabActive, tabInactive, modalInner } = usePageTheme();
+  const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRowHover, input, tabActive, tabInactive, modalInner } = usePageTheme();
 
   const [bills, setBills] = useState<Bill[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('ISSUED');

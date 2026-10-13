@@ -10,8 +10,9 @@ import type {
   OrderCreateResponse,
   OrderResponse,
 } from './types';
+import { isDevDemoEnabled, isProd, resolveApiBaseUrl } from './utils/env';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+const BASE = resolveApiBaseUrl();
 
 let _sessionToken: string | null = sessionStorage.getItem('hms_customer_token');
 
@@ -109,8 +110,16 @@ export async function resolveQrToken(qrToken: string): Promise<QrResolutionRespo
       method: 'POST',
       body: JSON.stringify({ qr_token: qrToken }),
     });
-  } catch (_err) {
-    // Offline / Standalone fallback: extract table number if available
+  } catch (err) {
+    if (!isDevDemoEnabled()) {
+      if (err instanceof HmsApiError) throw err;
+      throw new HmsApiError(
+        'QR_RESOLUTION_FAILED',
+        'Unable to resolve dining table QR code. Please scan a valid table QR standee.',
+      );
+    }
+    // Development-only offline preview fallback
+    console.warn('[DEV DEMO] Falling back to local demo table token for QR:', qrToken);
     const match = qrToken.match(/table-?(\d+)/i);
     const tableNum = match ? parseInt(match[1], 10) : 4;
     return {
@@ -132,6 +141,10 @@ import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder, cancelDemoOrder 
 
 export async function getSession(): Promise<CustomerSession> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      clearSessionToken();
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     const tableNum = sessionStorage.getItem('hms_table_number')
       ? parseInt(sessionStorage.getItem('hms_table_number')!, 10)
       : DEMO_SESSION.table_number;
@@ -147,7 +160,10 @@ export async function getSession(): Promise<CustomerSession> {
   try {
     return await request<CustomerSession>('/customer/session');
   } catch (err) {
-    if (_sessionToken) return DEMO_SESSION;
+    if (_sessionToken && isDevDemoEnabled()) {
+      console.warn('[DEV DEMO] Serving demo session fallback');
+      return DEMO_SESSION;
+    }
     throw err;
   }
 }
@@ -162,6 +178,9 @@ export async function getMenu(params?: {
   available_only?: boolean;
 }): Promise<CustomerMenuResponse> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     return DEMO_MENU;
   }
   const qs = new URLSearchParams();
@@ -172,9 +191,11 @@ export async function getMenu(params?: {
   try {
     return await request<CustomerMenuResponse>(`/customer/menu${query ? `?${query}` : ''}`);
   } catch (err) {
-    // If backend is not running or unreachable, fallback to demo menu so user can test UI
-    console.warn('Backend menu unreachable, serving local demo menu fallback:', err);
-    return DEMO_MENU;
+    if (isDevDemoEnabled()) {
+      console.warn('[DEV DEMO] Backend unreachable, serving local demo menu fallback:', err);
+      return DEMO_MENU;
+    }
+    throw err;
   }
 }
 
@@ -187,6 +208,9 @@ export async function placeOrder(
   idempotencyKey: string,
 ): Promise<{ data: OrderCreateResponse; httpStatus: number }> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     const demoResp = saveDemoOrder(payload);
     return { data: demoResp, httpStatus: 201 };
   }
@@ -220,8 +244,8 @@ export async function placeOrder(
 
     return { data: await res.json() as OrderCreateResponse, httpStatus: res.status };
   } catch (err) {
-    if (_sessionToken?.startsWith('demo-') || err instanceof TypeError) {
-      // Offline fallback: save order to demo memory
+    if (isDevDemoEnabled() && (_sessionToken?.startsWith('demo-') || err instanceof TypeError)) {
+      console.warn('[DEV DEMO] Saving order to local memory in dev demo mode');
       const demoResp = saveDemoOrder(payload);
       return { data: demoResp, httpStatus: 201 };
     }
@@ -231,17 +255,26 @@ export async function placeOrder(
 
 export async function listOrders(): Promise<OrderResponse[]> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     return getDemoOrders();
   }
   try {
     return await request<OrderResponse[]>('/customer/orders');
-  } catch {
-    return getDemoOrders();
+  } catch (err) {
+    if (isDevDemoEnabled()) {
+      return getDemoOrders();
+    }
+    throw err;
   }
 }
 
 export async function cancelCustomerOrder(orderId: string): Promise<OrderResponse> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     return cancelDemoOrder(orderId);
   }
   return request<OrderResponse>(`/customer/orders/${orderId}/cancel`, {
@@ -262,6 +295,9 @@ export async function callWaiter(
   notes?: string,
 ): Promise<WaiterRequest> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     _demoWaiterRequest = {
       id: `demo-wr-${Date.now()}`,
       customer_session_id: 'demo-session',
@@ -297,7 +333,10 @@ export async function callWaiter(
 }
 
 export async function getActiveWaiterRequest(): Promise<WaiterRequest | null> {
-  if (_sessionToken?.startsWith('demo-')) return _demoWaiterRequest;
+  if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) return null;
+    return _demoWaiterRequest;
+  }
   try {
     const result = await request<WaiterRequest | null>('/customer/waiter-requests/active');
     return result ?? null;
@@ -308,6 +347,9 @@ export async function getActiveWaiterRequest(): Promise<WaiterRequest | null> {
 
 export async function cancelWaiterRequest(requestId: string): Promise<WaiterRequest> {
   if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
     if (_demoWaiterRequest) {
       _demoWaiterRequest = { ..._demoWaiterRequest, status: 'CANCELLED' };
     }

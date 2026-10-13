@@ -14,7 +14,7 @@ import { MenuCategory, MenuItem } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
 
 export const MenuManagementPage: React.FC = () => {
-  const { L, heading, sub, muted, border, card, cardInner } = usePageTheme();
+  const { heading, sub } = usePageTheme();
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');

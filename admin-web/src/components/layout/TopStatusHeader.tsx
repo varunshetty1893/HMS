@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { adminWs } from '@/realtime/adminWs';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { LogOut, Moon, Sun, Wifi, WifiOff, Smartphone } from 'lucide-react';
+import { LogOut, Moon, Sun, Wifi, Smartphone } from 'lucide-react';
+import { isDevDemoEnabled } from '@/utils/env';
 
 export const TopStatusHeader: React.FC = () => {
   const { user, logout } = useAuth();
@@ -75,12 +76,12 @@ export const TopStatusHeader: React.FC = () => {
           </div>
         ) : (
           <div
-            className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
-            title="Applet running with complete local mock database & business logic"
+            className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200"
+            title="Real-time WebSocket disconnected; automatic reconnect active"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-slate-400" />
             <Wifi className="w-3.5 h-3.5" />
-            <span>ONLINE (LOCAL)</span>
+            <span>OFFLINE</span>
           </div>
         )}
 
@@ -95,24 +96,26 @@ export const TopStatusHeader: React.FC = () => {
 
       {/* Right: Theme toggle, Staff profile & Logout */}
       <div className="flex items-center gap-3">
-        {/* Customer Web Preview Link */}
-        <button
-          onClick={() => {
-            sessionStorage.setItem('hms_table_number', '4');
-            sessionStorage.setItem('hms_table_name', 'Table 4 (Window Side)');
-            sessionStorage.setItem('hms_table_id', 'table-demo-4');
-            sessionStorage.setItem('hms_customer_token', 'demo-token-table-4');
-            const url = new URL(window.location.href);
-            url.searchParams.set('view', 'customer');
-            window.history.pushState({}, '', url.toString());
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }}
-          title="Open the Customer QR Ordering View"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow transition cursor-pointer"
-        >
-          <Smartphone className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Customer QR App</span>
-        </button>
+        {/* Customer Web Preview Link (Omitted in Production) */}
+        {isDevDemoEnabled() && (
+          <button
+            onClick={() => {
+              sessionStorage.setItem('hms_table_number', '4');
+              sessionStorage.setItem('hms_table_name', 'Table 4 (Window Side)');
+              sessionStorage.setItem('hms_table_id', 'table-demo-4');
+              sessionStorage.setItem('hms_customer_token', 'demo-token-table-4');
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'customer');
+              window.history.pushState({}, '', url.toString());
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            title="[DEV ONLY] Open the Customer QR Ordering View"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow transition cursor-pointer"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Customer QR App</span>
+          </button>
+        )}
 
         {/* Theme toggle */}
         <button

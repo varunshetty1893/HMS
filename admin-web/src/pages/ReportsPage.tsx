@@ -24,7 +24,7 @@ import {
 import { usePageTheme } from '@/hooks/usePageTheme';
 
 export const ReportsPage: React.FC = () => {
-  const { L, heading, sub, muted, border, card, cardInner, tableWrap, thead, tbodyRow, tbodyRowHover } = usePageTheme();
+  const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRow, tbodyRowHover } = usePageTheme();
   const todayStr = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);

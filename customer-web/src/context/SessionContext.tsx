@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { resolveQrToken, getSession, setSessionToken, clearSessionToken, getSessionToken, HmsApiError } from '../api';
 import type { CustomerSession } from '../types';
+import { isDevDemoEnabled, purgeDemoStorageIfProduction, isProd } from '../utils/env';
 
 interface SessionContextType {
   sessionToken: string | null;
@@ -13,6 +14,7 @@ interface SessionContextType {
   customLimit: string;
   isLoading: boolean;
   error: string | null;
+  isDemoSession: boolean;
   initFromQr: (qrToken: string) => Promise<boolean>;
   refreshSession: () => Promise<void>;
   updateOutstanding: (amount: string) => void;
@@ -98,7 +100,24 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const isDemoSession = !!sessionTokenState?.startsWith('demo-');
+
+  // Safety invariant: purge demo tokens from storage if running in production
+  useEffect(() => {
+    if (isProd) {
+      purgeDemoStorageIfProduction();
+      if (sessionTokenState?.startsWith('demo-')) {
+        clearSessionToken();
+        setSessionTokenState(null);
+      }
+    }
+  }, [sessionTokenState]);
+
   const startDemoSession = useCallback(() => {
+    if (!isDevDemoEnabled()) {
+      console.warn('[SECURITY] Demo sessions are strictly disabled in production.');
+      return;
+    }
     const demoToken = 'demo-token-table-4';
     setSessionToken(demoToken);
     setSessionTokenState(demoToken);
@@ -152,6 +171,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         customLimit,
         isLoading,
         error,
+        isDemoSession,
         initFromQr,
         refreshSession,
         updateOutstanding,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { UtensilsCrossed, Smartphone, Sparkles, QrCode } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
+import { isDevDemoEnabled } from '../utils/env';
 
 interface SessionErrorPageProps {
   message?: string;
@@ -60,24 +61,26 @@ export const SessionErrorPage: React.FC<SessionErrorPageProps> = ({
           </p>
         </div>
 
-        {/* Development / Testing Quick Access */}
-        <div className="space-y-3 pt-1">
-          <button
-            onClick={startDemoSession}
-            id="btn-preview-demo-table"
-            className="w-full text-white font-semibold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md transition-all transform active:scale-98 cursor-pointer"
-            style={{
-              background: 'var(--primary)',
-              boxShadow: '0 4px 16px rgba(217, 93, 43, 0.28)',
-            }}
-          >
-            <UtensilsCrossed size={18} />
-            <span>Preview Customer Menu (Table 4 Demo)</span>
-          </button>
-          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            Instant interactive demo to explore dishes, cart, variant picker & ordering.
-          </p>
-        </div>
+        {/* Development / Testing Quick Access (Omitted in Production) */}
+        {isDevDemoEnabled() && (
+          <div className="space-y-3 pt-1">
+            <button
+              onClick={startDemoSession}
+              id="btn-preview-demo-table"
+              className="w-full text-white font-semibold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md transition-all transform active:scale-98 cursor-pointer"
+              style={{
+                background: 'var(--primary)',
+                boxShadow: '0 4px 16px rgba(217, 93, 43, 0.28)',
+              }}
+            >
+              <UtensilsCrossed size={18} />
+              <span>Preview Customer Menu (Table 4 Demo)</span>
+            </button>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              [DEV ONLY] Interactive demo to explore dishes, cart, variant picker & ordering.
+            </p>
+          </div>
+        )}
 
         {/* Explanation for Real Restaurant Flow */}
         <div

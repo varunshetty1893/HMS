@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
 import { QrPrintCardResponse } from '@/types/api';
+import { isDevDemoEnabled } from '@/utils/env';
 
 interface PrintableQrCardModalProps {
   cardData: QrPrintCardResponse | null;
@@ -27,24 +28,26 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
             <p className="text-xs text-gray-500">Token v{cardData.token_version} • Prefix {cardData.token_prefix}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                sessionStorage.setItem('hms_table_number', cardData.table_number.toString());
-                sessionStorage.setItem('hms_table_name', cardData.display_name);
-                sessionStorage.setItem('hms_table_id', cardData.table_id);
-                sessionStorage.setItem('hms_customer_token', `demo-token-table-${cardData.table_number}`);
-                const url = new URL(window.location.href);
-                url.searchParams.set('view', 'customer');
-                url.searchParams.set('table', cardData.table_number.toString());
-                window.history.pushState({}, '', url.toString());
-                window.dispatchEvent(new PopStateEvent('popstate'));
-                onClose();
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition cursor-pointer"
-              title="Test the mobile QR ordering view for this table"
-            >
-              <span>📱 Test Order View</span>
-            </button>
+            {isDevDemoEnabled() && (
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('hms_table_number', cardData.table_number.toString());
+                  sessionStorage.setItem('hms_table_name', cardData.display_name);
+                  sessionStorage.setItem('hms_table_id', cardData.table_id);
+                  sessionStorage.setItem('hms_customer_token', `demo-token-table-${cardData.table_number}`);
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('view', 'customer');
+                  url.searchParams.set('table', cardData.table_number.toString());
+                  window.history.pushState({}, '', url.toString());
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                  onClose();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition cursor-pointer"
+                title="[DEV ONLY] Test the mobile QR ordering view for this table"
+              >
+                <span>📱 Test Order View</span>
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-sm transition cursor-pointer"

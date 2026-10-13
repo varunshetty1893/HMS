@@ -118,10 +118,27 @@ class AdminWebSocketClient {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const baseWsUrl =
-      import.meta.env.VITE_WS_URL || `${protocol}//${host}/api/v1/ws`;
+    const resolveAdminWs = (): string => {
+      const customWs = import.meta.env.VITE_WS_URL;
+      if (customWs && typeof customWs === 'string' && customWs.trim()) {
+        return customWs.trim().replace(/\/+$/, '');
+      }
+      const apiBase = import.meta.env.VITE_API_BASE_URL;
+      if (apiBase && typeof apiBase === 'string' && apiBase.trim()) {
+        const cleanApi = apiBase.trim().replace(/\/+$/, '');
+        const wsScheme = cleanApi.startsWith('https://') ? 'wss://' : 'ws://';
+        const withoutScheme = cleanApi.replace(/^https?:\/\//, '');
+        const baseWithWs = withoutScheme.endsWith('/api/v1')
+          ? `${withoutScheme}/ws`
+          : `${withoutScheme}/api/v1/ws`;
+        return `${wsScheme}${baseWithWs}`;
+      }
+      const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8000';
+      return `${protocol}//${host}/api/v1/ws`;
+    };
+
+    const baseWsUrl = resolveAdminWs();
     const separator = baseWsUrl.includes('?') ? '&' : '?';
     const wsUrl = `${baseWsUrl}${separator}token=${encodeURIComponent(token)}`;
 

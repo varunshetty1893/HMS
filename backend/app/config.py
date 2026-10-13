@@ -125,6 +125,13 @@ class Settings(BaseSettings):
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("DATABASE_URL cannot be empty.")
+
+        # Normalize hosted PostgreSQL provider schemes (Render, Neon, Supabase, Railway)
+        if cleaned.startswith("postgres://"):
+            cleaned = "postgresql+asyncpg://" + cleaned[len("postgres://") :]
+        elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
+            cleaned = "postgresql+asyncpg://" + cleaned[len("postgresql://") :]
+
         allowed_schemes = (
             "postgresql+asyncpg://",
             "sqlite+aiosqlite://",

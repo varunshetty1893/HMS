@@ -55,10 +55,10 @@ def _index_signature(index) -> tuple[str, ...]:
     )
 
 
-def test_doc_catalog_lists_exactly_the_twenty_metadata_tables() -> None:
-    assert len(INVENTORY) == 20
+def test_doc_catalog_lists_exactly_the_twenty_one_metadata_tables() -> None:
+    assert len(INVENTORY) == 21
     assert set(INVENTORY) == set(Base.metadata.tables)
-    assert sorted(t.number for t in INVENTORY.values()) == list(range(1, 21))
+    assert sorted(t.number for t in INVENTORY.values()) == list(range(1, 22))
 
 
 def test_every_documented_column_exists_and_every_extra_is_reconciled() -> None:

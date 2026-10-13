@@ -4,12 +4,12 @@ Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-11
 """
+
 from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
 
-# revision identifiers
 revision: str = "0002"
 down_revision: str | None = "0001"
 branch_labels = None
@@ -25,12 +25,7 @@ def upgrade() -> None:
         sa.Column("table_id", sa.UUID(), nullable=False),
         sa.Column("reason", sa.String(20), nullable=False),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column(
-            "status",
-            sa.String(20),
-            nullable=False,
-            server_default="PENDING",
-        ),
+        sa.Column("status", sa.String(20), nullable=False, server_default="PENDING"),
         sa.Column("claimed_by_user_id", sa.UUID(), nullable=True),
         sa.Column("claimed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -48,9 +43,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
-        # PK
         sa.PrimaryKeyConstraint("id"),
-        # Check constraints
         sa.CheckConstraint(
             "status IN ('PENDING','CLAIMED','COMPLETED','CANCELLED','EXPIRED')",
             name="status_valid",
@@ -59,15 +52,23 @@ def upgrade() -> None:
             "reason IN ('ASSISTANCE','CUTLERY','WATER','OTHER')",
             name="reason_valid",
         ),
-        # FK
-        sa.ForeignKeyConstraint(["customer_session_id"], ["customer_sessions.id"]),
-        sa.ForeignKeyConstraint(["table_session_id"], ["table_sessions.id"]),
-        sa.ForeignKeyConstraint(["table_id"], ["restaurant_tables.id"]),
-        sa.ForeignKeyConstraint(["claimed_by_user_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(["completed_by_user_id"], ["users.id"]),
+        sa.ForeignKeyConstraint(
+            ["customer_session_id"], ["customer_sessions.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["table_session_id"], ["table_sessions.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["table_id"], ["restaurant_tables.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["claimed_by_user_id"], ["users.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["completed_by_user_id"], ["users.id"], ondelete="RESTRICT"
+        ),
     )
 
-    # Partial unique index — only one PENDING/CLAIMED request per table session
     op.create_index(
         "uq_waiter_requests_one_open_per_table_session",
         "waiter_requests",
@@ -75,7 +76,6 @@ def upgrade() -> None:
         unique=True,
         postgresql_where=sa.text("status IN ('PENDING', 'CLAIMED')"),
     )
-    # Supporting indexes
     op.create_index(
         "ix_waiter_requests_table_session_status",
         "waiter_requests",

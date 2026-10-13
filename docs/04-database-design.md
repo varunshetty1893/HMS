@@ -50,14 +50,14 @@ The PostgreSQL database serves as the single authoritative source of truth for t
 
 ### 2.1 Evaluation of Required & Candidate Entities
 
-We evaluated all candidate entities required for Version 1. Below is the complete inventory of **20 database entities** (19 operational tables + 1 singleton configuration table), including our evaluation of `Roles` / `Permissions` and `BillItems`:
+We evaluated all candidate entities required for Version 1. Below is the complete inventory of **21 database entities** (20 operational tables + 1 singleton configuration table), including our evaluation of `Roles` / `Permissions` and `BillItems`:
 
 - **Why Separate `roles` / `permissions` Tables Are Omitted in Favor of a Constrained `role` Column on `users`:**
   - The system has exactly three fixed staff roles (`ADMIN`, `WAITER`, `KITCHEN`) with fixed, non-overlapping responsibilities documented in the specification. Creating three extra join tables (`roles`, `permissions`, `role_permissions`, `user_roles`) adds join overhead without business value for a single restaurant. We therefore use a constrained `role` attribute on `users` (documented in detail in Section 3).
 - **Why Both `order_items` and `bill_items` Are Included:**
   - While `order_items` captures line items per individual order batch (`Order #1001`, `Order #1002`), a `TableSession` often spans 2–5 separate orders over an hour. When a `Bill` is generated, `bill_items` stores the consolidated, immutable invoice line snapshot (excluding rejected/cancelled items) so the printed/displayed receipt is permanently frozen even if an order status is inspected later.
 
-### 2.2 Master Entity Catalog (20 Entities)
+### 2.2 Master Entity Catalog (21 Entities)
 
 | # | Entity Name (Table) | Purpose & Why It Exists | Primary Key | Foreign Keys | Required vs. Optional Fields | Unique Constraints | Check Constraints | Key Indexes | Relationships | Soft-Delete / Deactivation | Historical Data Requirement |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -81,6 +81,7 @@ We evaluated all candidate entities required for Version 1. Below is the complet
 | **18** | **`notifications`** | Persists actionable operational events/alerts for Kitchen, Waiter, Admin, and Table sessions so missed WebSocket messages are recovered upon reconnect. | `id` (UUID) | `table_id -> restaurant_tables.id` (opt); `table_session_id -> table_sessions.id` (opt); `order_id -> orders.id` (opt); `target_user_id -> users.id` (opt); `acknowledged_by_user_id -> users.id` (opt) | **Req:** `event_type`, `target_channel`, `severity`, `title`, `message`, `payload_json`, `requires_acknowledgment`, `is_acknowledged`, `created_at`<br>**Opt:** `table_id`, `table_session_id`, `order_id`, `target_user_id`, `acknowledged_by_user_id`, `acknowledged_at`, `expires_at` | None | `target_channel IN ('KITCHEN_ALL','WAITERS_ALL','ADMIN_ALL','USER_SPECIFIC','TABLE_SESSION')`; `severity IN ('INFO','WARNING','CRITICAL')` | Index on `(target_channel, is_acknowledged, created_at DESC)`; index on `(table_session_id, created_at DESC)` | Optional FKs to `restaurant_tables`, `table_sessions`, `orders`, `users` | Acknowledged via `is_acknowledged = true`; pruned after 30–90 days. | Operational recovery & acknowledgment tracking. |
 | **19** | **`audit_logs`** | Immutable security, financial, and administrative audit trail across the entire system. | `id` (UUID) | `actor_user_id -> users.id` (opt); `actor_customer_session_id -> customer_sessions.id` (opt) | **Req:** `actor_role`, `action_type`, `entity_type`, `entity_id`, `created_at`<br>**Opt:** `actor_user_id`, `actor_customer_session_id`, `reason`, `old_value_json`, `new_value_json`, `metadata_json`, `ip_hash` | None | `actor_role IN ('ADMIN','WAITER','KITCHEN','CUSTOMER','SYSTEM')` | Index on `(entity_type, entity_id, created_at DESC)`; index on `(actor_user_id, created_at DESC)`; index on `(action_type, created_at DESC)` | Many-to-1 (optional) with `users`, `customer_sessions` | Protected by database trigger: **zero `UPDATE` or `DELETE` permitted**. | Retained indefinitely alongside financial records. |
 | **20** | **`restaurant_settings`** | Single-row configuration table storing restaurant profile, tax rates, ₹5,000 limit default, operating hours, and rate-limit thresholds. | `id` (Integer fixed to `1`) | `updated_by_user_id -> users.id` (opt) | **Req:** `id`, `restaurant_name`, `currency_code`, `currency_symbol`, `cgst_percentage`, `sgst_percentage`, `service_charge_percentage`, `prices_include_tax`, `default_session_outstanding_limit`, `allow_multi_device_per_table`, `allow_customer_cancel_placed`, `kitchen_can_toggle_availability`, `is_ordering_enabled`, `updated_at`<br>**Opt:** `address`, `phone`, `logo_url`, `gstin`, `opening_time`, `closing_time`, `updated_by_user_id` | `PRIMARY KEY (id)` with `CHECK (id = 1)` | `id = 1`; `cgst_percentage >= 0`; `sgst_percentage >= 0`; `default_session_outstanding_limit > 0` | Primary key index on `id = 1` | Many-to-1 with `users` (`updated_by_user_id`) | Singleton row; updated in place with every change logged to `audit_logs`. | Historical tax/price values are snapshotted onto `order_items` and `bills`. |
+| **21** | **`waiter_requests`** | Customer requests for waiter assistance, water, or cutlery, with claim and completion tracking. | `id` (UUID) | `customer_session_id -> customer_sessions.id`; `table_session_id -> table_sessions.id`; `table_id -> restaurant_tables.id`; `claimed_by_user_id -> users.id` (opt); `completed_by_user_id -> users.id` (opt) | **Req:** `id`, `customer_session_id`, `table_session_id`, `table_id`, `reason`, `status`, `expires_at`, `created_at`<br>**Opt:** `notes`, `claimed_by_user_id`, `claimed_at`, `completed_at`, `completed_by_user_id`, `cancelled_at` | Partial unique index on `table_session_id` for open requests | `status IN ('PENDING','CLAIMED','COMPLETED','CANCELLED','EXPIRED')`; `reason IN ('ASSISTANCE','CUTLERY','WATER','OTHER')` | Unique partial index on `table_session_id` for `PENDING`/`CLAIMED`; index on `(table_session_id, status)`; index on `(status, created_at DESC)` | Many-to-1 with `customer_sessions`, `table_sessions`, `restaurant_tables`, and `users` | Request history is retained; claim and completion record the responsible staff member. | Requests expire after 15 minutes by default; open requests are limited to one per table session. |
 
 ---
 
@@ -700,7 +701,7 @@ erDiagram
 
 ## 32. FINAL DATABASE REVIEW
 
-### A. Final Entity List (20 Entities)
+### A. Final Entity List (21 Entities)
 1. `users`
 2. `staff_refresh_tokens`
 3. `restaurant_tables`
@@ -721,6 +722,7 @@ erDiagram
 18. `notifications`
 19. `audit_logs`
 20. `restaurant_settings`
+21. `waiter_requests`
 
 ### B. Confirmed Database Decisions
 - Single-restaurant schema (zero SaaS tenant overhead).
@@ -759,6 +761,6 @@ All 8 open policy items (`OD-01` multi-device per table, `OD-02` customer cancel
 - 100% open-source PostgreSQL with built-in extensions, zero paid add-ons, and compact storage (`< 350 MB/year`).
 
 ### K. Database Readiness Checklist
-- [x] All 20 entities specified with PKs, FKs, constraints, indexes, soft-delete rules, and historical snapshot guarantees.
+- [x] All 21 entities specified with PKs, FKs, constraints, indexes, soft-delete rules, and historical snapshot guarantees.
 - [x] Cross-checked against project requirements, system architecture, menu/pricing rules, order lifecycle, billing rules, ₹5,000 limit, and QR security with zero contradictions.
 

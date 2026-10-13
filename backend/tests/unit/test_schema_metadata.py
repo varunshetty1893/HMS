@@ -1,4 +1,4 @@
-"""Metadata-only checks of the 20-table canonical schema (`docs/04`, `docs/13` Section 12).
+"""Metadata-only checks of the 21-table canonical schema (`docs/04`, `docs/13` Section 12).
 
 No database required. Each test traces back to a documented rule.
 """
@@ -40,6 +40,7 @@ CANONICAL_TABLES = {
     "notifications",
     "audit_logs",
     "restaurant_settings",
+    "waiter_requests",
 }
 
 # (table, column) -> referred table; every one must be ON DELETE RESTRICT.
@@ -99,6 +100,11 @@ EXPECTED_FKS = {
     ("notifications", "acknowledged_by_user_id"): "users",
     ("audit_logs", "actor_user_id"): "users",
     ("audit_logs", "actor_customer_session_id"): "customer_sessions",
+    ("waiter_requests", "customer_session_id"): "customer_sessions",
+    ("waiter_requests", "table_session_id"): "table_sessions",
+    ("waiter_requests", "table_id"): "restaurant_tables",
+    ("waiter_requests", "claimed_by_user_id"): "users",
+    ("waiter_requests", "completed_by_user_id"): "users",
 }
 
 MONEY_COLUMNS = {
@@ -164,9 +170,9 @@ def test_canonical_table_names_present() -> None:
     assert CANONICAL_TABLES <= set(Base.metadata.tables)
 
 
-def test_exactly_twenty_tables() -> None:
+def test_exactly_twenty_one_tables() -> None:
     assert set(Base.metadata.tables) == CANONICAL_TABLES
-    assert len(Base.metadata.tables) == 20
+    assert len(Base.metadata.tables) == 21
 
 
 def test_qr_token_table_uses_canonical_name() -> None:

@@ -1,12 +1,13 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// Single token store shared by the Waiter and Kitchen areas of the staff app.
 class SecureTokenStorage {
-  static const _keyAccessToken = 'waiter_access_token';
-  static const _keyRefreshToken = 'waiter_refresh_token';
-  static const _keyUserId = 'waiter_user_id';
-  static const _keyUsername = 'waiter_username';
-  static const _keyUserFullName = 'waiter_full_name';
-  static const _keyUserRole = 'waiter_user_role';
+  static const _keyAccessToken = 'staff_access_token';
+  static const _keyRefreshToken = 'staff_refresh_token';
+  static const _keyUserId = 'staff_user_id';
+  static const _keyUsername = 'staff_username';
+  static const _keyUserFullName = 'staff_full_name';
+  static const _keyUserRole = 'staff_user_role';
 
   final FlutterSecureStorage _storage;
 

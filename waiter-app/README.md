@@ -1,6 +1,25 @@
-# Waiter Mobile Application (`waiter-app/`)
+# HMS Staff App (`waiter-app/`)
 
-High-speed Flutter mobile application (Android priority) for floor waiters (`WAITER` role).
+One Android Flutter app for restaurant staff. The employee picks **Waiter** or **Kitchen Staff** on the login screen, signs in with their existing backend username/password, and lands on the matching dashboard:
+
+- **Waiter** (`WAITER`): floor grid, table detail, manual order entry, order edit/cancel, serve, pickup queue, billing and payments (unchanged).
+- **Kitchen Staff** (`KITCHEN`): KDS board (accept / reject / preparing / ready, modification acknowledgement), order history, realtime updates with chime (moved to `lib/kitchen/`).
+
+> This folder replaces the former separate `kitchen-app/`. The folder keeps its historical name `waiter-app/` (Dart package `waiter_app`) to avoid a risky rename.
+
+## How access is decided
+
+- The radio button is only the user's stated intent. After `POST /auth/login` the **backend-returned role** must equal the selected role, otherwise access is denied, **nothing is stored**, and the just-created session is revoked via `POST /auth/logout`.
+- `ADMIN` accounts cannot sign in to this app.
+- On every app start the stored session is re-verified with `GET /auth/me`; the locally stored role is never trusted.
+- If the backend rejects the refresh token the app signs out locally. Logout clears local tokens immediately and then revokes the session on the server (best effort).
+- Role enforcement for API calls stays on the backend (`/waiter/*`, `/bills/*` -> WAITER/ADMIN; `/kitchen/*` -> KITCHEN/ADMIN).
+- Tokens live in `flutter_secure_storage` under `staff_*` keys. Users of the old separate apps must sign in once again.
+- Login sends `client_type` (`WAITER_APP` / `KITCHEN_APP`) so the backend's own client/role binding is also applied.
+
+## Changing the API address
+
+Unchanged: see "Running on Devices" below (`--dart-define=API_HOST=...`, `API_BASE_URL`, `APP_ENV=production`).
 
 ## Canonical Specifications
 - **UI/UX & Screen Flows:** `docs/07-ui-ux-screen-specification.md` (Section 4)

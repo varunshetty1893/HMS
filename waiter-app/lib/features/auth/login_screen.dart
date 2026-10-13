@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
+import '../../models/staff_role.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -14,6 +15,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  StaffRole? _selectedRole;
+  String? _roleError;
 
   @override
   void dispose() {
@@ -22,11 +25,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
+
+    if (_selectedRole == null) {
+      setState(() => _roleError = 'Select your role to continue.');
+      return;
+    }
     if (username.isEmpty || password.isEmpty) return;
-    ref.read(authControllerProvider.notifier).login(username, password);
+
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .login(username, password, _selectedRole!);
+    if (!ok && mounted) {
+      // Never keep a rejected password in the field.
+      _passwordController.clear();
+    }
+  }
+
+  Widget _roleOption(StaffRole role, bool disabled) {
+    return RadioListTile<StaffRole>(
+      key: Key('role_${role.name}'),
+      value: role,
+      groupValue: _selectedRole,
+      onChanged: disabled
+          ? null
+          : (value) => setState(() {
+                _selectedRole = value;
+                _roleError = null;
+              }),
+      title: Text(
+        role.label,
+        style: const TextStyle(
+          color: WaiterTheme.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      activeColor: WaiterTheme.primary,
+    );
   }
 
   @override
@@ -68,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        'Floor Waiter Handset',
+                        'SpiceHub Staff',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: WaiterTheme.textPrimary,
@@ -79,7 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Sign in to manage tables and rapid orders',
+                        'Select your role and sign in',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: WaiterTheme.textMuted,
@@ -107,11 +146,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                      const Text(
+                        'I am signing in as',
+                        style: TextStyle(
+                          color: WaiterTheme.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      _roleOption(StaffRole.waiter, authState.isLoading),
+                      _roleOption(StaffRole.kitchen, authState.isLoading),
+                      if (_roleError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 4),
+                          child: Text(
+                            _roleError!,
+                            style: const TextStyle(
+                              color: WaiterTheme.errorRed,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
                       TextField(
+                        key: const Key('username_field'),
                         controller: _usernameController,
                         style: const TextStyle(color: WaiterTheme.textPrimary),
                         decoration: const InputDecoration(
-                          labelText: 'Staff Username / ID',
+                          labelText: 'Username',
                           prefixIcon: Icon(Icons.badge_outlined,
                               color: WaiterTheme.textMuted),
                         ),
@@ -119,6 +182,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextField(
+                        key: const Key('password_field'),
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         style: const TextStyle(color: WaiterTheme.textPrimary),
@@ -141,6 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
+                        key: const Key('login_button'),
                         onPressed: authState.isLoading ? null : _submit,
                         child: authState.isLoading
                             ? const SizedBox(
@@ -152,7 +217,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       Colors.white),
                                 ),
                               )
-                            : const Text('Sign In to Floor Grid'),
+                            : const Text('Sign In'),
                       ),
                     ],
                   ),

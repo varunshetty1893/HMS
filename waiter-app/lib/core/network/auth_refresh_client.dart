@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config/env_config.dart';
+import '../auth/session_events.dart';
 import '../storage/secure_token_storage.dart';
 
 /// HTTP client that transparently renews an expired access token.
@@ -36,7 +37,9 @@ class AuthRefreshClient extends http.BaseClient {
   }
 
   bool _isAuthPath(Uri url) =>
-      url.path.endsWith('/auth/login') || url.path.endsWith('/auth/refresh');
+      url.path.endsWith('/auth/login') ||
+      url.path.endsWith('/auth/refresh') ||
+      url.path.endsWith('/auth/logout');
 
   http.Request _copy(http.BaseRequest r, List<int> body, {String? token}) {
     final req = http.Request(r.method, r.url)
@@ -54,7 +57,10 @@ class AuthRefreshClient extends http.BaseClient {
   Future<bool> _refresh() async {
     try {
       final refreshToken = await _storage.getRefreshToken();
-      if (refreshToken == null || refreshToken.isEmpty) return false;
+      if (refreshToken == null || refreshToken.isEmpty) {
+        SessionEvents.notifyExpired();
+        return false;
+      }
 
       var base = EnvConfig.apiBaseUrl.trim();
       while (base.endsWith('/')) {
@@ -70,7 +76,16 @@ class AuthRefreshClient extends http.BaseClient {
             body: jsonEncode({'refresh_token': refreshToken}),
           )
           .timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) return false;
+      if (res.statusCode != 200) {
+        // The backend explicitly rejected the refresh token -> session is over.
+        // Transient failures (5xx, 429, network) must NOT log the user out.
+        if (res.statusCode == 400 ||
+            res.statusCode == 401 ||
+            res.statusCode == 403) {
+          SessionEvents.notifyExpired();
+        }
+        return false;
+      }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final access = data['access_token']?.toString() ?? '';

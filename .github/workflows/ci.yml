@@ -102,7 +102,7 @@ jobs:
           npm run build
 
   mobile-apps-qa:
-    name: Flutter Apps Static Analysis
+    name: Flutter Staff App Static Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -122,16 +122,11 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Waiter App - Analyze & Test
+      # waiter-app/ is now the single combined Staff App (Waiter + Kitchen).
+      # kitchen-app/ is legacy and no longer built in CI.
+      - name: Staff App (waiter-app) - Analyze & Test
         run: |
           cd waiter-app
-          flutter pub get
-          flutter analyze --no-fatal-infos
-          flutter test
-
-      - name: Kitchen App - Analyze & Test
-        run: |
-          cd kitchen-app
           flutter pub get
           flutter analyze --no-fatal-infos
           flutter test

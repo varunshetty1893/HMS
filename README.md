@@ -12,8 +12,7 @@ A complete, single-restaurant **QR Ordering, Waiter Floor Operations, Kitchen Di
 | **Backend API & Realtime** | [`backend/`](./backend/) | `Python 3.10+` + `FastAPI` + `SQLAlchemy 2.0 Async` + `Alembic` + `PostgreSQL` | Authoritative business logic, server-side `Decimal` pricing, `SELECT ... FOR UPDATE` concurrency locking, `₹5,000` unpaid table cap, Argon2id/JWT auth, and native WebSockets. |
 | **Customer Mobile Web** | [`customer-web/`](./customer-web/) | `React 19` + `TypeScript` + `Vite` + `Tailwind CSS` | Zero-install mobile web menu & ordering accessed via table-specific cryptographic QR codes (`/q/{table_code}.{secret}`). |
 | **Admin Web Dashboard** | [`admin-web/`](./admin-web/) | `React 19` + `TypeScript` + `Vite` + `Tailwind CSS` | Desktop operational dashboard for Menu CRUD, Printable QR Standees, Live Orders, Billing, Staff, Reports, Settings, and Immutable Audit Logs. |
-| **Waiter Mobile App** | [`waiter-app/`](./waiter-app/) | `Flutter` + `Dart` + `Riverpod` (Android priority) | Floor table occupancy grid, rapid Short-Code (`CB`, `CB-H`, `CK-2`) + Full-Name manual order entry, order edits, marking `SERVED`, and bill/payment settlement. |
-| **Kitchen KDS App** | [`kitchen-app/`](./kitchen-app/) | `Flutter` + `Dart` + `Riverpod` (Android Tablet/Phone) | Real-time FIFO Kitchen Display System with audio chimes, modification diff alerts, and `Accept` / `Reject` / `Preparing` / `Ready` transitions. |
+| **Staff Mobile App (Waiter + Kitchen)** | [`waiter-app/`](./waiter-app/) | `Flutter` + `Dart` + `Riverpod` (Android) | One app with role-based login: Waiter dashboard (floor grid, rapid order entry, order edits, `SERVED`, billing/payments) and Kitchen KDS dashboard (real-time FIFO board, chimes, `Accept` / `Reject` / `Preparing` / `Ready`). Replaces the former separate `kitchen-app/` (kept only until its removal is approved). |
 
 ---
 

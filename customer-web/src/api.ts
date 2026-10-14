@@ -11,7 +11,7 @@ import type {
   OrderCreateResponse,
   OrderResponse,
 } from './types';
-import { isDevDemoEnabled, isProd, resolveApiBaseUrl } from './utils/env';
+import { isDevDemoEnabled, resolveApiBaseUrl } from './utils/env';
 
 const BASE = resolveApiBaseUrl();
 

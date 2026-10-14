@@ -104,3 +104,57 @@ class KitchenOrderModel {
     );
   }
 }
+
+/// A recently cancelled order the kitchen must STOP cooking / DISCARD.
+/// Comes from `recent_cancellations` of `GET /kitchen/orders/active` (no prices).
+class KitchenCancellationAlert {
+  final String orderId;
+  final String orderNumber;
+  final String tableName;
+  final String? cancelledByRole;
+  final String? reason;
+  final bool forced;
+
+  /// STOP_COOKING | DISCARD_READY_FOOD | REMOVE_TICKET
+  final String action;
+  final List<String> items;
+
+  const KitchenCancellationAlert({
+    required this.orderId,
+    required this.orderNumber,
+    required this.tableName,
+    this.cancelledByRole,
+    this.reason,
+    this.forced = false,
+    this.action = 'REMOVE_TICKET',
+    this.items = const [],
+  });
+
+  factory KitchenCancellationAlert.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List<dynamic>? ?? const [];
+    return KitchenCancellationAlert(
+      orderId: json['order_id']?.toString() ?? '',
+      orderNumber: json['order_number']?.toString() ?? '',
+      tableName: json['table_display_name']?.toString() ?? '',
+      cancelledByRole: json['cancelled_by_role']?.toString(),
+      reason: json['reason']?.toString(),
+      forced: json['forced'] == true,
+      action: json['kitchen_action']?.toString() ?? 'REMOVE_TICKET',
+      items: rawItems.map((e) {
+        final m = e as Map<String, dynamic>;
+        return '${m['quantity'] ?? 1}x ${m['item_name'] ?? ''} (${m['variant_name'] ?? ''})';
+      }).toList(),
+    );
+  }
+
+  String get headline {
+    switch (action) {
+      case 'STOP_COOKING':
+        return 'STOP COOKING';
+      case 'DISCARD_READY_FOOD':
+        return 'DISCARD READY FOOD';
+      default:
+        return 'ORDER CANCELLED';
+    }
+  }
+}

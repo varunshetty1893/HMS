@@ -645,13 +645,21 @@ class TestCustomerOrderCancellation:
         db.scalar.side_effect = [mock_order, table_sess]
 
         with patch("app.services.order_service.ws_manager.broadcast_to_room", AsyncMock()):
-            with patch("app.services.order_service._build_order_response", return_value=MagicMock()):
-                await OrderService.cancel_customer_order(
-                    db,
-                    order_id=mock_order.id,
-                    customer_session=cust_sess,
-                    reason="Changed mind",
-                )
+            with patch("app.services.order_service._ensure_no_issued_bill", AsyncMock()):
+                with patch(
+                    "app.services.order_service._close_session_if_no_active_orders",
+                    AsyncMock(return_value=False),
+                ):
+                    with patch(
+                        "app.services.order_service._build_order_response",
+                        return_value=MagicMock(),
+                    ):
+                        await OrderService.cancel_customer_order(
+                            db,
+                            order_id=mock_order.id,
+                            customer_session=cust_sess,
+                            reason="Changed mind",
+                        )
 
         assert mock_order.status == OrderStatus.CANCELLED.value
         assert mock_order.order_subtotal == Decimal("0.00")
@@ -678,14 +686,25 @@ class TestCustomerOrderCancellation:
         db.scalar.side_effect = [mock_order, None]
 
         with patch("app.services.order_service.ws_manager.broadcast_to_room", AsyncMock()):
-            with patch("app.services.order_service._build_order_response", return_value=MagicMock()):
-                await OrderService.cancel_customer_order(
-                    db,
-                    order_id=mock_order.id,
-                    customer_session=cust_sess,
-                )
+            with patch("app.services.order_service._ensure_no_issued_bill", AsyncMock()):
+                with patch(
+                    "app.services.order_service._close_session_if_no_active_orders",
+                    AsyncMock(return_value=False),
+                ):
+                    with patch(
+                        "app.services.order_service._build_order_response",
+                        return_value=MagicMock(),
+                    ):
+                        await OrderService.cancel_customer_order(
+                            db,
+                            order_id=mock_order.id,
+                            customer_session=cust_sess,
+                        )
 
         assert mock_order.status == OrderStatus.CANCELLED.value
+        # Regression: the cancel must record a role the DB CHECK constraint accepts
+        # ('CUSTOMER', not 'CUSTOMER_QR') and must not need a users row.
+        assert mock_order.cancelled_by_role == "CUSTOMER"
 
     @pytest.mark.asyncio
     async def test_cancel_order_preparing_status_rejected(self) -> None:

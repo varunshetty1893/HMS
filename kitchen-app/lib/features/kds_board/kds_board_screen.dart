@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../models/kitchen_order_model.dart';
 import '../../widgets/connection_status_banner.dart';
+import '../../widgets/cancellation_alert_banner.dart';
 import '../auth/auth_controller.dart';
 import '../kds_history/kds_history_screen.dart';
 import 'kds_controller.dart';
@@ -151,6 +152,10 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
       body: Column(
         children: [
           ConnectionStatusBanner(isConnected: state.isConnected),
+          CancellationAlertBanner(
+            alerts: state.cancellations,
+            onDismiss: controller.dismissCancellation,
+          ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {

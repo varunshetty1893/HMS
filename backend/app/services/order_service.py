@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import (
+    AuthorizationError,
     DomainValidationError,
     ResourceNotFoundError,
     StateConflictError,
@@ -37,6 +38,7 @@ from app.core.logging import get_logger
 from app.core.time_utils import utc_now
 from app.models.enums import (
     ActorRole,
+    BillStatus,
     CustomerSessionStatus,
     ModificationType,
     OrderItemStatus,
@@ -45,6 +47,7 @@ from app.models.enums import (
     TableSessionStatus,
     UserRole,
 )
+from app.models.billing import Bill
 from app.models.identity import User
 from app.models.menu import MenuItem, MenuPriceVariant
 from app.models.operations import IdempotencyKey
@@ -53,6 +56,8 @@ from app.models.qr_sessions import CustomerSession, TableSession
 from app.models.restaurant import RestaurantSettings, RestaurantTable
 from app.realtime.manager import ws_manager
 from app.schemas.kitchen import (
+    KitchenCancellationAlert,
+    KitchenCancellationItem,
     KitchenCounts,
     KitchenDashboardResponse,
     KitchenItemTicket,
@@ -60,6 +65,7 @@ from app.schemas.kitchen import (
     KitchenOrderTicket,
 )
 from app.schemas.order import (
+    CustomerOrderModifyRequest,
     OrderCancelRequest,
     OrderCreate,
     OrderCreateResponse,
@@ -81,6 +87,17 @@ _IDEMPOTENCY_TTL = timedelta(hours=24)
 
 # Maximum order subtotal on a single submission (individual order safeguard)
 _MAX_ORDER_SUBTOTAL = Decimal("25000.00")
+
+# Business rule (owner decision - set to False to tighten): after cooking has started a
+# customer may still fix a *portion* mistake (Full -> Half). The kitchen is alerted.
+_CUSTOMER_PORTION_DOWNGRADE_WHILE_PREPARING = True
+
+# Hard cap per order line (mirrors the `le=20` request schema)
+_MAX_LINE_QUANTITY = 20
+
+# The KDS keeps showing recent cancellations for this long, so a kitchen tablet that
+# reconnects (or was briefly offline) still learns that an order must not be cooked.
+_RECENT_CANCELLATION_WINDOW = timedelta(minutes=30)
 
 
 def _two_dp(value: Decimal) -> Decimal:
@@ -139,6 +156,9 @@ def _build_order_response(order: Order) -> OrderResponse:
         ready_at=order.ready_at,
         served_at=order.served_at,
         has_unacknowledged_mods=order.has_unacknowledged_mods,
+        cancelled_at=order.cancelled_at,
+        cancelled_by_role=order.cancelled_by_role,
+        cancellation_reason=order.cancellation_reason,
         items=[_build_order_item_response(i) for i in (order.items or [])],
     )
 
@@ -183,6 +203,9 @@ def _build_waiter_order_response(order: Order) -> WaiterOrderResponse:
         accepted_at=order.accepted_at,
         ready_at=order.ready_at,
         served_at=order.served_at,
+        cancelled_at=order.cancelled_at,
+        cancelled_by_role=order.cancelled_by_role,
+        cancellation_reason=order.cancellation_reason,
         items=[_build_order_item_response(i) for i in (order.items or [])],
         modification_events=[
             _build_mod_event_response(e) for e in (order.modification_events or [])
@@ -199,6 +222,130 @@ def _build_session_info(table_session: TableSession, *, is_first_order: bool) ->
         custom_outstanding_limit=table_session.custom_outstanding_limit,
         is_first_order=is_first_order,
     )
+
+
+def _event_actor(
+    *, staff_user: User | None = None, customer_session: CustomerSession | None = None
+) -> dict[str, Any]:
+    """Actor columns for an OrderModificationEvent: a staff user OR a customer session."""
+    if staff_user is not None:
+        return {
+            "modified_by_user_id": staff_user.id,
+            "modified_by_customer_session_id": None,
+            "modified_by_role": staff_user.role,
+        }
+    if customer_session is None:
+        raise ValueError("Either staff_user or customer_session is required.")
+    return {
+        "modified_by_user_id": None,
+        "modified_by_customer_session_id": customer_session.id,
+        "modified_by_role": ActorRole.CUSTOMER.value,
+    }
+
+
+def _kitchen_action_for(previous_status: str) -> str:
+    """What the kitchen must physically do when an order is cancelled in this status."""
+    if previous_status == OrderStatus.PREPARING.value:
+        return "STOP_COOKING"
+    if previous_status == OrderStatus.READY.value:
+        return "DISCARD_READY_FOOD"
+    return "REMOVE_TICKET"
+
+
+async def _ensure_no_issued_bill(
+    db: AsyncSession, table_session_id: uuid.UUID, *, by_customer: bool = False
+) -> None:
+    """Orders are frozen once a bill is ISSUED/PAID for the session (admin must void first)."""
+    stmt = select(func.count(Bill.id)).where(
+        Bill.table_session_id == table_session_id,
+        Bill.status.in_([BillStatus.ISSUED.value, BillStatus.PAID.value]),
+    )
+    if ((await db.scalar(stmt)) or 0) > 0:
+        if by_customer:
+            raise StateConflictError(
+                "BILL_ALREADY_ISSUED",
+                "The bill for your table is being settled, so orders can't be changed now. "
+                "Please ask your waiter.",
+            )
+        raise StateConflictError(
+            "BILL_ALREADY_ISSUED",
+            "A bill is already issued for this table. Ask an admin to void the bill for "
+            "revision before changing orders.",
+        )
+
+
+async def _close_session_if_no_active_orders(
+    db: AsyncSession,
+    order: Order,
+    table_session: TableSession | None,
+    now: Any,
+) -> bool:
+    """Close the table session when its last live order was cancelled.
+
+    Returns True when the table became AVAILABLE (occupancy is derived from sessions).
+    """
+    if table_session is None:
+        return False
+    remaining_stmt = select(func.count(Order.id)).where(
+        Order.table_session_id == order.table_session_id,
+        Order.id != order.id,
+        Order.status.not_in([OrderStatus.REJECTED.value, OrderStatus.CANCELLED.value]),
+    )
+    if ((await db.scalar(remaining_stmt)) or 0) > 0:
+        return False
+    table_session.status = TableSessionStatus.CLOSED_CANCELLED.value
+    table_session.closed_at = now
+    table = await db.scalar(
+        select(RestaurantTable).where(RestaurantTable.id == order.table_id).with_for_update()
+    )
+    return table is not None
+
+
+async def _broadcast_order_cancelled(
+    order: Order,
+    *,
+    prev_status: str,
+    reason: str,
+    cancelled_by_role: str,
+    forced: bool,
+    table_reset: bool,
+    now: Any,
+) -> None:
+    """Post-commit fan-out for a cancelled order. The KITCHEN always gets the alert."""
+    payload = {
+        "event": "order.cancelled",
+        "order_id": str(order.id),
+        "order_number": order.order_number,
+        "table_id": str(order.table_id),
+        "table_code": order.table.display_name if order.table else "",
+        "previous_status": prev_status,
+        "current_status": OrderStatus.CANCELLED.value,
+        "cancelled_by_role": cancelled_by_role,
+        "forced": forced,
+        "kitchen_action": _kitchen_action_for(prev_status),
+        "reason": reason,
+        "cancellation_reason": reason,
+        "cancelled_at": now.isoformat(),
+        "timestamp": now.isoformat(),
+    }
+    try:
+        await ws_manager.broadcast_to_room("channel:kitchen", payload)
+        await ws_manager.broadcast_to_room("channel:waiters", payload)
+        await ws_manager.broadcast_to_room("channel:admin", payload)
+        await ws_manager.broadcast_to_room(f"table_session:{order.table_session_id}", payload)
+
+        if table_reset:
+            t_event = {
+                "event": "table.status_changed",
+                "table_id": str(order.table_id),
+                "status": "AVAILABLE",
+                "timestamp": now.isoformat(),
+            }
+            await ws_manager.broadcast_to_room("channel:waiters", t_event)
+            await ws_manager.broadcast_to_room("channel:admin", t_event)
+            await ws_manager.broadcast_to_room("channel:tables", t_event)
+    except Exception as exc:
+        logger.warning("WebSocket broadcast failed after order.cancelled: %s", exc)
 
 
 class OrderService:
@@ -750,6 +897,10 @@ class OrderService:
             for it in (order.items or [])
         ]
 
+        item_labels = {
+            it.id: f"{it.item_name_snapshot} ({it.variant_name_snapshot})"
+            for it in (order.items or [])
+        }
         unacked_mods: list[KitchenModificationEventResponse] = []
         if order.modification_events:
             for mod in order.modification_events:
@@ -758,7 +909,7 @@ class OrderService:
                         KitchenModificationEventResponse(
                             modification_event_id=mod.id,
                             modification_type=mod.modification_type,
-                            item_name="Item",
+                            item_name=item_labels.get(mod.order_item_id, "Item"),
                             previous_quantity=mod.previous_quantity,
                             new_quantity=mod.new_quantity,
                             reason=mod.reason,
@@ -845,7 +996,62 @@ class OrderService:
 
             tickets.append(cls._to_kitchen_ticket(o))
 
-        return KitchenDashboardResponse(counts=counts, orders=tickets)
+        # Recently cancelled orders: the kitchen must STOP / DISCARD these even if the
+        # realtime alert was missed (tablet asleep, reconnecting, ...).
+        cancel_stmt = (
+            select(Order)
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.table),
+                selectinload(Order.status_history),
+            )
+            .where(
+                Order.status == OrderStatus.CANCELLED.value,
+                Order.cancelled_at >= utc_now() - _RECENT_CANCELLATION_WINDOW,
+            )
+            .order_by(Order.cancelled_at.desc())
+            .limit(20)
+        )
+        cancelled_orders = list((await db.execute(cancel_stmt)).scalars().all())
+        alerts = [cls._to_cancellation_alert(o) for o in cancelled_orders]
+
+        return KitchenDashboardResponse(
+            counts=counts, orders=tickets, recent_cancellations=alerts
+        )
+
+    @staticmethod
+    def _to_cancellation_alert(order: Order) -> KitchenCancellationAlert:
+        """KDS cancellation banner entry (zero financial fields)."""
+        cancel_row = next(
+            (
+                h
+                for h in sorted(order.status_history or [], key=lambda h: h.changed_at)
+                if h.new_status == OrderStatus.CANCELLED.value
+            ),
+            None,
+        )
+        meta = (cancel_row.metadata_json or {}) if cancel_row else {}
+        previous = cancel_row.previous_status if cancel_row else None
+        return KitchenCancellationAlert(
+            order_id=order.id,
+            order_number=order.order_number,
+            table_number=order.table.table_number if order.table else 0,
+            table_display_name=order.table.display_name if order.table else "",
+            cancelled_at=order.cancelled_at,
+            cancelled_by_role=order.cancelled_by_role,
+            reason=order.cancellation_reason,
+            previous_status=previous,
+            forced=bool(meta.get("forced", False)),
+            kitchen_action=meta.get("kitchen_action") or _kitchen_action_for(previous or ""),
+            items=[
+                KitchenCancellationItem(
+                    item_name=it.item_name_snapshot,
+                    variant_name=it.variant_name_snapshot,
+                    quantity=it.cancelled_quantity or it.original_quantity,
+                )
+                for it in (order.items or [])
+            ],
+        )
 
     @classmethod
     async def get_kitchen_order_by_id(
@@ -1683,14 +1889,38 @@ class OrderService:
                 "(must be PLACED, ACCEPTED, or PREPARING).",
             )
 
-        if order.status == OrderStatus.PREPARING.value and staff_user.role != UserRole.ADMIN:
+        if staff_user.role not in (UserRole.WAITER, UserRole.ADMIN):
+            raise AuthorizationError(
+                "INSUFFICIENT_ROLE_PERMISSIONS",
+                "Only waiters and admins can edit orders from the floor.",
+            )
+
+        await _ensure_no_issued_bill(db, order.table_session_id)
+
+        existing_items = {it.id: it for it in (order.items or [])}
+
+        # While the kitchen is PREPARING, ADDING more is always fine. REDUCING / REMOVING
+        # needs an explicit FORCE (waiter/admin) because food may already be cooked.
+        has_reduction = any(
+            m.order_item_id is not None
+            and m.order_item_id in existing_items
+            and m.new_quantity < existing_items[m.order_item_id].active_quantity
+            for m in payload.items
+        )
+        forced_reduction = False
+        if order.status == OrderStatus.PREPARING.value and has_reduction:
             settings = await db.scalar(select(RestaurantSettings))
-            if not (settings and settings.allow_waiter_cancel_preparing_item):
+            if not (
+                staff_user.role == UserRole.ADMIN
+                or payload.force
+                or (settings and settings.allow_waiter_cancel_preparing_item)
+            ):
                 raise DomainValidationError(
-                    "PREPARING_MODIFICATION_BLOCKED",
-                    "Order is already in PREPARING status; modification requires "
-                    "Admin authorization.",
+                    "FORCE_REQUIRED_FOR_REDUCTION",
+                    "Kitchen is already cooking this order. You can add more items, but "
+                    "reducing or removing needs FORCE cancellation (kitchen will be notified).",
                 )
+            forced_reduction = True
 
         sess_stmt = (
             select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
@@ -1702,7 +1932,6 @@ class OrderService:
             )
 
         is_post_accept = order.status in [OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value]
-        existing_items = {it.id: it for it in (order.items or [])}
         events_to_add: list[OrderModificationEvent] = []
         net_price_delta = Decimal("0.00")
 
@@ -1713,6 +1942,12 @@ class OrderService:
                     raise ResourceNotFoundError(
                         "ORDER_ITEM_NOT_FOUND",
                         f"Item {mod.order_item_id} not found in order {order.order_number}.",
+                    )
+                if item.item_status == OrderItemStatus.CANCELLED.value and mod.new_quantity > 0:
+                    raise DomainValidationError(
+                        "ITEM_ALREADY_CANCELLED",
+                        f"'{item.item_name_snapshot}' was already cancelled. "
+                        "Add it again as a new item instead.",
                     )
                 prev_qty = item.active_quantity
                 new_qty = mod.new_quantity
@@ -1873,13 +2108,31 @@ class OrderService:
         table_reset = False
         now = utc_now()
 
+        status_before_edit = order.status
         if total_active == 0:
             order.status = OrderStatus.CANCELLED.value
             order.cancelled_at = now
             order.cancelled_by_user_id = staff_user.id
             order.cancelled_by_role = staff_user.role
             order.cancellation_reason = payload.reason
+            order.has_unacknowledged_mods = False
             order_cancelled = True
+            db.add(
+                OrderStatusHistory(
+                    order_id=order.id,
+                    previous_status=status_before_edit,
+                    new_status=OrderStatus.CANCELLED.value,
+                    changed_by_role=staff_user.role,
+                    changed_by_user_id=staff_user.id,
+                    reason=payload.reason,
+                    metadata_json={
+                        "forced": forced_reduction,
+                        "via": "all_items_removed",
+                        "kitchen_action": _kitchen_action_for(status_before_edit),
+                    },
+                    changed_at=now,
+                )
+            )
 
             active_remaining_stmt = select(func.count(Order.id)).where(
                 Order.table_session_id == order.table_session_id,
@@ -1909,7 +2162,7 @@ class OrderService:
 
         await AuditService.record_event(
             db,
-            action_type="ORDER_MODIFIED",
+            action_type="ORDER_FORCE_MODIFIED" if forced_reduction else "ORDER_MODIFIED",
             entity_type="order",
             entity_id=str(order.id),
             actor_role=staff_user.role,
@@ -1921,6 +2174,7 @@ class OrderService:
                 "order_subtotal": str(order.order_subtotal),
                 "net_price_delta": str(net_price_delta),
                 "status": order.status,
+                "forced": forced_reduction,
             },
         )
 
@@ -1934,6 +2188,9 @@ class OrderService:
             "order_number": order.order_number,
             "table_code": order.table.display_name if order.table else "",
             "has_unacknowledged_mods": order.has_unacknowledged_mods,
+            "has_reductions": has_reduction,
+            "forced": forced_reduction,
+            "modified_by_role": str(staff_user.role),
             "net_price_delta": str(net_price_delta),
             "reason": payload.reason,
             "version": order.version,
@@ -1952,12 +2209,24 @@ class OrderService:
                     "event": "order.cancelled",
                     "order_id": str(order.id),
                     "order_number": order.order_number,
+                    "table_id": str(order.table_id),
+                    "table_code": order.table.display_name if order.table else "",
+                    "previous_status": status_before_edit,
+                    "current_status": "CANCELLED",
+                    "cancelled_by_role": str(staff_user.role),
+                    "forced": forced_reduction,
+                    "kitchen_action": _kitchen_action_for(status_before_edit),
                     "reason": payload.reason,
+                    "cancellation_reason": payload.reason,
+                    "cancelled_at": now.isoformat(),
                     "timestamp": now.isoformat(),
                 }
                 await ws_manager.broadcast_to_room("channel:kitchen", cancel_payload)
                 await ws_manager.broadcast_to_room("channel:waiters", cancel_payload)
                 await ws_manager.broadcast_to_room("channel:admin", cancel_payload)
+                await ws_manager.broadcast_to_room(
+                    f"table_session:{order.table_session_id}", cancel_payload
+                )
 
             if table_reset:
                 t_event = {
@@ -1983,12 +2252,23 @@ class OrderService:
         payload: OrderCancelRequest,
         staff_user: User,
     ) -> WaiterOrderResponse:
-        """Cancel an entire active order.
+        """Cancel an entire order (WAITER / ADMIN only).
 
-        Allowed for PLACED or ACCEPTED orders (and PREPARING with Admin).
-        Zeros active quantities, subtracts from session exposure, and reverts
-        table to AVAILABLE if 0 active orders remain in the session.
+        * PLACED / ACCEPTED  -> normal cancellation.
+        * PREPARING / READY  -> **FORCE cancellation**: needs ``payload.force=True``
+          (ADMIN may also cancel PREPARING without the flag). The kitchen is notified
+          immediately (STOP_COOKING / DISCARD_READY_FOOD) and the reason is audited.
+        * SERVED / COMPLETED -> never; the bill has to be voided by an admin instead.
+
+        Zeros active quantities, subtracts from table exposure and, when no other live
+        order remains, closes the session so the table becomes AVAILABLE again.
         """
+        if staff_user.role not in (UserRole.WAITER, UserRole.ADMIN):
+            raise AuthorizationError(
+                "INSUFFICIENT_ROLE_PERMISSIONS",
+                "Only waiters and admins can cancel orders from the floor.",
+            )
+
         stmt = (
             select(Order)
             .options(
@@ -2010,14 +2290,29 @@ class OrderService:
                 f"{payload.expected_version}",
             )
 
-        if order.status not in [OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value]:
-            if not (
-                order.status == OrderStatus.PREPARING.value and staff_user.role == UserRole.ADMIN
-            ):
+        prev_status = order.status
+        forced = False
+        if prev_status in (OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value):
+            pass
+        elif prev_status in (OrderStatus.PREPARING.value, OrderStatus.READY.value):
+            admin_on_preparing = (
+                prev_status == OrderStatus.PREPARING.value and staff_user.role == UserRole.ADMIN
+            )
+            if not (payload.force or admin_on_preparing):
                 raise StateConflictError(
-                    "INVALID_STATE_TRANSITION",
-                    f"Cannot cancel order in status '{order.status}'.",
+                    "FORCE_CANCEL_REQUIRED",
+                    f"Kitchen already has this order ({prev_status}). Use FORCE cancellation "
+                    "- the kitchen will be told to stop / discard it.",
                 )
+            forced = True
+        else:
+            raise StateConflictError(
+                "INVALID_STATE_TRANSITION",
+                f"Cannot cancel order in status '{order.status}'. Served/closed orders must "
+                "be handled through the bill (admin void).",
+            )
+
+        await _ensure_no_issued_bill(db, order.table_session_id)
 
         sess_stmt = (
             select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
@@ -2025,7 +2320,7 @@ class OrderService:
         table_session = await db.scalar(sess_stmt)
 
         now = utc_now()
-        is_post_accept = order.status in [OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value]
+        actor = _event_actor(staff_user=staff_user)
 
         for item in order.items or []:
             if item.active_quantity > 0:
@@ -2040,7 +2335,7 @@ class OrderService:
                     order_id=order.id,
                     order_item_id=item.id,
                     modification_type=ModificationType.ITEM_CANCELLED.value,
-                    order_status_at_modification=order.status,
+                    order_status_at_modification=prev_status,
                     previous_quantity=prev_qty,
                     new_quantity=0,
                     previous_notes=item.item_notes,
@@ -2048,9 +2343,10 @@ class OrderService:
                     unit_price_snapshot=item.unit_price_snapshot,
                     price_delta=-_two_dp(Decimal(prev_qty) * item.unit_price_snapshot),
                     reason=payload.cancellation_reason,
-                    modified_by_user_id=staff_user.id,
-                    modified_by_role=staff_user.role,
-                    kitchen_ack_required=is_post_accept,
+                    # The order leaves the KDS queue, so there is nothing to "acknowledge";
+                    # the kitchen is told through the order.cancelled alert instead.
+                    kitchen_ack_required=False,
+                    **actor,
                 )
                 db.add(ev)
                 order.modification_events.append(ev)
@@ -2062,93 +2358,60 @@ class OrderService:
             table_session.current_outstanding_amount = max(Decimal("0.00"), new_outstanding)
 
         order.order_subtotal = Decimal("0.00")
-        prev_status = order.status
         order.status = OrderStatus.CANCELLED.value
         order.cancelled_at = now
         order.cancelled_by_user_id = staff_user.id
         order.cancelled_by_role = staff_user.role
         order.cancellation_reason = payload.cancellation_reason
+        order.has_unacknowledged_mods = False
         order.version += 1
 
-        history = OrderStatusHistory(
-            order_id=order.id,
-            previous_status=prev_status,
-            new_status=OrderStatus.CANCELLED.value,
-            changed_by_role=staff_user.role,
-            changed_by_user_id=staff_user.id,
-            reason=payload.cancellation_reason,
-            changed_at=now,
-        )
-        db.add(history)
-
-        # Check if 0 active orders remain in session
-        active_remaining_stmt = select(func.count(Order.id)).where(
-            Order.table_session_id == order.table_session_id,
-            Order.id != order.id,
-            Order.status.not_in([OrderStatus.REJECTED.value, OrderStatus.CANCELLED.value]),
-        )
-        active_remaining = (await db.scalar(active_remaining_stmt)) or 0
-        table_reset = False
-
-        if active_remaining == 0 and table_session:
-            table_session.status = TableSessionStatus.CLOSED_CANCELLED.value
-            table_session.closed_at = now
-            t_stmt = (
-                select(RestaurantTable)
-                .where(RestaurantTable.id == order.table_id)
-                .with_for_update()
+        db.add(
+            OrderStatusHistory(
+                order_id=order.id,
+                previous_status=prev_status,
+                new_status=OrderStatus.CANCELLED.value,
+                changed_by_role=staff_user.role,
+                changed_by_user_id=staff_user.id,
+                reason=payload.cancellation_reason,
+                metadata_json={
+                    "forced": forced,
+                    "kitchen_action": _kitchen_action_for(prev_status),
+                },
+                changed_at=now,
             )
-            table = await db.scalar(t_stmt)
-            if table:  # occupancy derived from table_sessions
-                table_reset = True
+        )
+
+        table_reset = await _close_session_if_no_active_orders(db, order, table_session, now)
 
         await AuditService.record_event(
             db,
-            action_type="ORDER_CANCELLED",
+            action_type="ORDER_FORCE_CANCELLED" if forced else "ORDER_CANCELLED",
             entity_type="order",
             entity_id=str(order.id),
             actor_role=staff_user.role,
             actor_user_id=staff_user.id,
             reason=payload.cancellation_reason,
             old_value={"status": prev_status},
-            new_value={"status": "CANCELLED", "cancellation_reason": payload.cancellation_reason},
+            new_value={
+                "status": "CANCELLED",
+                "cancellation_reason": payload.cancellation_reason,
+                "forced": forced,
+            },
         )
 
         await db.commit()
         await db.refresh(order)
 
-        # Broadcast events
-        cancel_payload = {
-            "event": "order.cancelled",
-            "order_id": str(order.id),
-            "order_number": order.order_number,
-            "table_code": order.table.display_name if order.table else "",
-            "previous_status": prev_status,
-            "current_status": "CANCELLED",
-            "cancelled_at": now.isoformat(),
-            "cancellation_reason": payload.cancellation_reason,
-            "timestamp": now.isoformat(),
-        }
-        try:
-            await ws_manager.broadcast_to_room("channel:kitchen", cancel_payload)
-            await ws_manager.broadcast_to_room("channel:waiters", cancel_payload)
-            await ws_manager.broadcast_to_room("channel:admin", cancel_payload)
-            await ws_manager.broadcast_to_room(
-                f"table_session:{order.table_session_id}", cancel_payload
-            )
-
-            if table_reset:
-                t_event = {
-                    "event": "table.status_changed",
-                    "table_id": str(order.table_id),
-                    "status": "AVAILABLE",
-                    "timestamp": now.isoformat(),
-                }
-                await ws_manager.broadcast_to_room("channel:waiters", t_event)
-                await ws_manager.broadcast_to_room("channel:admin", t_event)
-                await ws_manager.broadcast_to_room("channel:tables", t_event)
-        except Exception as exc:
-            logger.warning("WebSocket broadcast failed after order.cancelled: %s", exc)
+        await _broadcast_order_cancelled(
+            order,
+            prev_status=prev_status,
+            reason=payload.cancellation_reason,
+            cancelled_by_role=str(staff_user.role),
+            forced=forced,
+            table_reset=table_reset,
+            now=now,
+        )
 
         return _build_waiter_order_response(order)
 
@@ -2164,7 +2427,8 @@ class OrderService:
         """Cancel an entire active order by customer before cooking starts.
 
         Allowed ONLY while status is PLACED or ACCEPTED.
-        Once cooking starts (PREPARING, READY, SERVED), cancellation is forbidden.
+        Once cooking starts (PREPARING, READY, SERVED), cancellation is forbidden for the
+        customer - a waiter has to FORCE-cancel it.
         """
         stmt = (
             select(Order)
@@ -2193,13 +2457,17 @@ class OrderService:
                 f"Cooking has already started (status: {order.status}). Order cannot be cancelled.",
             )
 
+        await _ensure_no_issued_bill(db, order.table_session_id, by_customer=True)
+
         sess_stmt = (
             select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
         )
         table_session = await db.scalar(sess_stmt)
 
         now = utc_now()
-        cancel_reason = reason or "Cancelled by customer before cooking started"
+        cancel_reason = (reason or "Cancelled by customer before cooking started")[:255]
+        prev_status = order.status
+        actor = _event_actor(customer_session=customer_session)
 
         for item in order.items or []:
             if item.active_quantity > 0:
@@ -2214,7 +2482,7 @@ class OrderService:
                     order_id=order.id,
                     order_item_id=item.id,
                     modification_type=ModificationType.ITEM_CANCELLED.value,
-                    order_status_at_modification=order.status,
+                    order_status_at_modification=prev_status,
                     previous_quantity=prev_qty,
                     new_quantity=0,
                     previous_notes=item.item_notes,
@@ -2222,9 +2490,8 @@ class OrderService:
                     unit_price_snapshot=item.unit_price_snapshot,
                     price_delta=-_two_dp(Decimal(prev_qty) * item.unit_price_snapshot),
                     reason=cancel_reason,
-                    modified_by_user_id=None,
-                    modified_by_role="CUSTOMER_QR",
                     kitchen_ack_required=False,
+                    **actor,
                 )
                 db.add(ev)
                 order.modification_events.append(ev)
@@ -2236,61 +2503,566 @@ class OrderService:
             table_session.current_outstanding_amount = max(Decimal("0.00"), new_outstanding)
 
         order.order_subtotal = Decimal("0.00")
-        prev_status = order.status
         order.status = OrderStatus.CANCELLED.value
         order.cancelled_at = now
         order.cancelled_by_user_id = None
-        order.cancelled_by_role = "CUSTOMER_QR"
+        order.cancelled_by_role = ActorRole.CUSTOMER.value
         order.cancellation_reason = cancel_reason
+        order.has_unacknowledged_mods = False
         order.version += 1
 
-        history = OrderStatusHistory(
-            order_id=order.id,
-            previous_status=prev_status,
-            new_status=OrderStatus.CANCELLED.value,
-            changed_by_role="CUSTOMER_QR",
-            changed_by_user_id=None,
-            reason=cancel_reason,
-            changed_at=now,
+        db.add(
+            OrderStatusHistory(
+                order_id=order.id,
+                previous_status=prev_status,
+                new_status=OrderStatus.CANCELLED.value,
+                changed_by_role=ActorRole.CUSTOMER.value,
+                changed_by_user_id=None,
+                changed_by_customer_session_id=customer_session.id,
+                reason=cancel_reason,
+                metadata_json={"forced": False, "kitchen_action": _kitchen_action_for(prev_status)},
+                changed_at=now,
+            )
         )
-        db.add(history)
+
+        table_reset = await _close_session_if_no_active_orders(db, order, table_session, now)
+
+        await AuditService.record_event(
+            db,
+            action_type="ORDER_CANCELLED",
+            entity_type="order",
+            entity_id=str(order.id),
+            actor_role=ActorRole.CUSTOMER,
+            actor_customer_session_id=customer_session.id,
+            reason=cancel_reason,
+            old_value={"status": prev_status},
+            new_value={"status": "CANCELLED", "cancellation_reason": cancel_reason},
+        )
 
         await db.commit()
         await db.refresh(order)
 
-        try:
-            await ws_manager.broadcast_to_room(
-                "kitchen",
-                {
-                    "event": "order.cancelled",
-                    "order_id": str(order.id),
-                    "order_number": order.order_number,
-                    "table_id": str(order.table_id),
-                    "reason": cancel_reason,
-                },
+        await _broadcast_order_cancelled(
+            order,
+            prev_status=prev_status,
+            reason=cancel_reason,
+            cancelled_by_role=ActorRole.CUSTOMER.value,
+            forced=False,
+            table_reset=table_reset,
+            now=now,
+        )
+
+        return _build_order_response(order)
+
+    @classmethod
+    async def modify_customer_order(
+        cls,
+        db: AsyncSession,
+        *,
+        order_id: uuid.UUID,
+        payload: CustomerOrderModifyRequest,
+        customer_session: CustomerSession,
+    ) -> OrderResponse:
+        """Customer self-service edit of an existing order line.
+
+        Rules (business logic, enforced here - the UI only mirrors them):
+
+        +---------------------+-----------------------+---------------------------------+
+        | action              | PLACED / ACCEPTED     | PREPARING                       |
+        +---------------------+-----------------------+---------------------------------+
+        | increase quantity   | yes                   | yes (kitchen is alerted)        |
+        | reduce quantity     | yes                   | NO                              |
+        | remove a line       | yes                   | NO                              |
+        | cheaper portion     | yes                   | yes* (Full -> Half correction)  |
+        | cancel whole order  | yes (separate API)    | NO (waiter force-cancel only)   |
+        +---------------------+-----------------------+---------------------------------+
+        READY / SERVED / CANCELLED / REJECTED orders cannot be edited at all.
+        * controlled by ``_CUSTOMER_PORTION_DOWNGRADE_WHILE_PREPARING``.
+
+        Increases respect item availability and the unpaid-table cap. A portion switch only
+        goes to a *cheaper* active variant of the SAME dish and never to a bigger one.
+        """
+        stmt = (
+            select(Order)
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.table),
+                selectinload(Order.modification_events),
             )
-            await ws_manager.broadcast_to_room(
-                "channel:waiters",
-                {
-                    "event": "order.cancelled",
-                    "order_id": str(order.id),
-                    "order_number": order.order_number,
-                    "table_id": str(order.table_id),
-                    "reason": cancel_reason,
-                },
+            .where(Order.id == order_id)
+            .with_for_update()
+        )
+        order = await db.scalar(stmt)
+        if not order:
+            raise ResourceNotFoundError("ORDER_NOT_FOUND", f"Order {order_id} not found.")
+
+        if (
+            order.customer_session_id != customer_session.id
+            and order.table_session_id != customer_session.table_session_id
+        ):
+            raise StateConflictError("FORBIDDEN", "This order does not belong to your table session.")
+
+        if order.version != payload.expected_version:
+            raise StateConflictError(
+                "ORDER_VERSION_CONFLICT",
+                "This order was just updated (for example by the kitchen). "
+                "Please review the latest status and try again.",
             )
-            if order.table_session_id:
-                await ws_manager.broadcast_to_room(
-                    f"table_session:{order.table_session_id}",
+
+        editable = [
+            OrderStatus.PLACED.value,
+            OrderStatus.ACCEPTED.value,
+            OrderStatus.PREPARING.value,
+        ]
+        if order.status not in editable:
+            raise StateConflictError(
+                "ORDER_NOT_EDITABLE",
+                f"This order is already {order.status.lower()} and can no longer be changed. "
+                "Place a new order or call your waiter.",
+            )
+
+        await _ensure_no_issued_bill(db, order.table_session_id, by_customer=True)
+
+        table_session = await db.scalar(
+            select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
+        )
+        if not table_session:
+            raise ResourceNotFoundError(
+                "TABLE_SESSION_NOT_FOUND", "Associated table session not found."
+            )
+
+        pre_cooking = order.status in (OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value)
+        is_post_accept = order.status in (OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value)
+        status_at_edit = order.status
+        reason_text = ((payload.reason or "").strip() or "Edited by customer")[:200]
+        actor = _event_actor(customer_session=customer_session)
+
+        async def _load_variant(variant_id: uuid.UUID) -> MenuPriceVariant | None:
+            return await db.scalar(
+                select(MenuPriceVariant)
+                .options(selectinload(MenuPriceVariant.item))
+                .where(MenuPriceVariant.id == variant_id)
+            )
+
+        def _blocked_after_cooking(item_name: str) -> StateConflictError:
+            return StateConflictError(
+                "REDUCTION_NOT_ALLOWED_AFTER_COOKING",
+                f"Cooking has started, so '{item_name}' can't be reduced or removed. "
+                "You can still add more, or ask your waiter for help.",
+            )
+
+        items_by_id = {it.id: it for it in (order.items or [])}
+        events: list[OrderModificationEvent] = []
+        change_log: list[dict[str, Any]] = []
+        net_delta = Decimal("0.00")
+        has_reduction = False
+
+        for ch in payload.changes:
+            item = items_by_id.get(ch.order_item_id)
+            if item is None:
+                raise ResourceNotFoundError(
+                    "ORDER_ITEM_NOT_FOUND",
+                    f"Item {ch.order_item_id} not found in order {order.order_number}.",
+                )
+            if item.item_status == OrderItemStatus.CANCELLED.value or item.active_quantity <= 0:
+                raise DomainValidationError(
+                    "ITEM_ALREADY_CANCELLED",
+                    f"'{item.item_name_snapshot}' was already cancelled. "
+                    "Please place a new order for it.",
+                )
+
+            prev_qty = item.active_quantity
+
+            # ── Mode 1: change quantity of the same portion ────────────────────
+            if ch.new_quantity is not None:
+                new_qty = ch.new_quantity
+                diff = new_qty - prev_qty
+                if diff == 0:
+                    continue
+
+                if diff < 0:
+                    if not pre_cooking:
+                        raise _blocked_after_cooking(item.item_name_snapshot)
+                    has_reduction = True
+                else:
+                    variant = await _load_variant(item.menu_price_variant_id)
+                    menu_item = variant.item if variant else None
+                    if (
+                        not variant
+                        or not variant.is_active
+                        or not variant.is_available
+                        or not menu_item
+                        or not menu_item.is_active
+                        or not menu_item.is_available
+                    ):
+                        raise DomainValidationError(
+                            "ITEM_NOT_AVAILABLE",
+                            f"'{item.item_name_snapshot}' is currently unavailable, "
+                            "so you can't add more of it.",
+                        )
+
+                price_delta = _two_dp(Decimal(diff) * item.unit_price_snapshot)
+                net_delta += price_delta
+                item.active_quantity = new_qty
+                item.line_subtotal = _two_dp(Decimal(new_qty) * item.unit_price_snapshot)
+
+                if new_qty == 0:
+                    mod_type = ModificationType.ITEM_CANCELLED.value
+                    item.item_status = OrderItemStatus.CANCELLED.value
+                    item.cancelled_quantity += prev_qty
+                    item.cancellation_reason = reason_text
+                elif diff > 0:
+                    mod_type = ModificationType.QUANTITY_INCREASED.value
+                    item.item_status = OrderItemStatus.MODIFIED.value
+                else:
+                    mod_type = ModificationType.QUANTITY_DECREASED.value
+                    item.item_status = OrderItemStatus.MODIFIED.value
+                    item.cancelled_quantity += -diff
+                    item.cancellation_reason = reason_text
+
+                events.append(
+                    OrderModificationEvent(
+                        order_id=order.id,
+                        order_item_id=item.id,
+                        modification_type=mod_type,
+                        order_status_at_modification=status_at_edit,
+                        previous_quantity=prev_qty,
+                        new_quantity=new_qty,
+                        previous_notes=item.item_notes,
+                        new_notes=item.item_notes,
+                        unit_price_snapshot=item.unit_price_snapshot,
+                        price_delta=price_delta,
+                        reason=reason_text,
+                        kitchen_ack_required=is_post_accept,
+                        **actor,
+                    )
+                )
+                change_log.append(
                     {
-                        "event": "order.cancelled",
-                        "order_id": str(order.id),
-                        "status": "CANCELLED",
-                        "reason": cancel_reason,
-                    },
+                        "item_name": item.item_name_snapshot,
+                        "variant_name": item.variant_name_snapshot,
+                        "previous_quantity": prev_qty,
+                        "new_quantity": new_qty,
+                    }
+                )
+                continue
+
+            # ── Mode 2: move units to a cheaper portion of the same dish ───────
+            if not pre_cooking and not _CUSTOMER_PORTION_DOWNGRADE_WHILE_PREPARING:
+                raise _blocked_after_cooking(item.item_name_snapshot)
+
+            target = await _load_variant(ch.switch_to_variant_id)  # type: ignore[arg-type]
+            target_item = target.item if target else None
+            if (
+                not target
+                or not target.is_active
+                or not target.is_available
+                or not target_item
+                or not target_item.is_active
+            ):
+                raise DomainValidationError(
+                    "VARIANT_NOT_AVAILABLE",
+                    "That portion size is not available right now.",
+                )
+            if target.menu_item_id != item.menu_item_id:
+                raise DomainValidationError(
+                    "INVALID_PORTION_CHANGE",
+                    "A portion can only be changed within the same dish.",
+                )
+            if target.id == item.menu_price_variant_id:
+                raise DomainValidationError(
+                    "INVALID_PORTION_CHANGE",
+                    f"'{item.item_name_snapshot}' is already ordered in that portion.",
+                )
+            target_price = _two_dp(target.price)
+            if target_price >= item.unit_price_snapshot:
+                raise DomainValidationError(
+                    "PORTION_UPGRADE_NOT_ALLOWED",
+                    "You can only switch to a smaller (cheaper) portion. "
+                    "For a bigger portion please place a new order.",
+                )
+
+            move_qty = ch.switch_quantity or prev_qty
+            if move_qty > prev_qty:
+                raise DomainValidationError(
+                    "INVALID_QUANTITY",
+                    f"You only have {prev_qty} of '{item.item_name_snapshot}' in this order.",
+                )
+
+            has_reduction = True
+            swap_reason = (
+                f"Portion changed: {item.variant_name_snapshot} -> {target.variant_name} "
+                f"(x{move_qty})"
+            )[:255]
+
+            # 1) reduce / close the old (bigger) line
+            old_new_qty = prev_qty - move_qty
+            old_delta = -_two_dp(Decimal(move_qty) * item.unit_price_snapshot)
+            net_delta += old_delta
+            item.active_quantity = old_new_qty
+            item.line_subtotal = _two_dp(Decimal(old_new_qty) * item.unit_price_snapshot)
+            item.cancelled_quantity += move_qty
+            item.cancellation_reason = swap_reason
+            item.item_status = (
+                OrderItemStatus.CANCELLED.value
+                if old_new_qty == 0
+                else OrderItemStatus.MODIFIED.value
+            )
+            events.append(
+                OrderModificationEvent(
+                    order_id=order.id,
+                    order_item_id=item.id,
+                    modification_type=(
+                        ModificationType.ITEM_CANCELLED.value
+                        if old_new_qty == 0
+                        else ModificationType.QUANTITY_DECREASED.value
+                    ),
+                    order_status_at_modification=status_at_edit,
+                    previous_quantity=prev_qty,
+                    new_quantity=old_new_qty,
+                    previous_notes=item.item_notes,
+                    new_notes=item.item_notes,
+                    unit_price_snapshot=item.unit_price_snapshot,
+                    price_delta=old_delta,
+                    reason=swap_reason,
+                    kitchen_ack_required=is_post_accept,
+                    **actor,
+                )
+            )
+
+            # 2) add to an existing line of the target portion, or open a new one
+            existing_target = next(
+                (
+                    it
+                    for it in (order.items or [])
+                    if it.menu_price_variant_id == target.id
+                    and it.item_status != OrderItemStatus.CANCELLED.value
+                    and it.active_quantity > 0
+                ),
+                None,
+            )
+            new_delta = _two_dp(Decimal(move_qty) * target_price)
+            net_delta += new_delta
+            if existing_target is not None:
+                t_prev = existing_target.active_quantity
+                t_new = t_prev + move_qty
+                if t_new > _MAX_LINE_QUANTITY:
+                    raise DomainValidationError(
+                        "INVALID_QUANTITY",
+                        f"Maximum {_MAX_LINE_QUANTITY} portions per dish line.",
+                    )
+                existing_target.active_quantity = t_new
+                existing_target.line_subtotal = _two_dp(
+                    Decimal(t_new) * existing_target.unit_price_snapshot
+                )
+                existing_target.item_status = OrderItemStatus.MODIFIED.value
+                events.append(
+                    OrderModificationEvent(
+                        order_id=order.id,
+                        order_item_id=existing_target.id,
+                        modification_type=ModificationType.QUANTITY_INCREASED.value,
+                        order_status_at_modification=status_at_edit,
+                        previous_quantity=t_prev,
+                        new_quantity=t_new,
+                        previous_notes=existing_target.item_notes,
+                        new_notes=existing_target.item_notes,
+                        unit_price_snapshot=existing_target.unit_price_snapshot,
+                        price_delta=_two_dp(
+                            Decimal(move_qty) * existing_target.unit_price_snapshot
+                        ),
+                        reason=swap_reason,
+                        kitchen_ack_required=is_post_accept,
+                        **actor,
+                    )
+                )
+                # the target line may have a different snapshot price than today's menu;
+                # keep the ledger consistent with what was actually charged
+                net_delta += _two_dp(
+                    Decimal(move_qty) * existing_target.unit_price_snapshot
+                ) - new_delta
+            else:
+                new_line = OrderItem(
+                    order_id=order.id,
+                    menu_item_id=target_item.id,
+                    menu_price_variant_id=target.id,
+                    item_code_snapshot=target_item.item_code,
+                    item_name_snapshot=target_item.name,
+                    variant_code_snapshot=target.variant_code,
+                    variant_name_snapshot=target.variant_name,
+                    quantity_value_snapshot=target.quantity_value,
+                    unit_snapshot=target.unit,
+                    unit_price_snapshot=target_price,
+                    tax_rate_snapshot=target_item.tax_rate_override or Decimal("0.00"),
+                    original_quantity=move_qty,
+                    active_quantity=move_qty,
+                    cancelled_quantity=0,
+                    line_subtotal=new_delta,
+                    item_status=OrderItemStatus.ACTIVE.value,
+                    item_notes=item.item_notes,
+                )
+                db.add(new_line)
+                await db.flush()
+                order.items.append(new_line)
+                items_by_id[new_line.id] = new_line
+                events.append(
+                    OrderModificationEvent(
+                        order_id=order.id,
+                        order_item_id=new_line.id,
+                        modification_type=ModificationType.ITEM_ADDED.value,
+                        order_status_at_modification=status_at_edit,
+                        previous_quantity=0,
+                        new_quantity=move_qty,
+                        previous_notes=None,
+                        new_notes=new_line.item_notes,
+                        unit_price_snapshot=target_price,
+                        price_delta=new_delta,
+                        reason=swap_reason,
+                        kitchen_ack_required=is_post_accept,
+                        **actor,
+                    )
+                )
+
+            change_log.append(
+                {
+                    "item_name": item.item_name_snapshot,
+                    "variant_name": f"{item.variant_name_snapshot} -> {target.variant_name}",
+                    "previous_quantity": prev_qty,
+                    "new_quantity": old_new_qty,
+                    "moved_quantity": move_qty,
+                }
+            )
+
+        if not events:
+            return _build_order_response(order)
+
+        # ── unpaid-table cap + per-order sanity (customers are ALWAYS capped) ──────
+        new_outstanding = table_session.current_outstanding_amount + net_delta
+        if net_delta > 0 and new_outstanding > table_session.custom_outstanding_limit:
+            remaining = _two_dp(
+                table_session.custom_outstanding_limit - table_session.current_outstanding_amount
+            )
+            raise DomainValidationError(
+                code="LIMIT_EXCEEDED",
+                message=(
+                    f"This change would exceed the ₹{table_session.custom_outstanding_limit} "
+                    f"unpaid table limit. You have ₹{remaining} remaining."
+                ),
+                details={
+                    "outstanding_limit": str(table_session.custom_outstanding_limit),
+                    "current_outstanding": str(table_session.current_outstanding_amount),
+                    "price_delta": str(net_delta),
+                    "remaining": str(remaining),
+                },
+            )
+
+        table_session.current_outstanding_amount = max(Decimal("0.00"), _two_dp(new_outstanding))
+        order.order_subtotal = _two_dp(sum(i.line_subtotal for i in (order.items or [])))
+        if order.order_subtotal > _MAX_ORDER_SUBTOTAL:
+            raise DomainValidationError(
+                code="ORDER_SUBTOTAL_LIMIT_EXCEEDED",
+                message=(
+                    f"A single order cannot exceed ₹{_MAX_ORDER_SUBTOTAL}. "
+                    "Please place a separate order for the extra items."
+                ),
+            )
+
+        now = utc_now()
+        total_active = sum(i.active_quantity for i in (order.items or []))
+        order_cancelled = False
+        table_reset = False
+        if total_active == 0:
+            # Customer removed every line before cooking -> same as a full cancellation
+            order.status = OrderStatus.CANCELLED.value
+            order.cancelled_at = now
+            order.cancelled_by_user_id = None
+            order.cancelled_by_role = ActorRole.CUSTOMER.value
+            order.cancellation_reason = reason_text
+            order.has_unacknowledged_mods = False
+            order_cancelled = True
+            db.add(
+                OrderStatusHistory(
+                    order_id=order.id,
+                    previous_status=status_at_edit,
+                    new_status=OrderStatus.CANCELLED.value,
+                    changed_by_role=ActorRole.CUSTOMER.value,
+                    changed_by_user_id=None,
+                    changed_by_customer_session_id=customer_session.id,
+                    reason=reason_text,
+                    metadata_json={"forced": False, "via": "all_items_removed"},
+                    changed_at=now,
+                )
+            )
+            table_reset = await _close_session_if_no_active_orders(
+                db, order, table_session, now
+            )
+        elif is_post_accept:
+            order.has_unacknowledged_mods = True
+
+        for ev in events:
+            db.add(ev)
+            order.modification_events.append(ev)
+
+        order.version += 1
+
+        await AuditService.record_event(
+            db,
+            action_type="ORDER_MODIFIED_BY_CUSTOMER",
+            entity_type="order",
+            entity_id=str(order.id),
+            actor_role=ActorRole.CUSTOMER,
+            actor_customer_session_id=customer_session.id,
+            reason=reason_text,
+            old_value={"version": payload.expected_version, "status": status_at_edit},
+            new_value={
+                "version": order.version,
+                "order_subtotal": str(order.order_subtotal),
+                "net_price_delta": str(net_delta),
+                "changes": change_log,
+            },
+        )
+
+        await db.commit()
+        await db.refresh(order)
+
+        # ── Post-commit realtime fan-out ───────────────────────────────────────────
+        base_event = {
+            "event": "order.modified",
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "table_id": str(order.table_id),
+            "table_code": order.table.display_name if order.table else "",
+            "status": order.status,
+            "has_unacknowledged_mods": order.has_unacknowledged_mods,
+            "has_reductions": has_reduction,
+            "modified_by_role": ActorRole.CUSTOMER.value,
+            "changes": change_log,
+            "reason": reason_text,
+            "version": order.version,
+            "timestamp": now.isoformat(),
+        }
+        try:
+            if not order_cancelled:
+                # Kitchen payload carries ZERO financial fields (KDS data-scrubbing rule)
+                await ws_manager.broadcast_to_room("channel:kitchen", base_event)
+                priced_event = {**base_event, "net_price_delta": str(net_delta)}
+                await ws_manager.broadcast_to_room("channel:waiters", priced_event)
+                await ws_manager.broadcast_to_room("channel:admin", priced_event)
+                await ws_manager.broadcast_to_room(
+                    f"table_session:{order.table_session_id}", base_event
                 )
         except Exception as exc:
-            logger.warning("WebSocket broadcast failed: %s", exc)
+            logger.warning("WebSocket broadcast failed after customer order.modified: %s", exc)
+
+        if order_cancelled:
+            await _broadcast_order_cancelled(
+                order,
+                prev_status=status_at_edit,
+                reason=reason_text,
+                cancelled_by_role=ActorRole.CUSTOMER.value,
+                forced=False,
+                table_reset=table_reset,
+                now=now,
+            )
 
         return _build_order_response(order)
 

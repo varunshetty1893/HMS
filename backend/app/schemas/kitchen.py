@@ -79,9 +79,33 @@ class KitchenCounts(BaseModel):
     unacknowledged_modifications: int = 0
 
 
+class KitchenCancellationItem(BaseModel):
+    item_name: str
+    variant_name: str
+    quantity: int
+
+
+class KitchenCancellationAlert(BaseModel):
+    """A recently cancelled order the kitchen must stop cooking / discard (no prices)."""
+
+    order_id: uuid.UUID
+    order_number: str
+    table_number: int
+    table_display_name: str
+    cancelled_at: datetime | None = None
+    cancelled_by_role: str | None = None
+    reason: str | None = None
+    previous_status: str | None = None
+    forced: bool = False
+    # STOP_COOKING | DISCARD_READY_FOOD | REMOVE_TICKET
+    kitchen_action: str = "REMOVE_TICKET"
+    items: list[KitchenCancellationItem] = Field(default_factory=list)
+
+
 class KitchenDashboardResponse(BaseModel):
     counts: KitchenCounts
     orders: list[KitchenOrderTicket]
+    recent_cancellations: list[KitchenCancellationAlert] = Field(default_factory=list)
 
 
 class OrderTransitionRequest(BaseModel):

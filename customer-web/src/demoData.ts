@@ -1,4 +1,11 @@
-import type { CustomerMenuResponse, CustomerSession, OrderResponse, OrderCreate, OrderCreateResponse } from './types';
+import type {
+  CustomerItemChange,
+  CustomerMenuResponse,
+  CustomerSession,
+  OrderResponse,
+  OrderCreate,
+  OrderCreateResponse,
+} from './types';
 
 export const DEMO_SESSION: CustomerSession = {
   session_id: 'demo-session-4',
@@ -379,6 +386,7 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
     let unitPrice = '200.00';
     let itemName = 'Special Dish';
     let itemCode = 'DISH';
+    let menuItemId = 'demo-menu-item';
 
     for (const cat of DEMO_MENU.categories) {
       for (const menuItem of cat.items) {
@@ -388,6 +396,7 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
           unitPrice = v.price;
           itemName = menuItem.name;
           itemCode = menuItem.item_code;
+          menuItemId = menuItem.id;
           break;
         }
       }
@@ -399,7 +408,7 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
     return {
       id: `demo-item-${Date.now()}-${idx}`,
       order_id: `demo-order-${Date.now()}`,
-      menu_item_id: 'demo-menu-item',
+      menu_item_id: menuItemId,
       menu_price_variant_id: it.variant_id,
       item_code_snapshot: itemCode,
       item_name_snapshot: itemName,
@@ -472,4 +481,77 @@ export function cancelDemoOrder(orderId: string): OrderResponse {
   sessionStorage.setItem('hms_demo_orders', JSON.stringify(currentOrders));
   _demoOrders = currentOrders;
   return target;
+}
+
+
+/**
+ * DEV-ONLY mirror of the backend edit rules (POST /customer/orders/{id}/modify).
+ * Before cooking: any change. While PREPARING: only increases + Full->Half style downgrades.
+ */
+export function modifyDemoOrder(orderId: string, changes: CustomerItemChange[]): OrderResponse {
+  const orders = getDemoOrders();
+  const order = orders.find((o) => o.id === orderId);
+  if (!order) throw new Error('Order not found');
+  const preCooking = ['PLACED', 'SUBMITTED', 'ACCEPTED'].includes(order.status);
+  if (!preCooking && order.status !== 'PREPARING') {
+    throw new Error('This order can no longer be changed. Please call your waiter.');
+  }
+
+  for (const ch of changes) {
+    const item = order.items.find((i) => i.id === ch.order_item_id);
+    if (!item || item.active_quantity === 0) throw new Error('Item not found or already cancelled');
+
+    if (ch.new_quantity !== undefined) {
+      if (ch.new_quantity < item.active_quantity && !preCooking) {
+        throw new Error(
+          `Cooking has started, so '${item.item_name_snapshot}' can't be reduced or removed. You can still add more.`,
+        );
+      }
+      item.cancelled_quantity += Math.max(0, item.active_quantity - ch.new_quantity);
+      item.active_quantity = ch.new_quantity;
+      item.item_status = ch.new_quantity === 0 ? 'CANCELLED' : 'MODIFIED';
+      item.line_subtotal = (parseFloat(item.unit_price_snapshot) * ch.new_quantity).toFixed(2);
+    } else if (ch.switch_to_variant_id) {
+      let target = null as null | { id: string; variant_name: string; price: string };
+      for (const cat of DEMO_MENU.categories) {
+        for (const mi of cat.items) {
+          if (mi.id !== item.menu_item_id) continue;
+          const v = mi.variants.find((vr) => vr.id === ch.switch_to_variant_id);
+          if (v) target = v;
+        }
+      }
+      if (!target) throw new Error('That portion size is not available right now.');
+      if (parseFloat(target.price) >= parseFloat(item.unit_price_snapshot)) {
+        throw new Error('You can only switch to a smaller (cheaper) portion.');
+      }
+      const move = ch.switch_quantity ?? item.active_quantity;
+      item.active_quantity -= move;
+      item.cancelled_quantity += move;
+      item.item_status = item.active_quantity === 0 ? 'CANCELLED' : 'MODIFIED';
+      item.line_subtotal = (parseFloat(item.unit_price_snapshot) * item.active_quantity).toFixed(2);
+      order.items.push({
+        ...item,
+        id: `demo-item-${Date.now()}-sw`,
+        menu_price_variant_id: target.id,
+        variant_name_snapshot: target.variant_name,
+        unit_price_snapshot: target.price,
+        original_quantity: move,
+        active_quantity: move,
+        cancelled_quantity: 0,
+        line_subtotal: (parseFloat(target.price) * move).toFixed(2),
+        item_status: 'ACTIVE',
+      });
+    }
+  }
+
+  const live = order.items.filter((i) => i.active_quantity > 0);
+  order.order_subtotal = live.reduce((sum, i) => sum + parseFloat(i.line_subtotal), 0).toFixed(2);
+  if (live.length === 0) {
+    order.status = 'CANCELLED';
+    order.cancelled_by_role = 'CUSTOMER';
+  }
+  order.version += 1;
+  sessionStorage.setItem('hms_demo_orders', JSON.stringify(orders));
+  _demoOrders = orders;
+  return order;
 }

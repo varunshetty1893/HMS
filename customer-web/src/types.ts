@@ -97,7 +97,23 @@ export interface OrderResponse {
   accepted_at: string | null;
   ready_at: string | null;
   served_at: string | null;
+  // set when status === 'CANCELLED'
+  cancelled_at?: string | null;
+  cancelled_by_role?: string | null;
+  cancellation_reason?: string | null;
   items: OrderItemResponse[];
+}
+
+/**
+ * One edit to a line of an existing order. Exactly one mode per line:
+ *  - quantity mode: `new_quantity` (absolute; 0 removes the line)
+ *  - portion mode : `switch_to_variant_id` (+ `switch_quantity`) -> cheaper variant of same dish
+ */
+export interface CustomerItemChange {
+  order_item_id: string;
+  new_quantity?: number;
+  switch_to_variant_id?: string;
+  switch_quantity?: number;
 }
 
 export interface TableSessionInfo {

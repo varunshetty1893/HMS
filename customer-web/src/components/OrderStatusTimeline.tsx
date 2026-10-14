@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import type { OrderResponse } from '../types';
+import type { CustomerItemChange, MenuItem, OrderResponse } from '../types';
+import { OrderEditPanel } from './OrderEditPanel';
 import { formatInr } from '../utils/currency';
 import {
   CheckCircle2,
@@ -11,11 +12,20 @@ import {
   FileText,
   Loader2,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 
 interface OrderStatusTimelineProps {
   order: OrderResponse;
   onCancelOrder?: (orderId: string) => Promise<void>;
+  /** Save quantity / portion edits (PLACED/ACCEPTED: anything; PREPARING: increase only) */
+  onModifyOrder?: (
+    orderId: string,
+    expectedVersion: number,
+    changes: CustomerItemChange[],
+  ) => Promise<void>;
+  /** menu_item_id -> menu item, used to offer cheaper portions (Full -> Half) */
+  menuItems?: Record<string, MenuItem>;
 }
 
 const STEPS = [
@@ -29,6 +39,8 @@ const STEPS = [
 export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
   order,
   onCancelOrder,
+  onModifyOrder,
+  menuItems = {},
 }) => {
   const currentStatus = order.status;
   const isTerminalCancelled = currentStatus === 'CANCELLED';
@@ -45,6 +57,10 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
     currentStatus === 'PREPARING' ||
     currentStatus === 'READY' ||
     currentStatus === 'SERVED';
+
+  // Editing is allowed until the food is READY (PREPARING = increase-only, enforced server-side)
+  const isEditable = isCancellable || currentStatus === 'PREPARING';
+  const [isEditing, setIsEditing] = useState(false);
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -164,7 +180,9 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
             </span>
             <span className="text-red-700/80">
               {isTerminalCancelled
-                ? 'This order has been cancelled and will not be prepared.'
+                ? order.cancelled_by_role && order.cancelled_by_role !== 'CUSTOMER'
+                  ? `Cancelled by the restaurant${order.cancellation_reason ? `: ${order.cancellation_reason}` : '.'}`
+                  : 'This order has been cancelled and will not be prepared.'
                 : 'Please check with restaurant staff.'}
             </span>
           </div>
@@ -251,8 +269,18 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
         </div>
       )}
 
+      {/* Edit panel (replaces the read-only list while editing) */}
+      {isEditing && onModifyOrder && (
+        <OrderEditPanel
+          order={order}
+          menuItems={menuItems}
+          onSave={onModifyOrder}
+          onClose={() => setIsEditing(false)}
+        />
+      )}
+
       {/* Items preview */}
-      <div className="space-y-2 pt-1">
+      <div className="space-y-2 pt-1" style={{ display: isEditing ? 'none' : undefined }}>
         {order.items.map((item) => (
           <div
             key={item.id}
@@ -301,6 +329,23 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
         ))}
       </div>
 
+      {/* Edit entry point */}
+      {!isTerminalCancelled && !isTerminalRejected && isEditable && onModifyOrder && !isEditing && (
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="w-full px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+          style={{
+            background: 'var(--primary-bg)',
+            color: 'var(--primary)',
+            border: '1px solid rgba(217, 93, 43, 0.25)',
+          }}
+        >
+          <Pencil size={13} />
+          <span>{isCookingOrPast ? 'Add more / change portion' : 'Edit items'}</span>
+        </button>
+      )}
+
       {/* ── Cancellation Control Section ── */}
       {!isTerminalCancelled && !isTerminalRejected && (
         <div className="pt-2">
@@ -309,7 +354,8 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
             <div className="flex items-center gap-2 p-2.5 rounded-xl text-[11px] bg-amber-50/80 border border-amber-200/80 text-amber-900">
               <ChefHat size={15} className="text-amber-700 shrink-0" />
               <span className="font-medium">
-                Cooking has started in the kitchen • This order can no longer be cancelled.
+                Cooking has started in the kitchen • This order can no longer be cancelled
+                or reduced. To cancel, please ask your waiter.
               </span>
             </div>
           ) : isCancellable ? (

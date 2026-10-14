@@ -238,6 +238,10 @@ class OrderModificationEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         CheckConstraint("previous_quantity >= 0", name="previous_quantity_non_negative"),
         CheckConstraint("new_quantity >= 0", name="new_quantity_non_negative"),
         CheckConstraint("btrim(reason) <> ''", name="reason_not_blank"),
+        CheckConstraint(
+            "modified_by_user_id IS NOT NULL OR modified_by_customer_session_id IS NOT NULL",
+            name="actor_present",
+        ),
     )
 
     order_id: Mapped[uuid.UUID] = uuid_fk("orders.id", nullable=False)
@@ -252,7 +256,13 @@ class OrderModificationEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     # Signed: positive for increases, negative for decreases/cancellations.
     price_delta: Mapped[Decimal] = mapped_column(money(), nullable=False)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
-    modified_by_user_id: Mapped[uuid.UUID] = uuid_fk("users.id", nullable=False)
+    # Staff edits set `modified_by_user_id`; customer (QR) edits set the customer session.
+    modified_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
+    modified_by_customer_session_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "customer_sessions.id",
+        nullable=True,
+        name="fk_order_modification_events_modified_by_customer_session_id",
+    )
     modified_by_role: Mapped[str] = mapped_column(String(20), nullable=False)
     kitchen_ack_required: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")

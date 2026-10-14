@@ -233,3 +233,25 @@ The Admin Web Dashboard provides comprehensive operational governance across 14 
 12. **Reports & Analytics:** Daily/weekly/monthly sales summaries, top-selling items and variants, QR vs. Waiter order volume comparison, average kitchen preparation time (`accepted_at` to `ready_at`), rejected/cancelled order wastage reports, and waiter performance summaries.
 13. **Restaurant Settings & Guardrail Configuration:** Configure restaurant name, address, GSTIN/tax rates (CGST/SGST, inclusive vs. exclusive), operating hours, the **₹5,000 maximum outstanding order limit**, and rate-limiting thresholds (max items per order, max qty per item, burst limits).
 14. **Security Monitoring & Immutable Audit Logs:** Inspect blocked rate-limit attempts, suspicious table sessions, revoked QR scan attempts, and search the append-only `audit_logs` ledger capturing every sensitive state change, price edit, QR rotation, order modification, and financial operation.
+
+---
+
+## Addendum — Order edits, partial reductions and FORCE cancellation (2026-10-13)
+
+| Actor | PLACED / ACCEPTED | PREPARING | READY | SERVED+ |
+|---|---|---|---|---|
+| Customer: increase qty | yes | yes (kitchen alerted) | no | no |
+| Customer: reduce / remove line | yes | **no** | no | no |
+| Customer: Full → Half (cheaper portion, same dish) | yes | yes (kitchen alerted) | no | no |
+| Customer: cancel whole order | yes | **no** | no | no |
+| Waiter/Admin: add / increase | yes | yes (kitchen alerted) | no | no |
+| Waiter/Admin: reduce / remove | yes | **FORCE** (`force=true`, reason ≥ 3 chars) | no | no |
+| Waiter/Admin: cancel order | yes | **FORCE** (Admin may omit flag) | **FORCE** | never (void bill) |
+
+* Every edit after ACCEPTED sets `has_unacknowledged_mods` and raises a KDS alert.
+* FORCE cancellations broadcast `order.cancelled` with `forced=true` and a `kitchen_action`
+  (`STOP_COOKING`, `DISCARD_READY_FOOD`, `REMOVE_TICKET`); `GET /kitchen/orders/active` also
+  returns `recent_cancellations` (last 30 min) so a reconnecting KDS never misses one.
+* Orders are frozen once a bill is `ISSUED`/`PAID` (`BILL_ALREADY_ISSUED`); an admin must void
+  the bill for revision first.
+* Customer-originated ledger rows store `modified_by_customer_session_id` (migration `0003`).

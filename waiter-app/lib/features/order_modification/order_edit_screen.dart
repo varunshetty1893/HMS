@@ -6,6 +6,7 @@ import '../../core/network/api_exceptions.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../models/order_model.dart';
 import '../auth/auth_controller.dart';
+import 'force_cancel_dialog.dart';
 
 class OrderEditScreen extends ConsumerStatefulWidget {
   final OrderModel order;
@@ -23,6 +24,8 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
   late Map<String, int> _quantities;
   final _reasonController = TextEditingController();
   bool _isSubmitting = false;
+  // Waiter override: allows REDUCING / REMOVING items while the kitchen is PREPARING.
+  bool _force = false;
   String? _errorMessage;
 
   @override
@@ -37,6 +40,20 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
   void dispose() {
     _reasonController.dispose();
     super.dispose();
+  }
+
+  bool get _isPreparing => widget.order.status == 'PREPARING';
+  bool get _isReady => widget.order.status == 'READY';
+
+  /// Lowest quantity a line may be set to right now.
+  /// While PREPARING you can only add, unless the waiter switches FORCE on.
+  int _minQty(OrderItemModel item) => (_isPreparing && !_force) ? item.quantity : 0;
+
+  bool get _hasReduction {
+    for (var item in widget.order.items) {
+      if ((_quantities[item.id] ?? item.quantity) < item.quantity) return true;
+    }
+    return false;
   }
 
   bool get _requiresReason =>
@@ -68,6 +85,14 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       return;
     }
 
+    final forcing = _isPreparing && _hasReduction && _force;
+    if (forcing && _reasonController.text.trim().length < 3) {
+      setState(() {
+        _errorMessage = 'A forced change needs a reason (at least 3 characters).';
+      });
+      return;
+    }
+
     if (_requiresReason && _reasonController.text.trim().isEmpty) {
       setState(() {
         _errorMessage =
@@ -82,7 +107,9 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
     });
 
     try {
-      final itemsPayload = widget.order.items.map((item) {
+      final itemsPayload = widget.order.items
+          .where((item) => item.quantity > 0)
+          .map((item) {
         return {
           'order_item_id': item.id,
           'new_quantity': _quantities[item.id] ?? item.quantity,
@@ -95,6 +122,7 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
         'reason': _reasonController.text.trim().isNotEmpty
             ? _reasonController.text.trim()
             : 'Updated by waiter',
+        'force': forcing,
       };
 
       final apiClient = ref.read(apiClientProvider);
@@ -114,6 +142,50 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
       setState(() {
         _errorMessage =
             'Concurrency Conflict: ${e.message}. Order was modified by another user. Please re-open.';
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = describeError(e);
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  Future<void> _forceCancelOrder() async {
+    final reason = await ForceCancelDialog.show(
+      context,
+      orderNumber: widget.order.orderNumber,
+      status: widget.order.status,
+    );
+    if (reason == null) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      await apiClient.post(
+        '/api/v1/waiter/orders/${widget.order.id}/cancel',
+        data: {
+          'expected_version': widget.order.version,
+          'cancellation_reason': reason,
+          'force': true,
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order force-cancelled. Kitchen has been notified.'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } on ConflictException catch (e) {
+      setState(() {
+        _errorMessage = 'Order changed meanwhile: ${e.message}. Please re-open.';
         _isSubmitting = false;
       });
     } catch (e) {
@@ -170,9 +242,13 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _requiresReason
-                              ? 'This order is in Kitchen (${widget.order.status}). Adjusting quantities will alert kitchen staff.'
-                              : 'This order is PLACED. Items will be updated cleanly.',
+                          _isReady
+                              ? 'This order is READY. Items can no longer be edited - only a FORCE cancel is possible.'
+                              : _isPreparing
+                                  ? 'Kitchen is COOKING this. You can add more freely; reducing or removing needs FORCE (kitchen is alerted).'
+                                  : _requiresReason
+                                      ? 'This order is in Kitchen (${widget.order.status}). Adjusting quantities will alert kitchen staff.'
+                                      : 'This order is PLACED. Items will be updated cleanly.',
                           style: const TextStyle(
                               color: AppTheme.textSecondary, fontSize: 13),
                         ),
@@ -193,6 +269,8 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                 ...widget.order.items.map((item) {
                   final qty = _quantities[item.id] ?? item.quantity;
                   final isRemoved = qty == 0;
+                  final lockedLine = item.quantity == 0 || _isReady;
+                  final minQ = _minQty(item);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -250,10 +328,13 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
-                              color: qty > 0
+                              color: (!lockedLine && qty > minQ)
                                   ? AppTheme.accentColor
                                   : AppTheme.textMuted,
-                              onPressed: qty > 0
+                              tooltip: (_isPreparing && !_force && qty <= minQ)
+                                  ? 'Cooking started - use FORCE to reduce'
+                                  : null,
+                              onPressed: (!lockedLine && qty > minQ)
                                   ? () {
                                       setState(() {
                                         _quantities[item.id] = qty - 1;
@@ -277,12 +358,16 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline),
-                              color: AppTheme.accentColor,
-                              onPressed: () {
-                                setState(() {
-                                  _quantities[item.id] = qty + 1;
-                                });
-                              },
+                              color: lockedLine
+                                  ? AppTheme.textMuted
+                                  : AppTheme.accentColor,
+                              onPressed: lockedLine || qty >= 20
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _quantities[item.id] = qty + 1;
+                                      });
+                                    },
                             ),
                           ],
                         ),
@@ -290,7 +375,53 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                     ),
                   );
                 }),
-                if (_requiresReason) ...[
+                if (_isPreparing) ...[
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.errorColor,
+                    title: const Text('Force reduce / remove items',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
+                    subtitle: const Text(
+                        'Food may already be cooked. Kitchen will be alerted.',
+                        style: TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 12)),
+                    value: _force,
+                    onChanged: _isSubmitting
+                        ? null
+                        : (v) {
+                            setState(() {
+                              _force = v;
+                              if (!v) {
+                                // snap any reductions back to the cooked quantity
+                                for (var it in widget.order.items) {
+                                  final cur = _quantities[it.id] ?? it.quantity;
+                                  if (cur < it.quantity) {
+                                    _quantities[it.id] = it.quantity;
+                                  }
+                                }
+                              }
+                            });
+                          },
+                  ),
+                ],
+                if (_isPreparing || _isReady) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.local_fire_department),
+                    label: const Text('Force Cancel Entire Order'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.errorColor,
+                      side: const BorderSide(color: AppTheme.errorColor),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: _isSubmitting ? null : _forceCancelOrder,
+                  ),
+                ],
+                if (_requiresReason && !_isReady) ...[
                   const SizedBox(height: 16),
                   const Text(
                     'Reason for Kitchen Modification *',
@@ -373,7 +504,7 @@ class _OrderEditScreenState extends ConsumerState<OrderEditScreen> {
                       backgroundColor: AppTheme.accentColor,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: _isSubmitting || !_hasChanges
+                    onPressed: _isSubmitting || !_hasChanges || _isReady
                         ? null
                         : _submitModification,
                     child: _isSubmitting

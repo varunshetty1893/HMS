@@ -24,6 +24,7 @@ from app.schemas.menu import (
     CustomerMenuResponse,
 )
 from app.schemas.order import (
+    CustomerOrderModifyRequest,
     OrderCreate,
     OrderCreateResponse,
     OrderResponse,
@@ -120,6 +121,7 @@ async def search_customer_menu(
 # ─────────────────────────────────────────────────────────────────────────────
 
 _ORDER_RATE_LIMIT = rate_limit_by_ip(max_requests=3, window_seconds=300)
+_ORDER_EDIT_RATE_LIMIT = rate_limit_by_ip(max_requests=30, window_seconds=300)
 
 
 @router.post(
@@ -194,6 +196,32 @@ async def cancel_order(
     """
     return await OrderService.cancel_customer_order(
         db, order_id=order_id, customer_session=session
+    )
+
+
+@router.post(
+    "/orders/{order_id}/modify",
+    response_model=OrderResponse,
+    summary="Edit quantities / portion of an order that is not READY yet",
+)
+@router.patch("/orders/{order_id}", response_model=OrderResponse, include_in_schema=False)
+async def modify_order(
+    order_id: uuid.UUID,
+    payload: CustomerOrderModifyRequest,
+    session: CustomerSession = Depends(get_current_customer_session),
+    db: AsyncSession = Depends(get_db),
+    _rate: None = Depends(_ORDER_EDIT_RATE_LIMIT),
+) -> OrderResponse:
+    """Customer self-service order edit.
+
+    - PLACED / ACCEPTED: increase, reduce, remove a line, or switch to a smaller portion.
+    - PREPARING: quantities can only be INCREASED (and a Full -> Half portion correction is
+      allowed). Reducing / removing is rejected with `REDUCTION_NOT_ALLOWED_AFTER_COOKING`.
+    - READY / SERVED / CANCELLED / REJECTED: not editable (`ORDER_NOT_EDITABLE`).
+    The kitchen is alerted on every change made after acceptance.
+    """
+    return await OrderService.modify_customer_order(
+        db, order_id=order_id, payload=payload, customer_session=session
     )
 
 

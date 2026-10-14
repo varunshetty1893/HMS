@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type {
+  CustomerItemChange,
   CustomerMenuResponse,
   CustomerSession,
   OrderCreate,
@@ -137,7 +138,14 @@ export async function resolveQrToken(qrToken: string): Promise<QrResolutionRespo
 // Customer Session
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEMO_MENU, DEMO_SESSION, getDemoOrders, saveDemoOrder, cancelDemoOrder } from './demoData';
+import {
+  DEMO_MENU,
+  DEMO_SESSION,
+  getDemoOrders,
+  saveDemoOrder,
+  cancelDemoOrder,
+  modifyDemoOrder,
+} from './demoData';
 
 export async function getSession(): Promise<CustomerSession> {
   if (_sessionToken?.startsWith('demo-')) {
@@ -279,6 +287,33 @@ export async function cancelCustomerOrder(orderId: string): Promise<OrderRespons
   }
   return request<OrderResponse>(`/customer/orders/${orderId}/cancel`, {
     method: 'POST',
+  });
+}
+
+/**
+ * Edit an existing order (quantities / cheaper portion).
+ * Server rules: PLACED/ACCEPTED -> anything; PREPARING -> only increases (+ Full->Half);
+ * READY or later -> not editable. `expectedVersion` guards against stale screens.
+ */
+export async function modifyCustomerOrder(
+  orderId: string,
+  expectedVersion: number,
+  changes: CustomerItemChange[],
+  reason?: string,
+): Promise<OrderResponse> {
+  if (_sessionToken?.startsWith('demo-')) {
+    if (!isDevDemoEnabled()) {
+      throw new HmsApiError('INVALID_SESSION', 'Demo sessions are strictly forbidden in production.');
+    }
+    return modifyDemoOrder(orderId, changes);
+  }
+  return request<OrderResponse>(`/customer/orders/${orderId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({
+      expected_version: expectedVersion,
+      changes,
+      reason: reason ?? null,
+    }),
   });
 }
 

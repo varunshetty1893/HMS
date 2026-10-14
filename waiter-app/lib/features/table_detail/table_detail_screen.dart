@@ -247,7 +247,8 @@ class TableDetailScreen extends ConsumerWidget {
   ) {
     final canEdit = order.status == 'PLACED' ||
         order.status == 'ACCEPTED' ||
-        order.status == 'PREPARING';
+        order.status == 'PREPARING' ||
+        order.status == 'READY'; // READY: only force-cancel inside the edit screen
     final canCancel = order.status == 'PLACED' || order.status == 'ACCEPTED';
     final canServe = order.status == 'READY';
 
@@ -417,7 +418,7 @@ class TableDetailScreen extends ConsumerWidget {
                           controller.loadSessionDetail();
                         }
                       },
-                      child: const Text('Edit Items'),
+                      child: Text(order.status == 'READY' ? 'Manage' : 'Edit Items'),
                     ),
                     const SizedBox(width: 8),
                   ],

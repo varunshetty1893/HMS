@@ -175,6 +175,8 @@ async def modify_waiter_order(
     Pre-acceptance (PLACED): Updates lines and totals.
     Post-acceptance (ACCEPTED/PREPARING): Appends OrderModificationEvent, sets
     has_unacknowledged_mods=True, flags Kitchen KDS, and re-checks ₹5,000 table cap.
+    While PREPARING, items can always be ADDED; reducing/removing needs `force=true`
+    (kitchen is notified).
     """
     return await OrderService.modify_order(
         db,
@@ -193,8 +195,9 @@ async def cancel_waiter_order(
 ) -> WaiterOrderResponse:
     """Cancel an active order with mandatory cancellation reason.
 
-    Deducts amount from table session exposure. If sole active order in session,
-    resets table to AVAILABLE.
+    PLACED/ACCEPTED: normal cancel. PREPARING/READY: send `force=true` (FORCE cancel) -
+    the kitchen gets a STOP_COOKING / DISCARD alert. Deducts amount from table session
+    exposure. If sole active order in session, resets table to AVAILABLE.
     """
     return await OrderService.cancel_order(
         db,

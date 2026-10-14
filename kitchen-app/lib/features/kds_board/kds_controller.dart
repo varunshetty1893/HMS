@@ -17,6 +17,7 @@ class KdsBoardState {
   final int acceptedCount;
   final int preparingCount;
   final int readyCount;
+  final List<KitchenCancellationAlert> cancellations;
 
   const KdsBoardState({
     this.orders = const [],
@@ -27,6 +28,7 @@ class KdsBoardState {
     this.acceptedCount = 0,
     this.preparingCount = 0,
     this.readyCount = 0,
+    this.cancellations = const [],
   });
 
   KdsBoardState copyWith({
@@ -38,6 +40,7 @@ class KdsBoardState {
     int? acceptedCount,
     int? preparingCount,
     int? readyCount,
+    List<KitchenCancellationAlert>? cancellations,
   }) {
     return KdsBoardState(
       orders: orders ?? this.orders,
@@ -48,6 +51,7 @@ class KdsBoardState {
       acceptedCount: acceptedCount ?? this.acceptedCount,
       preparingCount: preparingCount ?? this.preparingCount,
       readyCount: readyCount ?? this.readyCount,
+      cancellations: cancellations ?? this.cancellations,
     );
   }
 }
@@ -69,6 +73,10 @@ class KdsController extends StateNotifier<KdsBoardState> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   StreamSubscription? _connSub;
+  // Cancellation alerts the cook already acknowledged on this device
+  final Set<String> _dismissedCancellations = {};
+  final Set<String> _seenCancellations = {};
+  bool _firstQueueLoaded = false;
   Timer? _elapsedTicker;
 
   KdsController({
@@ -115,7 +123,9 @@ class KdsController extends StateNotifier<KdsBoardState> {
     _wsClient.addListener((event) {
       final eventType = event['event']?.toString() ?? '';
       if (eventType.startsWith('order.')) {
-        if (eventType == 'order.created' || eventType == 'order.modified') {
+        if (eventType == 'order.created' ||
+            eventType == 'order.modified' ||
+            eventType == 'order.cancelled') {
           _playChime();
         }
         loadQueue(quiet: true);
@@ -141,8 +151,22 @@ class KdsController extends StateNotifier<KdsBoardState> {
           .map((e) => KitchenOrderModel.fromJson(e as Map<String, dynamic>))
           .toList();
 
+      final cancelJson = (data['recent_cancellations'] as List<dynamic>? ?? []);
+      final allCancels = cancelJson
+          .map((e) => KitchenCancellationAlert.fromJson(e as Map<String, dynamic>))
+          .toList();
+      // Beep once for each cancellation that appears AFTER the first load
+      final isNewCancel = allCancels.any((c) => !_seenCancellations.contains(c.orderId));
+      if (_firstQueueLoaded && isNewCancel) _playChime();
+      _seenCancellations.addAll(allCancels.map((c) => c.orderId));
+      _firstQueueLoaded = true;
+      final cancels = allCancels
+          .where((c) => !_dismissedCancellations.contains(c.orderId))
+          .toList();
+
       state = state.copyWith(
         orders: orders,
+        cancellations: cancels,
         isLoading: false,
         placedCount: countsJson['placed'] as int? ?? 0,
         acceptedCount: countsJson['accepted'] as int? ?? 0,
@@ -157,6 +181,15 @@ class KdsController extends StateNotifier<KdsBoardState> {
         );
       }
     }
+  }
+
+  /// Cook acknowledged a cancellation banner ("Got it").
+  void dismissCancellation(String orderId) {
+    _dismissedCancellations.add(orderId);
+    state = state.copyWith(
+      cancellations:
+          state.cancellations.where((c) => c.orderId != orderId).toList(),
+    );
   }
 
   Future<void> acceptOrder(KitchenOrderModel order) async {

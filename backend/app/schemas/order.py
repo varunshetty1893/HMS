@@ -136,6 +136,11 @@ class OrderResponse(StrictRequestModel):
     served_at: Any | None = None
     has_unacknowledged_mods: bool = False
 
+    # Cancellation info so every client can show who/why (None unless CANCELLED)
+    cancelled_at: Any | None = None
+    cancelled_by_role: str | None = None
+    cancellation_reason: str | None = None
+
 
 class CustomerOrderListResponse(StrictRequestModel):
     """Paginated order history for the current customer session."""
@@ -234,6 +239,19 @@ class OrderModifyRequest(StrictRequestModel):
     reason: str = Field(
         ..., min_length=1, max_length=255, description="Mandatory reason for modification."
     )
+    force: bool = Field(
+        default=False,
+        description=(
+            "Staff-only (WAITER/ADMIN). Required to REDUCE or REMOVE items while the kitchen "
+            "is already PREPARING. Kitchen is always notified. Needs a reason of 3+ chars."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def force_needs_real_reason(self) -> OrderModifyRequest:
+        if self.force and len(self.reason.strip()) < 3:
+            raise ValueError("A forced modification needs a reason of at least 3 characters.")
+        return self
 
 
 class OrderCancelRequest(StrictRequestModel):
@@ -243,6 +261,53 @@ class OrderCancelRequest(StrictRequestModel):
     cancellation_reason: str = Field(
         ..., min_length=3, max_length=255, description="Mandatory reason for cancellation."
     )
+    force: bool = Field(
+        default=False,
+        description=(
+            "Staff-only (WAITER/ADMIN) FORCE cancellation. Needed once the kitchen is "
+            "PREPARING or the order is READY. Kitchen is notified to stop / discard."
+        ),
+    )
+
+
+class CustomerOrderItemChange(StrictRequestModel):
+    """One edit a customer makes to a line of their own order.
+
+    Exactly ONE of the two modes per line:
+      * quantity mode  -> `new_quantity` (absolute active quantity, 0 removes the line)
+      * portion mode   -> `switch_to_variant_id` (+ `switch_quantity`) moves units to a
+                          CHEAPER variant of the same dish (e.g. Full -> Half biryani).
+    """
+
+    order_item_id: uuid.UUID
+    new_quantity: int | None = Field(default=None, ge=0, le=20)
+    switch_to_variant_id: uuid.UUID | None = None
+    switch_quantity: int | None = Field(default=None, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def exactly_one_mode(self) -> CustomerOrderItemChange:
+        quantity_mode = self.new_quantity is not None
+        switch_mode = self.switch_to_variant_id is not None
+        if quantity_mode == switch_mode:
+            raise ValueError("Provide either new_quantity or switch_to_variant_id (not both).")
+        if self.switch_quantity is not None and not switch_mode:
+            raise ValueError("switch_quantity is only valid with switch_to_variant_id.")
+        return self
+
+
+class CustomerOrderModifyRequest(StrictRequestModel):
+    """Customer self-service edit of an order that is not READY/SERVED yet."""
+
+    expected_version: int = Field(..., ge=1, description="Optimistic concurrency control version.")
+    changes: list[CustomerOrderItemChange] = Field(..., min_length=1, max_length=30)
+    reason: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def no_duplicate_lines(self) -> CustomerOrderModifyRequest:
+        ids = [c.order_item_id for c in self.changes]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Each order line may appear only once per request.")
+        return self
 
 
 class OrderServeRequest(StrictRequestModel):

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { listOrders, cancelCustomerOrder } from '../api';
-import type { OrderResponse } from '../types';
+import { listOrders, cancelCustomerOrder, modifyCustomerOrder, getMenu } from '../api';
+import type { CustomerItemChange, MenuItem, OrderResponse } from '../types';
 import { OrderStatusTimeline } from '../components/OrderStatusTimeline';
 import { useSession } from '../context/SessionContext';
 import { customerWs, type WsEvent } from '../customerWs';
@@ -17,6 +17,25 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // menu_item_id -> MenuItem, so the edit panel can offer cheaper portions (Full -> Half)
+  const [menuItems, setMenuItems] = useState<Record<string, MenuItem>>({});
+  useEffect(() => {
+    let alive = true;
+    getMenu()
+      .then((menu) => {
+        if (!alive) return;
+        const map: Record<string, MenuItem> = {};
+        menu.categories.forEach((c) => c.items.forEach((i) => (map[i.id] = i)));
+        setMenuItems(map);
+      })
+      .catch(() => {
+        /* edit still works for quantities; portion switch just stays hidden */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadOrders = useCallback(async (quiet = false) => {
     if (!quiet) setIsLoading(true);
@@ -38,6 +57,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
     await loadOrders(false);
     refreshSession();
   }, [loadOrders, refreshSession]);
+
+  const handleModifyOrder = useCallback(
+    async (orderId: string, expectedVersion: number, changes: CustomerItemChange[]) => {
+      await modifyCustomerOrder(orderId, expectedVersion, changes);
+      await loadOrders(true);
+      refreshSession();
+    },
+    [loadOrders, refreshSession],
+  );
 
   useEffect(() => {
     loadOrders();
@@ -247,6 +275,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
                 key={order.id}
                 order={order}
                 onCancelOrder={handleCancelOrder}
+                onModifyOrder={handleModifyOrder}
+                menuItems={menuItems}
               />
             ))}
           </div>

@@ -3158,8 +3158,12 @@ class OrderService:
         db: AsyncSession,
         *,
         table_id: uuid.UUID | None = None,
+        status: str | None = None,
     ) -> list[WaiterOrderResponse]:
-        """Fetch active dining floor orders for Waiter App."""
+        """Fetch active dining floor orders for Waiter App.
+
+        Optional `status` narrows to one active status (e.g. READY for the Food Pass).
+        """
         active_statuses = [
             OrderStatus.PLACED.value,
             OrderStatus.ACCEPTED.value,
@@ -3177,6 +3181,8 @@ class OrderService:
         )
         if table_id:
             stmt = stmt.where(Order.table_id == table_id)
+        if status:
+            stmt = stmt.where(Order.status == status.upper())
 
         stmt = stmt.order_by(Order.placed_at.asc())
         result = await db.execute(stmt)

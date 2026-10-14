@@ -76,8 +76,9 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
       } else {
         orders = [];
       }
+      final readyOnly = orders.where((o) => o.status == 'READY').toList();
       state =
-          state.copyWith(readyOrders: orders, isLoading: false, error: null);
+          state.copyWith(readyOrders: readyOnly, isLoading: false, error: null);
     } catch (e) {
       if (!silent) {
         state = state.copyWith(isLoading: false, error: describeError(e));
@@ -106,8 +107,9 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
     } catch (e) {
       final newMarking2 = Set<String>.from(state.markingServedIds)
         ..remove(orderId);
-      state = state.copyWith(
-          error: describeError(e), markingServedIds: newMarking2);
+      state = state.copyWith(markingServedIds: newMarking2);
+      // Stale list? Reload so the screen self-corrects instead of showing a dead error page.
+      await loadReadyOrders(silent: true);
     }
   }
 }

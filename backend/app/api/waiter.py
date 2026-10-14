@@ -156,10 +156,11 @@ async def create_waiter_order(
 async def get_waiter_active_orders(
     _staff: WaiterOrAdminUser,
     table_id: uuid.UUID | None = Query(default=None, description="Optional filter by table"),
+    status: str | None = Query(default=None, description="Optional filter by status, e.g. READY"),
     db: AsyncSession = Depends(get_db),
 ) -> list[WaiterOrderResponse]:
     """Retrieve all active floor dining orders (PLACED, ACCEPTED, PREPARING, READY)."""
-    return await OrderService.get_waiter_active_orders(db, table_id=table_id)
+    return await OrderService.get_waiter_active_orders(db, table_id=table_id, status=status)
 
 
 @router.patch("/orders/{order_id}", response_model=WaiterOrderResponse)

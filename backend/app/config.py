@@ -132,6 +132,19 @@ class Settings(BaseSettings):
         elif cleaned.startswith("postgresql://") and not cleaned.startswith("postgresql+"):
             cleaned = "postgresql+asyncpg://" + cleaned[len("postgresql://") :]
 
+        # asyncpg does not understand libpq-style query params (sslmode, channel_binding).
+        # Translate Neon/Render style URLs so they can be pasted as-is.
+        if cleaned.startswith("postgresql+asyncpg://") and "?" in cleaned:
+            from urllib.parse import parse_qsl, urlencode
+
+            base, _, query = cleaned.partition("?")
+            params = dict(parse_qsl(query, keep_blank_values=True))
+            sslmode = params.pop("sslmode", None)
+            params.pop("channel_binding", None)
+            if sslmode and sslmode != "disable" and "ssl" not in params:
+                params["ssl"] = "require" if sslmode in ("require", "prefer", "allow") else sslmode
+            cleaned = base + ("?" + urlencode(params) if params else "")
+
         allowed_schemes = (
             "postgresql+asyncpg://",
             "sqlite+aiosqlite://",

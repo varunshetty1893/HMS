@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from '../context/SessionContext';
 import { QrCode, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { extractQrToken, stripQrTokenFromPath } from '../utils/qrToken';
 
 interface QrLandingPageProps {
   onSuccess: () => void;
@@ -13,31 +14,7 @@ export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   useEffect(() => {
-    const parseToken = (): string | null => {
-      // 1. Path check: /q/:qrToken
-      const pathMatches = window.location.pathname.match(/\/q\/([^/?#]+)/);
-      if (pathMatches && pathMatches[1]) {
-        return pathMatches[1];
-      }
-
-      // 2. Query param check: ?qr=... or ?token=...
-      const urlParams = new URLSearchParams(window.location.search);
-      const queryToken = urlParams.get('qr') || urlParams.get('token');
-      if (queryToken) {
-        return queryToken;
-      }
-
-      // 3. Hash check: #/q/:token or #token
-      const hash = window.location.hash;
-      const hashMatches = hash.match(/\/q\/([^/?#]+)/);
-      if (hashMatches && hashMatches[1]) {
-        return hashMatches[1];
-      }
-
-      return null;
-    };
-
-    const token = parseToken();
+    const token = extractQrToken();
 
     if (!token) {
       setErrorDetails('No table QR token detected. Please scan the QR code located on your dining table.');
@@ -52,7 +29,7 @@ export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError
 
         // Security rule: Immediately strip raw QR secret from URL history bar
         try {
-          const cleanUrl = window.location.pathname.replace(/\/q\/[^/?#]+/, '/') || '/';
+          const cleanUrl = stripQrTokenFromPath(window.location.pathname);
           window.history.replaceState(null, document.title, cleanUrl);
         } catch {
           // ignore history errors in non-browser envs

@@ -6,17 +6,14 @@ import { QrLandingPage } from './pages/QrLandingPage';
 import { MenuPage } from './pages/MenuPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { SessionErrorPage } from './pages/SessionErrorPage';
+import { extractQrToken } from './utils/qrToken';
 
 const AppContent: React.FC = () => {
   const { sessionToken, isLoading, error } = useSession();
   const [activeTab, setActiveTab] = useState<'menu' | 'orders'>('menu');
   const [isQrFlow, setIsQrFlow] = useState<boolean>(() => {
-    // Check if URL has QR parameters
-    const pathMatches = window.location.pathname.match(/\/q\/([^/?#]+)/);
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasQuery = urlParams.has('qr') || urlParams.has('token');
-    const hasHash = window.location.hash.includes('/q/');
-    return Boolean(pathMatches || hasQuery || hasHash);
+    // Check if URL has a QR token in any supported shape
+    return extractQrToken() !== null;
   });
 
   useEffect(() => {

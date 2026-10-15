@@ -1,7 +1,7 @@
 import React from 'react';
 import type { MenuItem } from '../types';
 import { formatInr } from '../utils/currency';
-import { Plus, Minus, Flame, ImageOff, Sparkles } from 'lucide-react';
+import { Plus, Minus, Flame, UtensilsCrossed } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { resolveMediaUrl } from '../utils/env';
 
@@ -10,6 +10,8 @@ interface MenuItemCardProps {
   onSelect: (item: MenuItem) => void;
   /** True when this dish is among the most ordered (drives the Bestseller badge). */
   isPopular?: boolean;
+  /** Vertical card used in the horizontally scrolling Most Ordered strip. */
+  compact?: boolean;
 }
 
 // Real photo uploaded by the restaurant, or null (a neutral placeholder is drawn instead).
@@ -58,7 +60,7 @@ const SpiceBadge: React.FC<{ level: string | null }> = ({ level }) => {
   );
 };
 
-export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPopular = false }) => {
+export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, compact = false }) => {
   const { items: cartItems, updateQuantity } = useCart();
 
   const availableVariants = item.variants.filter((v) => v.is_available);
@@ -104,12 +106,68 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
   const imageUrl = getDishImage(item);
   const [imageFailed, setImageFailed] = React.useState(false);
   const showImage = !!imageUrl && !imageFailed;
-  const isSpecial = isPopular;
+
+  const actionNode = (
+    <div onClick={(e) => e.stopPropagation()}>
+      {cartQty > 0 ? (
+        <div className="flex items-center justify-between rounded-xl overflow-hidden"
+          style={{ background: 'var(--white)', border: '1.5px solid var(--primary)' }}>
+          <button onClick={handleDecrement} className="w-9 h-9 flex items-center justify-center cursor-pointer" style={{ color: 'var(--primary)' }} aria-label="Decrease quantity">
+            <Minus size={14} strokeWidth={2.5} />
+          </button>
+          <span className="text-xs font-bold font-mono" style={{ color: 'var(--primary)' }}>{cartQty}</span>
+          <button onClick={handleIncrement} className="w-9 h-9 flex items-center justify-center cursor-pointer" style={{ color: 'var(--primary)' }} aria-label="Increase quantity">
+            <Plus size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+      ) : (
+        <button onClick={handleAddClick} disabled={!item.is_available || availableVariants.length === 0}
+          className="w-full h-9 rounded-xl font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition disabled:opacity-50"
+          style={{ background: 'var(--white)', color: 'var(--primary)', border: '1.5px solid var(--primary)' }}>
+          <Plus size={13} strokeWidth={3} /><span>Add</span>
+        </button>
+      )}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div
+        onClick={() => item.is_available && onSelect(item)}
+        className={`snap-start shrink-0 w-40 rounded-2xl p-2 flex flex-col gap-1.5 ${!item.is_available ? 'opacity-50 grayscale pointer-events-none' : 'cursor-pointer'}`}
+        style={{ background: 'var(--white)', border: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(40,40,32,0.04)' }}
+      >
+        <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {showImage ? (
+            <img src={imageUrl!} alt={item.name} className="w-full h-full object-cover" loading="lazy" onError={() => setImageFailed(true)} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--primary-bg), var(--bg-subtle))' }} aria-label={`${item.name} (photo not available)`}>
+              <UtensilsCrossed size={24} style={{ color: 'var(--primary-light)' }} aria-hidden />
+            </div>
+          )}
+          <div className="absolute top-1.5 left-1.5 bg-white/90 rounded-sm p-0.5"><DietaryBadge type={item.dietary_type} /></div>
+        </div>
+        <h3 className="font-bold text-sm leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: 'var(--text-primary)' }}>{item.name}</h3>
+        <div className="flex items-baseline gap-1">
+          <span className="font-bold text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{formatInr(minPrice)}</span>
+          {hasMultipleVariants && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>onwards</span>}
+        </div>
+        {hasMultipleVariants && (
+          <div className="flex gap-1 flex-wrap">
+            {availableVariants.slice(0, 3).map((v) => (
+              <span key={v.id} className="text-[10px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>{v.variant_name}</span>
+            ))}
+          </div>
+        )}
+        <div className="mt-auto pt-1">{actionNode}</div>
+      </div>
+    );
+  }
 
   return (
     <div
       onClick={() => item.is_available && onSelect(item)}
-      className={`group rounded-3xl p-4 transition-all flex items-start justify-between gap-3.5 relative overflow-hidden ${
+      className={`group rounded-2xl p-3 transition-all flex items-start justify-between gap-3 relative overflow-hidden ${
         !item.is_available ? 'opacity-50 grayscale pointer-events-none' : 'cursor-pointer'
       }`}
       style={{
@@ -133,19 +191,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <DietaryBadge type={item.dietary_type} />
             <SpiceBadge level={item.spice_level} />
-            {isSpecial && (
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-                style={{
-                  background: 'var(--primary-bg)',
-                  color: 'var(--primary)',
-                }}
-              >
-                <Sparkles size={10} />
-                <span>Bestseller</span>
-              </span>
-            )}
-            {!item.is_available && (
+                        {!item.is_available && (
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{ background: '#FEF2F2', color: '#B91C1C' }}
@@ -157,7 +203,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
 
           {/* Dish Title */}
           <h3
-            className="font-bold text-base leading-snug group-hover:text-orange-600 transition-colors"
+            className="font-bold text-[15px] leading-snug group-hover:text-orange-600 transition-colors"
             style={{ color: 'var(--text-primary)' }}
           >
             {item.name}
@@ -172,9 +218,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
               {formatInr(minPrice)}
             </span>
             {hasMultipleVariants && (
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                • Options Available
-              </span>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>onwards</span>
             )}
           </div>
 
@@ -212,7 +256,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
       {/* Right Column: Dish Photo with Floating ADD button */}
       <div className="relative shrink-0 flex flex-col items-center">
         <div
-          className="w-28 h-28 rounded-2xl overflow-hidden relative shadow-sm"
+          className="w-24 h-24 rounded-xl overflow-hidden relative shadow-sm"
           style={{
             background: 'var(--bg-subtle)',
             border: '1px solid var(--border)',
@@ -229,10 +273,10 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
           ) : (
             <div
               className="w-full h-full flex flex-col items-center justify-center gap-1"
-              style={{ background: 'var(--bg-subtle)' }}
+              style={{ background: 'linear-gradient(135deg, var(--primary-bg), var(--bg-subtle))' }}
+              aria-label={`${item.name} (photo not available)`}
             >
-              <ImageOff size={22} style={{ color: 'var(--text-muted)' }} aria-hidden />
-              <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Photo soon</span>
+              <UtensilsCrossed size={22} style={{ color: 'var(--primary-light)' }} aria-hidden />
             </div>
           )}
         </div>

@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getMenu } from '../api';
 import type { CustomerMenuResponse, MenuItem, MenuCategory } from '../types';
-import { CategoryTabs } from '../components/CategoryTabs';
+import { CategoryBrowser, type DietaryFilter } from '../components/CategoryTabs';
 import { MenuItemCard } from '../components/MenuItemCard';
 import { VariantSelectorSheet } from '../components/VariantSelectorSheet';
 import { CartDrawer } from '../components/CartDrawer';
-import { CallWaiterSheet } from '../components/CallWaiterSheet';
 import { useCart } from '../context/CartContext';
-import { useSession } from '../context/SessionContext';
 import { formatInr } from '../utils/currency';
 import {
-  Search, ShoppingBag, ArrowRight, RefreshCw, AlertCircle, X, Star, Hand,
+  Search, ShoppingBag, ChevronRight, RefreshCw, AlertCircle, X, Star,
 } from 'lucide-react';
 
 interface MenuPageProps {
@@ -19,7 +17,6 @@ interface MenuPageProps {
 
 export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
   const { totalItemsCount, totalEstimatedAmount } = useCart();
-  const { tableDisplayName } = useSession();
 
   const [menuData, setMenuData] = useState<CustomerMenuResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -27,14 +24,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [dietaryFilter, setDietaryFilter] = useState<'ALL' | 'VEG' | 'NON_VEG' | 'EGG'>('ALL');
+  const [dietaryFilter, setDietaryFilter] = useState<DietaryFilter>('ALL');
 
   const [selectedItemForSheet, setSelectedItemForSheet] = useState<MenuItem | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState<boolean>(false);
-  const [isCallWaiterOpen, setIsCallWaiterOpen] = useState<boolean>(false);
 
-  // Refs to each category section for jump-to
-  const categoryRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const contentTopRef = useRef<HTMLDivElement>(null);
 
   const loadMenu = useCallback(async () => {
     setIsLoading(true);
@@ -56,57 +51,53 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
     [menuData]
   );
 
-  // Jump to category section when tab selected (only when no search active)
+  const aliases: Record<string, string[]> = {
+    biryani: ['biriyani'], biriyani: ['biryani'], pulao: ['pulav'], pulav: ['pulao'],
+  };
+
+  const matchesFilters = useCallback((item: MenuItem, catName: string): boolean => {
+    if (dietaryFilter !== 'ALL' && item.dietary_type !== dietaryFilter) return false;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    const queries = [q, ...(aliases[q] ?? [])];
+    const includesQuery = (text: string | null | undefined) =>
+      !!text && queries.some((term) => text.toLowerCase().includes(term));
+    return (
+      includesQuery(item.name) || includesQuery(item.description) || includesQuery(item.item_code) ||
+      includesQuery(catName) || item.variants.some((v) => includesQuery(v.variant_name))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dietaryFilter, searchQuery]);
+
+  // Counts shown on category tiles: items that pass search + dietary filter.
+  const categoryCounts = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    visibleCategories.forEach((c) => {
+      out[c.id] = c.items.filter((i) => matchesFilters(i, c.name)).length;
+    });
+    return out;
+  }, [visibleCategories, matchesFilters]);
+
+  // Selecting a category shows that category; bring its first dish into view
+  // just below the sticky header (offset comes from the measured --header-h).
   const handleSelectCategory = useCallback((id: string | null) => {
     setSelectedCategoryId(id);
-    if (!id || searchQuery) return;
-    setTimeout(() => {
-      const el = categoryRefs.current.get(id);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 50);
-  }, [searchQuery]);
+    requestAnimationFrame(() => {
+      contentTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  const resetAll = useCallback(() => {
+    setSearchQuery(''); setDietaryFilter('ALL'); setSelectedCategoryId(null);
+  }, []);
 
   // Filtered menu logic
   const filteredCategories = useMemo<MenuCategory[]>(() => {
     if (!menuData) return [];
     return menuData.categories
-      .map((cat) => {
-        const filteredItems = cat.items.filter((item) => {
-          // Dietary filter
-          if (dietaryFilter !== 'ALL' && item.dietary_type !== dietaryFilter) {
-            return false;
-          }
-          // Search query filter
-          if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            const aliases: Record<string, string[]> = {
-              biryani: ['biriyani'], biriyani: ['biryani'], pulao: ['pulav'], pulav: ['pulao'],
-            };
-            const queries = [q, ...(aliases[q] ?? [])];
-            const includesQuery = (text: string | null | undefined) =>
-              !!text && queries.some((term) => text.toLowerCase().includes(term));
-            const nameMatch = includesQuery(item.name);
-            const descMatch = includesQuery(item.description);
-            const codeMatch = includesQuery(item.item_code);
-            const categoryMatch = includesQuery(cat.name);
-            const variantMatch = item.variants.some((v) =>
-              includesQuery(v.variant_name)
-            );
-            return nameMatch || descMatch || codeMatch || categoryMatch || variantMatch;
-          }
-          return true;
-        });
-        return { ...cat, items: filteredItems };
-      })
-      .filter((cat) => {
-        if (selectedCategoryId) {
-          return cat.id === selectedCategoryId;
-        }
-        return cat.items.length > 0;
-      });
-  }, [menuData, searchQuery, selectedCategoryId, dietaryFilter]);
+      .map((cat) => ({ ...cat, items: cat.items.filter((item) => matchesFilters(item, cat.name)) }))
+      .filter((cat) => (selectedCategoryId ? cat.id === selectedCategoryId : cat.items.length > 0));
+  }, [menuData, selectedCategoryId, matchesFilters]);
 
   // Popular dishes = most ordered (server-ranked, max 6). Hidden until orders exist.
   const popularIds = useMemo<Set<string>>(
@@ -115,7 +106,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
   );
 
   const featuredItems = useMemo<MenuItem[]>(() => {
-    if (!menuData || searchQuery) return [];
+    if (!menuData || searchQuery || dietaryFilter !== 'ALL') return [];
     const ids = menuData.popular_item_ids ?? [];
     const byId = new Map<string, MenuItem>();
     menuData.categories.forEach((c) => c.items.forEach((i) => byId.set(i.id, i)));
@@ -123,97 +114,62 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
       .map((id) => byId.get(id))
       .filter((i): i is MenuItem => !!i && i.is_available)
       .slice(0, 6);
-  }, [menuData, searchQuery]);
+  }, [menuData, searchQuery, dietaryFilter]);
 
   const skeletonCards = [1, 2, 3, 4, 5, 6];
 
   return (
-    <div className="min-h-screen pb-32" style={{ background: 'var(--cream, #FFF8ED)' }}>
-      {/* ── Hero greeting + Search bar ── */}
-      <div
-        className="px-4 pt-4 pb-3"
-        style={{ background: 'var(--white)', borderBottom: '1px solid var(--border)' }}
-      >
+    <div className={`min-h-screen ${totalItemsCount > 0 ? 'pb-28' : 'pb-6'}`} style={{ background: 'var(--cream, #FFF8ED)' }}>
+      {/* ── Search + categories + dietary filters (normal flow, NOT sticky) ── */}
+      <div className="px-3 pt-3 pb-3">
         <div className="max-w-5xl mx-auto space-y-3">
-          {/* Greeting + Waiter Quick Action */}
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                {tableDisplayName ? `${tableDisplayName} • Welcome to` : 'Welcome to'}
-              </p>
-              <h2 className="text-lg md:text-xl font-bold leading-tight flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <span>SpiceHub Family Restaurant</span>
-                <span className="text-base">🌶</span>
-              </h2>
-            </div>
-
-            {/* Quick Call Waiter button directly in header banner */}
-            <button
-              onClick={() => setIsCallWaiterOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95"
-              style={{
-                background: 'var(--primary-bg)',
-                color: 'var(--primary)',
-                border: '1.5px solid rgba(217, 93, 43, 0.3)',
-              }}
-              title="Call waiter to table"
-            >
-              <Hand size={14} />
-              <span>Call Waiter</span>
-            </button>
-          </div>
-
-          {/* Search */}
           <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--text-muted)' }}
-            />
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
               type="search"
               id="menu-search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by dish name, biryani, starters, kebab…"
-              className="w-full pl-10 pr-10 py-2.5 rounded-2xl text-sm focus:outline-none transition"
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-              }}
+              placeholder="Search for biryani, idli, tea, starters…"
+              aria-label="Search menu"
+              className="w-full pl-10 pr-10 py-3 rounded-2xl text-sm focus:outline-none transition"
+              style={{ background: 'var(--white)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
               onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer"
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer"
                 style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
               >
-                <X size={11} />
+                <X size={12} />
               </button>
             )}
           </div>
+
+          {menuData && (
+            <CategoryBrowser
+              categories={visibleCategories}
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={handleSelectCategory}
+              counts={categoryCounts}
+              dietaryFilter={dietaryFilter}
+              onSelectDietaryFilter={setDietaryFilter}
+              onReset={resetAll}
+              canReset={!!searchQuery || !!selectedCategoryId || dietaryFilter !== 'ALL'}
+            />
+          )}
         </div>
       </div>
 
-      {/* ── Category tabs (sticky) ── */}
-      {menuData && (
-        <CategoryTabs
-          categories={visibleCategories}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={handleSelectCategory}
-          dietaryFilter={dietaryFilter}
-          onSelectDietaryFilter={setDietaryFilter}
-        />
-      )}
-
       {/* ── Main content ── */}
-      <div className="max-w-5xl mx-auto px-4 pt-5 space-y-8">
+      <div className="max-w-5xl mx-auto px-3 space-y-6">
+        <div ref={contentTopRef} style={{ scrollMarginTop: 'calc(var(--header-h, 0px) + 8px)' }} />
         {/* Loading skeletons */}
         {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {skeletonCards.map((i) => (
               <div key={i} className="rounded-3xl p-4 flex items-start gap-3 bg-white border border-stone-200">
                 <div className="skeleton w-28 h-28 rounded-2xl flex-shrink-0" />
@@ -246,20 +202,15 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
         {/* Featured / Popular section */}
         {!isLoading && !error && featuredItems.length > 0 && !searchQuery && !selectedCategoryId && (
           <section>
-            <div className="flex items-center gap-2 mb-3 px-1">
+            <div className="flex items-center gap-2 mb-2 px-1">
               <Star size={16} style={{ color: 'var(--primary)' }} fill="var(--primary)" />
               <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
                 Most Ordered
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x pb-1 -mx-3 px-3">
               {featuredItems.map((item) => (
-                <MenuItemCard
-                  key={item.id}
-                  item={item}
-                  isPopular={popularIds.has(item.id)}
-                  onSelect={setSelectedItemForSheet}
-                />
+                <MenuItemCard key={item.id} item={item} compact isPopular onSelect={setSelectedItemForSheet} />
               ))}
             </div>
           </section>
@@ -275,24 +226,21 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
               Try searching for &apos;Biryani&apos;, &apos;Tikka&apos;, &apos;Naan&apos; or reset your filters.
             </p>
             <button
-              onClick={() => { setSearchQuery(''); setDietaryFilter('ALL'); }}
+              onClick={resetAll}
               className="mt-3 px-5 py-2.5 rounded-xl font-bold text-xs uppercase cursor-pointer"
               style={{
                 background: 'var(--primary)',
                 color: '#fff',
               }}
             >
-              Clear Filters
+              Reset filters
             </button>
           </div>
         )}
 
         {/* Category sections */}
         {!isLoading && !error && filteredCategories.map((category) => (
-          <section
-            key={category.id}
-            ref={(el) => { if (el) categoryRefs.current.set(category.id, el); }}
-          >
+          <section key={category.id} style={{ scrollMarginTop: 'calc(var(--header-h, 0px) + 8px)' }}>
             {/* Category header */}
             <div
               className="flex items-center justify-between mb-3 pb-2 px-1"
@@ -306,7 +254,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {category.items.map((item) => (
                 <MenuItemCard
                   key={item.id}
@@ -319,14 +267,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
           </section>
         ))}
 
-        {/* Bottom padding for cart bar */}
-        <div className="h-6" />
       </div>
 
       {/* ── Persistent bottom cart bar ── */}
       {totalItemsCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pointer-events-none">
-          <div className="max-w-lg mx-auto pointer-events-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
+          <div className="max-w-xl mx-auto pointer-events-auto">
             <button
               id="view-cart-btn"
               onClick={() => setIsCartDrawerOpen(true)}
@@ -346,17 +292,14 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
                 </div>
                 <div className="text-left leading-tight">
                   <span className="block text-xs font-bold">
-                    {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'} added
+                    View Cart
                   </span>
                   <span className="text-xs opacity-90 font-mono">
-                    {formatInr(totalEstimatedAmount)} (Total)
+                    {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'} • {formatInr(totalEstimatedAmount)}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-                <span>View Order</span>
-                <ArrowRight size={16} />
-              </div>
+              <ChevronRight size={20} />
             </button>
           </div>
         </div>
@@ -375,11 +318,6 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
         onOrderSuccess={onOrderSuccess}
       />
 
-      {/* ── Call Waiter bottom sheet (accessible directly anytime) ── */}
-      <CallWaiterSheet
-        isOpen={isCallWaiterOpen}
-        onClose={() => setIsCallWaiterOpen(false)}
-      />
     </div>
   );
 };

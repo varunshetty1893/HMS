@@ -18,14 +18,15 @@ from app.schemas.common import HealthLiveResponse, HealthReadyResponse
 router = APIRouter(prefix="/health", tags=["Health"])
 
 
-@router.get(
+@router.api_route(
     "",
+    methods=["GET", "HEAD"],
     response_model=HealthLiveResponse,
     status_code=status.HTTP_200_OK,
     summary="Service health check",
 )
 async def get_health() -> HealthLiveResponse:
-    """Confirm the FastAPI service is running (`GET /api/v1/health`)."""
+    """Confirm the FastAPI service is running (`GET` or `HEAD` `/api/v1/health`)."""
     settings = get_settings()
     return HealthLiveResponse(
         status="ok",

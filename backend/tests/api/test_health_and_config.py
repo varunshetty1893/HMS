@@ -61,6 +61,18 @@ async def test_health_endpoint_returns_200_and_request_id(
     assert body["timestamp"].endswith("Z")
 
 
+async def test_health_endpoint_accepts_head_without_a_response_body(
+    async_client: AsyncClient,
+) -> None:
+    """The registered v1 health route supports uptime-monitor HEAD probes."""
+    response = await async_client.head("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.content == b""
+    assert "x-request-id" in response.headers
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
 async def test_health_live_endpoint_returns_200_alive(
     async_client: AsyncClient,
 ) -> None:

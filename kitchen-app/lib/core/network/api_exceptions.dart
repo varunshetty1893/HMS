@@ -5,11 +5,13 @@ class ApiException implements Exception {
   final String code;
   final String message;
   final Map<String, dynamic>? details;
+  final int? statusCode;
 
   const ApiException({
     required this.code,
     required this.message,
     this.details,
+    this.statusCode,
   });
 
   @override
@@ -35,6 +37,16 @@ class ConflictException extends ApiException {
     required super.message,
     super.details,
   });
+}
+
+/// Thrown when the kitchen tries to mark an order READY before acknowledging
+/// the changes (modifications) a waiter or customer made to it.
+class UnacknowledgedModificationsException extends ApiException {
+  const UnacknowledgedModificationsException({super.details})
+      : super(
+          code: 'ORDER_MODIFICATIONS_UNACKNOWLEDGED',
+          message: 'Acknowledge the order changes before marking it ready.',
+        );
 }
 
 class TableLimitExceededException extends ApiException {

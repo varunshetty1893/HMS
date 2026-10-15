@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -17,10 +17,14 @@ from app.core.exceptions import (
     StateConflictError,
 )
 from app.core.time_utils import utc_now
+from app.models.billing import Bill
 from app.models.enums import TableOperationalStatus
-from app.models.qr_sessions import TableQrToken, TableSession
+from app.models.operations import Notification
+from app.models.orders import Order
+from app.models.qr_sessions import CustomerSession, TableQrToken, TableSession
 from app.models.restaurant import RestaurantTable
 from app.realtime.manager import ws_manager
+from app.models.waiter_requests import WaiterRequest
 from app.schemas.table import TableCreate, TableResponse, TableUpdate
 from app.services.audit_service import AuditService
 from app.services.qr_service import QrService
@@ -255,6 +259,54 @@ class TableService:
         res = await cls._build_table_response(db, table)
         await cls._broadcast_table_update(table, res.current_occupancy)
         return res
+
+    @classmethod
+    async def delete_table(
+        cls,
+        db: AsyncSession,
+        table_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> None:
+        """Permanently delete a table that has never been used.
+
+        A table with any order / session / bill / waiter-request history cannot be deleted
+        (it would break reports and audit trails); it must be deactivated instead.
+        """
+        table = (
+            await db.execute(select(RestaurantTable).where(RestaurantTable.id == table_id))
+        ).scalar_one_or_none()
+        if not table:
+            raise ResourceNotFoundError(code="TABLE_NOT_FOUND", message="Table not found.")
+
+        for model in (Order, TableSession, CustomerSession, Bill, WaiterRequest):
+            used = (
+                await db.execute(select(model.id).where(model.table_id == table_id).limit(1))
+            ).scalar_one_or_none()
+            if used:
+                raise StateConflictError(
+                    code="TABLE_HAS_HISTORY",
+                    message=(
+                        "This table has order history and cannot be deleted. "
+                        "Deactivate it instead."
+                    ),
+                )
+
+        name = table.display_name
+        await db.execute(update(Notification).where(Notification.table_id == table_id).values(table_id=None))
+        await db.execute(delete(TableQrToken).where(TableQrToken.table_id == table_id))
+        await db.delete(table)
+        await db.flush()
+
+        await AuditService.log_action(
+            db,
+            actor_user_id=user_id,
+            action_type="TABLE_DELETED",
+            entity_type="restaurant_tables",
+            entity_id=table_id,
+            description=f"Deleted table {name}",
+            previous_state={"display_name": name},
+            new_state=None,
+        )
 
     @classmethod
     async def get_floor_grid(cls, db: AsyncSession) -> list[TableResponse]:

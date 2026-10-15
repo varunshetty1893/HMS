@@ -6,9 +6,11 @@ import { PrintableQrCardModal } from '@/components/qr/PrintableQrCardModal';
 import {
   Layers,
   Plus,
+  Power,
   Printer,
   QrCode,
   RefreshCw,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -33,6 +35,9 @@ export const TablesAndQrPage: React.FC = () => {
 
   // Regenerate Confirmation Modal
   const [tableToRegenerate, setTableToRegenerate] = useState<RestaurantTable | null>(null);
+
+  // Delete Confirmation Modal
+  const [tableToDelete, setTableToDelete] = useState<RestaurantTable | null>(null);
 
   const fetchTables = async () => {
     setIsLoading(true);
@@ -92,6 +97,27 @@ export const TablesAndQrPage: React.FC = () => {
     }
   };
 
+  const handleToggleActive = async (table: RestaurantTable) => {
+    try {
+      await tablesQrApi.updateTable(table.id, { is_active: !table.is_active });
+      fetchTables();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update table');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!tableToDelete) return;
+    try {
+      await tablesQrApi.deleteTable(tableToDelete.id);
+      setTableToDelete(null);
+      fetchTables();
+    } catch (err: any) {
+      setTableToDelete(null);
+      alert(err?.message || 'Failed to delete table');
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
@@ -99,7 +125,7 @@ export const TablesAndQrPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: heading }}>Dining Tables & QR Management</h1>
           <p className="text-sm mt-1" style={{ color: sub }}>
-            Physical table registry, cryptographic QR token rotation, and printable standees
+            Add or remove tables, turn them on or off, and print the QR card for each table
           </p>
         </div>
         <button
@@ -130,7 +156,7 @@ export const TablesAndQrPage: React.FC = () => {
             <div
               key={table.id}
               className="p-6 rounded-3xl shadow-sm flex flex-col justify-between transition hover:shadow-md"
-              style={card}
+              style={{ ...card, opacity: table.is_active ? 1 : 0.6 }}
             >
               <div>
                 <div className="flex items-start justify-between">
@@ -138,7 +164,10 @@ export const TablesAndQrPage: React.FC = () => {
                     <span className="text-xl font-black" style={{ color: heading }}>{table.display_name}</span>
                     <span className="text-xs font-mono" style={{ color: muted }}>#{table.table_number}</span>
                   </div>
-                  <StatusBadge status={table.occupancy_status || 'AVAILABLE'} size="sm" />
+                  <StatusBadge
+                    status={table.is_active ? table.occupancy_status || 'AVAILABLE' : 'DISABLED'}
+                    size="sm"
+                  />
                 </div>
 
                 <div className="mt-3 flex items-center gap-3 text-xs" style={{ color: sub }}>
@@ -175,7 +204,7 @@ export const TablesAndQrPage: React.FC = () => {
                   }}
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Standee</span>
+                  <span>Print QR</span>
                 </button>
                 <button
                   onClick={() => setTableToRegenerate(table)}
@@ -183,6 +212,24 @@ export const TablesAndQrPage: React.FC = () => {
                   className="p-2 rounded-xl text-xs font-semibold text-amber-600 hover:bg-amber-50 border border-amber-200 transition cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleToggleActive(table)}
+                  title={table.is_active ? 'Make inactive (hide this table)' : 'Make active again'}
+                  className={`p-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                    table.is_active
+                      ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                      : 'text-slate-500 border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  <Power className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setTableToDelete(table)}
+                  title="Delete table"
+                  className="p-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -294,8 +341,19 @@ export const TablesAndQrPage: React.FC = () => {
         </div>
       )}
 
-      {/* Standee Modal */}
+      {/* QR Card Modal */}
       <PrintableQrCardModal cardData={selectedCard} onClose={() => setSelectedCard(null)} />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!tableToDelete}
+        title={`Delete ${tableToDelete?.display_name ?? 'table'}?`}
+        description="This removes the table and its QR code for good. If this table already has orders, it cannot be deleted. Use the power button to make it inactive instead."
+        confirmLabel="Delete table"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setTableToDelete(null)}
+      />
 
       {/* Rotate Confirmation Modal */}
       <ConfirmModal

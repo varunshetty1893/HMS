@@ -42,6 +42,10 @@ export const tablesQrApi = {
     });
   },
 
+  deleteTable: async (tableId: string): Promise<void> => {
+    await apiClient<void>(`/admin/tables/${tableId}`, { method: 'DELETE' });
+  },
+
   regenerateQr: async (
     tableId: string,
     reason: string = 'ROTATED_BY_ADMIN'

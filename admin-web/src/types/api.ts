@@ -100,11 +100,20 @@ export interface RestaurantTable {
 export interface QrPrintCardResponse {
   table_id: string;
   table_number: number;
-  display_name: string;
+  /** Real backend field */
+  table_display_name?: string;
+  /** Legacy/demo field */
+  display_name?: string;
+  floor_or_zone?: string | null;
+  seating_capacity?: number | null;
   token_version: number;
   token_prefix: string;
-  printable_qr_url: string;
-  ordering_url: string;
+  /** Real backend field: the full URL a guest opens after scanning */
+  qr_url?: string;
+  raw_token?: string;
+  /** Legacy/demo field */
+  ordering_url?: string;
+  printable_qr_url?: string;
   restaurant_name: string;
 }
 

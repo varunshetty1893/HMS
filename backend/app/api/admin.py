@@ -402,6 +402,18 @@ async def update_table(
     return res
 
 
+@router.delete("/tables/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_table(
+    table_id: uuid.UUID,
+    admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Delete a never-used table. Tables with order history must be deactivated instead."""
+    await TableService.delete_table(db, table_id, user_id=admin.id)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/tables/{table_id}/qr/regenerate", response_model=QrRegenerateResponse)
 async def regenerate_table_qr(
     table_id: uuid.UUID,

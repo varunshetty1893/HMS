@@ -101,7 +101,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
         return { ...cat, items: filteredItems };
       })
       .filter((cat) => {
-        if (selectedCategoryId && !searchQuery) {
+        if (selectedCategoryId) {
           return cat.id === selectedCategoryId;
         }
         return cat.items.length > 0;

@@ -14,12 +14,13 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onTabChange,
   ordersCount = 0,
 }) => {
-  const { tableDisplayName, tableNumber, currentOutstanding, customLimit } = useSession();
+  const { tableDisplayName, tableNumber, currentOutstanding, customLimit, session } = useSession();
 
   const outstandingNum = parseFloat(currentOutstanding) || 0;
   const limitNum = parseFloat(customLimit) || 5000;
   const isNearLimit = outstandingNum >= limitNum * 0.8;
   const isOverLimit = outstandingNum >= limitNum;
+  const isDiningActive = session?.table_status === 'OCCUPIED';
 
   return (
     <>
@@ -49,9 +50,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ background: '#22C55E' }}
+                  style={{ background: isDiningActive ? '#22C55E' : '#94A3B8' }}
                 />
-                <span>Dine-In Active</span>
+                <span>{isDiningActive ? 'Dine-In Active' : 'Ready to order'}</span>
               </div>
             </div>
           </div>

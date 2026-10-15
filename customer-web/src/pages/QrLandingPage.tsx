@@ -1,54 +1,97 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '../context/SessionContext';
 import { QrCode, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
-import { extractQrToken, stripQrTokenFromPath } from '../utils/qrToken';
+import {
+  clearPendingQrToken,
+  extractQrToken,
+  savePendingQrToken,
+  stripQrTokenFromPath,
+} from '../utils/qrToken';
+import { HmsApiError } from '../api';
 
 interface QrLandingPageProps {
   onSuccess: () => void;
   onError: (msg: string) => void;
 }
 
+function describeFailure(err: unknown): string {
+  if (err instanceof HmsApiError) {
+    switch (err.code) {
+      case 'QR_TOKEN_INVALID_OR_REVOKED':
+        return err.message;
+      case 'TABLE_NOT_AVAILABLE':
+        return err.message;
+      case 'API_NOT_CONFIGURED':
+      case 'API_UNREACHABLE':
+        return err.message;
+      default:
+        if (err.httpStatus === 429) {
+          return 'Too many attempts. Please wait a minute and tap Try again.';
+        }
+        return err.message || 'This QR code could not be opened.';
+    }
+  }
+  return 'Unable to reach restaurant servers. Please check your network connection and try again.';
+}
+
 export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError }) => {
-  const { initFromQr } = useSession();
+  const { initFromQr, error: sessionError } = useSession();
   const [statusMessage, setStatusMessage] = useState<string>('Verifying Table QR...');
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
-  useEffect(() => {
-    const token = extractQrToken();
+  // Parent passes new callback functions on every render; keep them in refs so they can
+  // never re-trigger the resolve effect (that caused duplicate requests and a lost token).
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  onSuccessRef.current = onSuccess;
+  onErrorRef.current = onError;
 
+  const inFlight = useRef(false);
+
+  const resolve = useCallback(async () => {
+    if (inFlight.current) return;
+
+    const token = extractQrToken();
     if (!token) {
       setErrorDetails('No table QR token detected. Please scan the QR code located on your dining table.');
       return;
     }
 
-    // Resolve QR token
-    const resolve = async () => {
-      try {
-        setStatusMessage('Connecting to Table...');
-        const ok = await initFromQr(token);
+    inFlight.current = true;
+    setErrorDetails(null);
+    // Remember the token until it has been resolved, so a reload/retry reuses it.
+    savePendingQrToken(token);
 
-        // Security rule: Immediately strip raw QR secret from URL history bar
+    try {
+      setStatusMessage('Connecting to Table...');
+      const ok = await initFromQr(token);
+
+      if (ok) {
+        // Only now is it safe to strip the secret from the address bar.
+        clearPendingQrToken();
         try {
           const cleanUrl = stripQrTokenFromPath(window.location.pathname);
           window.history.replaceState(null, document.title, cleanUrl);
         } catch {
           // ignore history errors in non-browser envs
         }
-
-        if (ok) {
-          onSuccess();
-        } else {
-          setErrorDetails('This QR code is either invalid, revoked, or the dining table is currently closed.');
-          onError('QR code resolution failed');
-        }
-      } catch {
-        setErrorDetails('Unable to reach restaurant servers. Please check your network connection.');
-        onError('Network error');
+        onSuccessRef.current();
+      } else {
+        const msg = 'This QR code could not be opened. Tap Try again, or ask staff to check the table QR.';
+        setErrorDetails(msg);
+        onErrorRef.current('QR code resolution failed');
       }
-    };
+    } catch (err) {
+      setErrorDetails(describeFailure(err));
+      onErrorRef.current('Network error');
+    } finally {
+      inFlight.current = false;
+    }
+  }, [initFromQr]);
 
-    resolve();
-  }, [initFromQr, onSuccess, onError]);
+  useEffect(() => {
+    void resolve();
+  }, [resolve]);
 
   return (
     <div
@@ -106,16 +149,16 @@ export const QrLandingPage: React.FC<QrLandingPageProps> = ({ onSuccess, onError
               }}
             >
               <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-500" />
-              <span>{errorDetails}</span>
+              <span>{sessionError || errorDetails}</span>
             </div>
 
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => void resolve()}
               className="w-full text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow-sm"
               style={{ background: 'var(--primary)' }}
             >
               <RefreshCw size={14} />
-              <span>Retry Scan</span>
+              <span>Try again</span>
             </button>
           </div>
         ) : (

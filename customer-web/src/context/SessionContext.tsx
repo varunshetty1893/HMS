@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { resolveQrToken, getSession, setSessionToken, clearSessionToken, getSessionToken, HmsApiError } from '../api';
 import type { CustomerSession } from '../types';
 import { isDevDemoEnabled, purgeDemoStorageIfProduction, isProd } from '../utils/env';
+import { clearPendingQrToken } from '../utils/qrToken';
 
 interface SessionContextType {
   sessionToken: string | null;
@@ -64,6 +65,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       if (err instanceof HmsApiError && (err.httpStatus === 401 || err.httpStatus === 403)) {
         clearSession();
+        setError(
+          err.code === 'SESSION_EXPIRED'
+            ? 'Your table session has expired. Please scan the QR code on your table again.'
+            : 'Your table session is no longer valid. Please scan the QR code on your table again.',
+        );
       }
     }
   }, []);
@@ -73,6 +79,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setError(null);
     try {
       const res = await resolveQrToken(qrToken);
+      clearPendingQrToken();
       setSessionToken(res.session_token);
       setSessionTokenState(res.session_token);
       setTableDisplayName(res.table_display_name);

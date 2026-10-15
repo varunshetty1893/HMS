@@ -11,7 +11,7 @@ import type {
   OrderCreateResponse,
   OrderResponse,
 } from './types';
-import { isDevDemoEnabled, resolveApiBaseUrl } from './utils/env';
+import { apiConfigProblem, isDevDemoEnabled, resolveApiBaseUrl } from './utils/env';
 
 const BASE = resolveApiBaseUrl();
 
@@ -70,6 +70,11 @@ async function request<T>(
     (headers as Record<string, string>)['Idempotency-Key'] = idempotencyKey;
   }
 
+  const configProblem = apiConfigProblem();
+  if (configProblem) {
+    throw new HmsApiError('API_NOT_CONFIGURED', configProblem);
+  }
+
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (!res.ok) {
@@ -89,6 +94,18 @@ async function request<T>(
 
   // 204 No Content
   if (res.status === 204) return undefined as T;
+
+  // A static host (Cloudflare Pages/Vercel) answers unknown URLs with index.html (HTML, 200).
+  // That means the request never reached the backend.
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('json')) {
+    throw new HmsApiError(
+      'API_UNREACHABLE',
+      'Could not reach the restaurant server. Please try again in a moment.',
+      undefined,
+      res.status,
+    );
+  }
   return res.json() as Promise<T>;
 }
 

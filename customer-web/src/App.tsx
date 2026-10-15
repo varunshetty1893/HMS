@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { SessionProvider, useSession } from './context/SessionContext';
 import { CartProvider } from './context/CartContext';
 import { HeaderBar } from './components/HeaderBar';
@@ -16,34 +16,25 @@ const AppContent: React.FC = () => {
     return extractQrToken() !== null;
   });
 
-  useEffect(() => {
-    // If we have a session token already, and not on a QR link, default to normal app
-    if (sessionToken && !isQrFlow) {
-      // ready
-    }
-  }, [sessionToken, isQrFlow]);
+  const handleQrSuccess = useCallback(() => {
+    setIsQrFlow(false);
+    setActiveTab('menu');
+  }, []);
+  const handleQrError = useCallback((_msg: string) => {
+    // the landing page shows the error and a "Try again" button
+  }, []);
 
   if (isQrFlow) {
-    return (
-      <QrLandingPage
-        onSuccess={() => {
-          setIsQrFlow(false);
-          setActiveTab('menu');
-        }}
-        onError={(_msg) => {
-          // let landing page display error
-        }}
-      />
-    );
+    return <QrLandingPage onSuccess={handleQrSuccess} onError={handleQrError} />;
   }
 
   if (!sessionToken && !isLoading) {
     // Not in QR flow and no session token
-    return <SessionErrorPage message="Please scan your dining table's QR code to view the menu and place orders." />;
-  }
-
-  if (error && !sessionToken) {
-    return <SessionErrorPage message={error} />;
+    return error ? (
+      <SessionErrorPage message={error} />
+    ) : (
+      <SessionErrorPage message="Please scan your dining table's QR code to view the menu and place orders." />
+    );
   }
 
   return (

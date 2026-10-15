@@ -74,3 +74,15 @@ export function purgeDemoStorageIfProduction(): void {
     // Ignore storage access errors in restricted iframe environments
   }
 }
+
+/**
+ * Returns a human-readable problem if a production build was deployed without a
+ * backend URL (VITE_API_BASE_URL). Without it the app calls "/api/v1/..." on its own
+ * static host, which can never resolve a QR code.
+ */
+export function apiConfigProblem(): string | null {
+  if (!isProd) return null;
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (envUrl) return null;
+  return 'This site was deployed without its backend address (VITE_API_BASE_URL). Please tell the restaurant staff.';
+}

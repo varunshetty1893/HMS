@@ -168,7 +168,7 @@ class QrService:
             },
         )
 
-        qr_url = f"{settings.public_qr_base_url}/{raw_token}"
+        qr_url = f"{settings.public_qr_base_url.rstrip('/')}/{raw_token}"
         return QrRegenerateResponse(
             table_id=table.id,
             table_number=table.table_number,
@@ -214,7 +214,7 @@ class QrService:
         ).scalar_one_or_none()
         restaurant_name = settings_row.restaurant_name if settings_row else "Restaurant"
 
-        qr_url = f"{settings.public_qr_base_url}/{raw_token}"
+        qr_url = f"{settings.public_qr_base_url.rstrip('/')}/{raw_token}"
         return QrPrintCardResponse(
             table_id=table.id,
             table_number=table.table_number,

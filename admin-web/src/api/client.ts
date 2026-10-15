@@ -191,6 +191,10 @@ export async function apiClient<T>(
     return textData as unknown as T;
   }
 
+  if (contentType && contentType.includes('spreadsheetml.sheet')) {
+    return (await response.blob()) as unknown as T;
+  }
+
   try {
     return await response.json();
   } catch (err: any) {

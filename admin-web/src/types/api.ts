@@ -270,6 +270,7 @@ export interface RestaurantSettings {
 export interface AuditLog {
   id: string;
   actor_user_id: string | null;
+  actor_username?: string | null;
   actor_customer_session_id: string | null;
   actor_role: string;
   action_type: string;
@@ -290,6 +291,12 @@ export interface PaginationMeta {
   total_pages: number;
   has_next: boolean;
   has_prev: boolean;
+}
+
+export interface AuditLogFacets {
+  action_types: string[];
+  entity_types: string[];
+  actor_roles: string[];
 }
 
 export interface AuditLogPageResponse {

@@ -396,17 +396,51 @@ export async function handleMockRequest<T>(
   }
 
   // Audit Logs
-  if (path === '/admin/audit-logs') {
+  if (path === '/admin/audit-logs/facets') {
     const logs = getMockAuditLogs();
+    const uniq = (xs: string[]) => Array.from(new Set(xs)).sort();
     return {
-      items: logs,
+      action_types: uniq(logs.map((l) => l.action_type)),
+      entity_types: uniq(logs.map((l) => l.entity_type)),
+      actor_roles: uniq(logs.map((l) => l.actor_role)),
+    } as unknown as T;
+  }
+
+  if (path === '/admin/audit-logs/export.xlsx') {
+    throw new Error('Excel export needs the live backend (not available in mock mode).');
+  }
+
+  if (path === '/admin/audit-logs') {
+    const sp = urlObj.searchParams;
+    const q = (sp.get('q') || '').toLowerCase();
+    const from = sp.get('from');
+    const to = sp.get('to');
+    const istDay = (iso: string) =>
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(iso));
+    const logs = getMockAuditLogs().filter((l) => {
+      if (sp.get('action_type') && l.action_type !== sp.get('action_type')) return false;
+      if (sp.get('entity_type') && l.entity_type !== sp.get('entity_type')) return false;
+      if (sp.get('actor_role') && l.actor_role !== sp.get('actor_role')) return false;
+      if (from && istDay(l.created_at) < from) return false;
+      if (to && istDay(l.created_at) > to) return false;
+      if (q) {
+        const hay = `${l.action_type} ${l.entity_type} ${l.entity_id} ${l.reason || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    const pageSize = Number(sp.get('page_size')) || 20;
+    const page = Number(sp.get('page')) || 1;
+    const totalPages = logs.length ? Math.ceil(logs.length / pageSize) : 0;
+    return {
+      items: logs.slice((page - 1) * pageSize, page * pageSize),
       pagination: {
-        page: 1,
-        page_size: 20,
+        page,
+        page_size: pageSize,
         total_items: logs.length,
-        total_pages: 1,
-        has_next: false,
-        has_prev: false,
+        total_pages: totalPages,
+        has_next: page < totalPages,
+        has_prev: page > 1,
       },
     } as unknown as T;
   }

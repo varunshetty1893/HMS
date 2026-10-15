@@ -6,11 +6,13 @@ and `docs/13-final-implementation-blueprint.md` (Phase 4).
 
 from __future__ import annotations
 
+import io
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -23,7 +25,7 @@ from app.models.enums import UserRole
 from app.models.identity import User
 from app.models.operations import AuditLog
 from app.models.qr_sessions import TableSession
-from app.schemas.audit import AuditLogPageResponse, AuditLogResponse
+from app.schemas.audit import AuditLogFacets, AuditLogPageResponse, AuditLogResponse
 from app.schemas.billing import BillResponse, PaymentResponse
 from app.schemas.common import PaginationMeta
 from app.schemas.menu import (
@@ -554,6 +556,85 @@ async def update_restaurant_settings(
 # =============================================================================
 
 
+# India has no DST, so a fixed +05:30 offset is exact for restaurant-day boundaries.
+_IST = timezone(timedelta(hours=5, minutes=30))
+_AUDIT_EXPORT_MAX_ROWS = 50_000
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _audit_log_query(
+    *,
+    action_type: str | None,
+    entity_type: str | None,
+    entity_id: str | None,
+    actor_user_id: uuid.UUID | None,
+    actor_role: str | None,
+    from_date: date | None,
+    to_date: date | None,
+    q: str | None,
+    columns: Any,
+) -> Any:
+    """Build a filtered audit query. Date bounds are IST calendar days (inclusive)."""
+    stmt = select(*columns).select_from(AuditLog).outerjoin(User, User.id == AuditLog.actor_user_id)
+
+    if action_type:
+        stmt = stmt.where(AuditLog.action_type == action_type)
+    if entity_type:
+        stmt = stmt.where(AuditLog.entity_type == entity_type)
+    if entity_id:
+        stmt = stmt.where(AuditLog.entity_id == entity_id)
+    if actor_user_id:
+        stmt = stmt.where(AuditLog.actor_user_id == actor_user_id)
+    if actor_role:
+        stmt = stmt.where(AuditLog.actor_role == actor_role)
+    if from_date:
+        stmt = stmt.where(
+            AuditLog.created_at >= datetime.combine(from_date, datetime.min.time(), tzinfo=_IST)
+        )
+    if to_date:
+        stmt = stmt.where(
+            AuditLog.created_at
+            < datetime.combine(to_date + timedelta(days=1), datetime.min.time(), tzinfo=_IST)
+        )
+    if q and q.strip():
+        pattern = f"%{_escape_like(q.strip())}%"
+        stmt = stmt.where(
+            AuditLog.action_type.ilike(pattern, escape="\\")
+            | AuditLog.entity_type.ilike(pattern, escape="\\")
+            | AuditLog.entity_id.ilike(pattern, escape="\\")
+            | AuditLog.reason.ilike(pattern, escape="\\")
+            | User.username.ilike(pattern, escape="\\")
+        )
+    return stmt
+
+
+def _audit_response(log: AuditLog, username: str | None) -> AuditLogResponse:
+    item = AuditLogResponse.model_validate(log)
+    item.actor_username = username
+    return item
+
+
+@router.get("/audit-logs/facets", response_model=AuditLogFacets)
+async def get_audit_log_facets(
+    _admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> AuditLogFacets:
+    """Distinct action types, entity types and actor roles currently in the audit trail."""
+
+    async def _distinct(column: Any) -> list[str]:
+        rows = await db.scalars(select(column).distinct().order_by(column))
+        return [r for r in rows.all() if r]
+
+    return AuditLogFacets(
+        action_types=await _distinct(AuditLog.action_type),
+        entity_types=await _distinct(AuditLog.entity_type),
+        actor_roles=await _distinct(AuditLog.actor_role),
+    )
+
+
 @router.get("/audit-logs", response_model=AuditLogPageResponse)
 async def list_audit_logs(
     _admin: AdminUser,
@@ -562,6 +643,7 @@ async def list_audit_logs(
     entity_id: str | None = Query(default=None),
     actor_user_id: uuid.UUID | None = Query(default=None),
     actor_role: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
     from_date: date | None = Query(default=None, alias="from"),
     to_date: date | None = Query(default=None, alias="to"),
     page: int = Query(default=1, ge=1),
@@ -569,41 +651,30 @@ async def list_audit_logs(
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogPageResponse:
     """Query immutable system audit logs."""
-    stmt = select(AuditLog)
-    count_stmt = select(func.count(AuditLog.id))
-
-    if action_type:
-        stmt = stmt.where(AuditLog.action_type == action_type)
-        count_stmt = count_stmt.where(AuditLog.action_type == action_type)
-    if entity_type:
-        stmt = stmt.where(AuditLog.entity_type == entity_type)
-        count_stmt = count_stmt.where(AuditLog.entity_type == entity_type)
-    if entity_id:
-        stmt = stmt.where(AuditLog.entity_id == entity_id)
-        count_stmt = count_stmt.where(AuditLog.entity_id == entity_id)
-    if actor_user_id:
-        stmt = stmt.where(AuditLog.actor_user_id == actor_user_id)
-        count_stmt = count_stmt.where(AuditLog.actor_user_id == actor_user_id)
-    if actor_role:
-        stmt = stmt.where(AuditLog.actor_role == actor_role)
-        count_stmt = count_stmt.where(AuditLog.actor_role == actor_role)
-    if from_date:
-        start_dt = datetime.combine(from_date, datetime.min.time(), tzinfo=timezone.utc)
-        stmt = stmt.where(AuditLog.created_at >= start_dt)
-        count_stmt = count_stmt.where(AuditLog.created_at >= start_dt)
-    if to_date:
-        end_dt = datetime.combine(to_date, datetime.max.time(), tzinfo=timezone.utc)
-        stmt = stmt.where(AuditLog.created_at <= end_dt)
-        count_stmt = count_stmt.where(AuditLog.created_at <= end_dt)
-
+    filters: dict[str, Any] = {
+        "action_type": action_type,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "actor_user_id": actor_user_id,
+        "actor_role": actor_role,
+        "from_date": from_date,
+        "to_date": to_date,
+        "q": q,
+    }
+    count_stmt = _audit_log_query(**filters, columns=[func.count(AuditLog.id)])
     total_items = (await db.scalar(count_stmt)) or 0
     total_pages = (total_items + page_size - 1) // page_size if total_items > 0 else 0
 
-    stmt = stmt.order_by(desc(AuditLog.created_at)).offset((page - 1) * page_size).limit(page_size)
-    logs = (await db.scalars(stmt)).all()
+    stmt = (
+        _audit_log_query(**filters, columns=[AuditLog, User.username])
+        .order_by(desc(AuditLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = (await db.execute(stmt)).all()
 
     return AuditLogPageResponse(
-        items=[AuditLogResponse.model_validate(log) for log in logs],
+        items=[_audit_response(log, username) for log, username in rows],
         pagination=PaginationMeta(
             page=page,
             page_size=page_size,
@@ -613,6 +684,181 @@ async def list_audit_logs(
             has_prev=page > 1,
         ),
     )
+
+
+def _build_audit_workbook(
+    rows: list[tuple[AuditLog, str | None]],
+    *,
+    filter_summary: list[tuple[str, str]],
+    generated_by: str,
+    truncated: bool,
+) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    def _ist(dt: datetime) -> str:
+        return dt.astimezone(_IST).strftime("%d %b %Y, %I:%M:%S %p")
+
+    def _json(value: Any) -> str:
+        if value is None:
+            return ""
+        import json
+
+        return json.dumps(value, ensure_ascii=False, default=str)[:32000]
+
+    def _put(ws: Any, row: int, col: int, value: Any) -> Any:
+        cell = ws.cell(row=row, column=col, value=value)
+        # Force text so values like "=SUM(...)" in a reason are never evaluated as formulas.
+        if isinstance(value, str):
+            cell.data_type = "s"
+        return cell
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Audit Log"
+    headers = [
+        ("Timestamp (IST)", 24),
+        ("Action", 30),
+        ("Actor", 18),
+        ("Role", 14),
+        ("Entity Type", 20),
+        ("Entity ID", 38),
+        ("Reason", 44),
+        ("Previous State", 48),
+        ("New State", 48),
+        ("Metadata", 36),
+    ]
+    head_fill = PatternFill("solid", fgColor="D95D2B")
+    for idx, (title, width) in enumerate(headers, start=1):
+        c = _put(ws, 1, idx, title)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = head_fill
+        c.alignment = Alignment(vertical="center")
+        ws.column_dimensions[get_column_letter(idx)].width = width
+    ws.row_dimensions[1].height = 22
+
+    for r, (log, username) in enumerate(rows, start=2):
+        values = [
+            _ist(log.created_at),
+            log.action_type,
+            username or "—",
+            log.actor_role,
+            log.entity_type,
+            log.entity_id,
+            log.reason or "",
+            _json(log.old_value_json),
+            _json(log.new_value_json),
+            _json(log.metadata_json),
+        ]
+        for c_idx, v in enumerate(values, start=1):
+            _put(ws, r, c_idx, v).alignment = Alignment(vertical="top")
+
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(len(rows) + 1, 1)}"
+
+    info = wb.create_sheet("Export Info")
+    info.column_dimensions["A"].width = 22
+    info.column_dimensions["B"].width = 60
+    summary = [
+        ("Generated at (IST)", _ist(datetime.now(timezone.utc))),
+        ("Generated by", generated_by),
+        ("Rows exported", str(len(rows))),
+        *filter_summary,
+    ]
+    if truncated:
+        summary.append(
+            (
+                "Note",
+                f"Result capped at {_AUDIT_EXPORT_MAX_ROWS:,} newest rows. "
+                "Narrow the date range to export older entries.",
+            )
+        )
+    for i, (k, v) in enumerate(summary, start=1):
+        _put(info, i, 1, k).font = Font(bold=True)
+        _put(info, i, 2, v)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@router.get("/audit-logs/export.xlsx")
+async def export_audit_logs_xlsx(
+    admin: AdminUser,
+    action_type: str | None = Query(default=None),
+    entity_type: str | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
+    actor_user_id: uuid.UUID | None = Query(default=None),
+    actor_role: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Download every audit entry matching the filters (not just one page) as an .xlsx file."""
+    filters: dict[str, Any] = {
+        "action_type": action_type,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "actor_user_id": actor_user_id,
+        "actor_role": actor_role,
+        "from_date": from_date,
+        "to_date": to_date,
+        "q": q,
+    }
+    stmt = (
+        _audit_log_query(**filters, columns=[AuditLog, User.username])
+        .order_by(desc(AuditLog.created_at))
+        .limit(_AUDIT_EXPORT_MAX_ROWS + 1)
+    )
+    fetched = (await db.execute(stmt)).all()
+    truncated = len(fetched) > _AUDIT_EXPORT_MAX_ROWS
+    rows = [(log, username) for log, username in fetched[:_AUDIT_EXPORT_MAX_ROWS]]
+
+    filter_summary = [
+        ("Filter: search", q or "—"),
+        ("Filter: action", action_type or "All"),
+        ("Filter: entity", entity_type or "All"),
+        ("Filter: role", actor_role or "All"),
+        ("Filter: from (IST)", from_date.isoformat() if from_date else "—"),
+        ("Filter: to (IST)", to_date.isoformat() if to_date else "—"),
+    ]
+    content = await run_in_threadpool(
+        _build_audit_workbook,
+        rows,
+        filter_summary=filter_summary,
+        generated_by=admin.username,
+        truncated=truncated,
+    )
+
+    await AuditService.record_event(
+        db,
+        action_type="AUDIT_LOG_EXPORTED",
+        entity_type="audit_log",
+        entity_id="export",
+        actor_role=admin.role,
+        actor_user_id=admin.id,
+        metadata={
+            "rows": len(rows),
+            "truncated": truncated,
+            "action_type": action_type,
+            "entity_type": entity_type,
+            "actor_role": actor_role,
+            "from": from_date.isoformat() if from_date else None,
+            "to": to_date.isoformat() if to_date else None,
+            "q": q,
+        },
+    )
+    await db.commit()
+
+    stamp = datetime.now(_IST).strftime("%Y%m%d_%H%M")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=audit_log_{stamp}.xlsx"},
+    )
+
 
 
 # =============================================================================

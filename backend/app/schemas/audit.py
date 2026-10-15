@@ -18,6 +18,7 @@ class AuditLogResponse(BaseModel):
 
     id: uuid.UUID
     actor_user_id: uuid.UUID | None = None
+    actor_username: str | None = None
     actor_customer_session_id: uuid.UUID | None = None
     actor_role: str
     action_type: str
@@ -29,6 +30,14 @@ class AuditLogResponse(BaseModel):
     metadata_json: Any | None = None
     ip_hash: str | None = None
     created_at: datetime
+
+
+class AuditLogFacets(BaseModel):
+    """Distinct values present in the audit trail, used to populate filter dropdowns."""
+
+    action_types: list[str]
+    entity_types: list[str]
+    actor_roles: list[str]
 
 
 class AuditLogPageResponse(BaseModel):

@@ -94,7 +94,9 @@ async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
 
     users: dict[str, User] = {}
     for username, password, full_name, role in staff_specs:
-        result = await session.execute(select(User).where(User.username == username))
+        result = await session.execute(
+            select(User).where(func.lower(User.username) == username.lower())
+        )
         user = result.scalar_one_or_none()
         if not user:
             pw_hash = await hash_password(password)

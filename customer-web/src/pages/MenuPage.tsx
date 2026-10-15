@@ -96,12 +96,21 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
       });
   }, [menuData, searchQuery, selectedCategoryId, dietaryFilter]);
 
-  // Popular / Featured items (first 4 available across all categories)
+  // Popular dishes = most ordered (server-ranked, max 6). Hidden until orders exist.
+  const popularIds = useMemo<Set<string>>(
+    () => new Set(menuData?.popular_item_ids ?? []),
+    [menuData]
+  );
+
   const featuredItems = useMemo<MenuItem[]>(() => {
     if (!menuData || searchQuery) return [];
-    return menuData.categories
-      .flatMap((c) => c.items.filter((i) => i.is_available))
-      .slice(0, 4);
+    const ids = menuData.popular_item_ids ?? [];
+    const byId = new Map<string, MenuItem>();
+    menuData.categories.forEach((c) => c.items.forEach((i) => byId.set(i.id, i)));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((i): i is MenuItem => !!i && i.is_available)
+      .slice(0, 6);
   }, [menuData, searchQuery]);
 
   const skeletonCards = [1, 2, 3, 4, 5, 6];
@@ -228,7 +237,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
             <div className="flex items-center gap-2 mb-3 px-1">
               <Star size={16} style={{ color: 'var(--primary)' }} fill="var(--primary)" />
               <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                Popular Dishes
+                Most Ordered
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,6 +245,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
                 <MenuItemCard
                   key={item.id}
                   item={item}
+                  isPopular={popularIds.has(item.id)}
                   onSelect={setSelectedItemForSheet}
                 />
               ))}
@@ -289,6 +299,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
                 <MenuItemCard
                   key={item.id}
                   item={item}
+                  isPopular={popularIds.has(item.id)}
                   onSelect={setSelectedItemForSheet}
                 />
               ))}

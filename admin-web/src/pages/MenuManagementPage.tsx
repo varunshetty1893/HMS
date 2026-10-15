@@ -4,6 +4,7 @@ import { formatInr } from '@/utils/currency';
 import {
   Camera,
   FolderPlus,
+  ImagePlus,
   Pencil,
   Plus,
   Search,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { DietaryType, MenuCategory, MenuItem, MenuPriceVariant, PriceUnit, SpiceLevel } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
+import { resolveMediaUrl } from '@/utils/env';
 
 // ---------------------------------------------------------------------------
 // Portion helpers (Half/Full, 6 pcs/12 pcs, 250 ml/500 ml ...)
@@ -164,6 +166,14 @@ const portionLabel = (v: MenuPriceVariant): string => {
   return `${qty} ${unit}`;
 };
 
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const photoProblem = (f: File): string | null => {
+  if (!PHOTO_TYPES.includes(f.type)) return 'Photo must be a JPG, PNG or WebP image.';
+  if (f.size > MAX_PHOTO_BYTES) return 'Photo is too big. Please use an image under 2 MB.';
+  return null;
+};
+
 const fieldCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 focus:outline-none focus:border-brand-500';
 const smallFieldCls =
@@ -199,6 +209,20 @@ export const MenuManagementPage: React.FC = () => {
   const [rows, setRows] = useState<PortionRow[]>(() => PRESETS[1].rows());
   const [itemError, setItemError] = useState<string | null>(null);
   const [isSavingItem, setIsSavingItem] = useState(false);
+  const [newItemPhoto, setNewItemPhoto] = useState<File | null>(null);
+  const [newItemPhotoPreview, setNewItemPhotoPreview] = useState<string | null>(null);
+
+  // Edit dish modal
+  const [editItem, setEditItem] = useState<MenuItem | null>(null);
+  const [eName, setEName] = useState('');
+  const [eCode, setECode] = useState('');
+  const [eCat, setECat] = useState('');
+  const [eDiet, setEDiet] = useState<DietaryType>('VEG');
+  const [eSpice, setESpice] = useState<SpiceLevel | ''>('');
+  const [eDesc, setEDesc] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isPhotoBusy, setIsPhotoBusy] = useState(false);
 
   // Add / edit single portion on an existing dish
   const [portionItem, setPortionItem] = useState<MenuItem | null>(null);
@@ -218,7 +242,6 @@ export const MenuManagementPage: React.FC = () => {
       ]);
       setCategories(cats);
       setItems(dishList);
-      if (cats.length > 0 && !newItemCatId) setNewItemCatId(cats[0].id);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Failed to load menu data');
@@ -243,11 +266,38 @@ export const MenuManagementPage: React.FC = () => {
     setPresetId('half-full');
     setRows(PRESETS[1].rows());
     setItemError(null);
+    setNewItemCatId(''); // always make the owner choose the category
+    setNewItemPhoto(null);
+    setNewItemPhotoPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+  };
+
+  const onPickNewPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const problem = photoProblem(file);
+    if (problem) return setItemError(problem);
+    setItemError(null);
+    setNewItemPhoto(file);
+    setNewItemPhotoPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearNewPhoto = () => {
+    setNewItemPhoto(null);
+    setNewItemPhotoPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
   };
 
   const openItemModal = () => {
     resetItemForm();
-    if (categories.length > 0 && !newItemCatId) setNewItemCatId(categories[0].id);
     setIsItemModalOpen(true);
   };
 
@@ -337,9 +387,18 @@ export const MenuManagementPage: React.FC = () => {
         })),
       };
       if (newItemSpice) payload.spice_level = newItemSpice; // optional: leave out when not applicable
-      await menuApi.createItem(payload);
+      const created = await menuApi.createItem(payload);
+      const dishName = newItemName.trim();
+      let photoNote = '';
+      if (newItemPhoto) {
+        try {
+          await menuApi.uploadImage(created.id, newItemPhoto);
+        } catch (photoErr: any) {
+          photoNote = ` Photo could not be uploaded (${friendlyMenuError(photoErr)}). Use "Add Photo" on the dish card to retry.`;
+        }
+      }
       setIsItemModalOpen(false);
-      setNotice(`"${newItemName.trim()}" added with ${rows.length} portion${rows.length > 1 ? 's' : ''}.`);
+      setNotice(`"${dishName}" added with ${rows.length} portion${rows.length > 1 ? 's' : ''}.${photoNote}`);
       fetchData();
     } catch (err: any) {
       setItemError(friendlyMenuError(err));
@@ -412,6 +471,79 @@ export const MenuManagementPage: React.FC = () => {
     } catch (err: any) {
       setNotice(null);
       setError(friendlyMenuError(err));
+    }
+  };
+
+  // ----- edit dish -----
+  const openEditItem = (item: MenuItem) => {
+    setEditItem(item);
+    setEName(item.name);
+    setECode(item.item_code);
+    setECat(item.category_id);
+    setEDiet((item.dietary_type || 'VEG') as DietaryType);
+    setESpice((item.spice_level || '') as SpiceLevel | '');
+    setEDesc(item.description || '');
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editItem) return;
+    if (!eName.trim()) return setEditError('Enter the dish name.');
+    if (!eCode.trim()) return setEditError('Enter a short code.');
+    if (!eCat) return setEditError('Pick a category.');
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      await menuApi.updateItem(editItem.id, {
+        name: eName.trim(),
+        item_code: eCode.trim().toUpperCase(),
+        category_id: eCat,
+        dietary_type: eDiet,
+        spice_level: eSpice || null,
+        description: eDesc.trim(),
+      });
+      setEditItem(null);
+      setNotice(`"${eName.trim()}" updated.`);
+      fetchData();
+    } catch (err: any) {
+      setEditError(friendlyMenuError(err));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleEditPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editItem) return;
+    const problem = photoProblem(file);
+    if (problem) return setEditError(problem);
+    setIsPhotoBusy(true);
+    setEditError(null);
+    try {
+      const updated = await menuApi.uploadImage(editItem.id, file);
+      setEditItem({ ...editItem, image_url: updated.image_url });
+      setItems((prev) => prev.map((i) => (i.id === editItem.id ? { ...i, image_url: updated.image_url } : i)));
+    } catch (err: any) {
+      setEditError(friendlyMenuError(err));
+    } finally {
+      setIsPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!editItem) return;
+    setIsPhotoBusy(true);
+    setEditError(null);
+    try {
+      await menuApi.deleteImage(editItem.id);
+      setEditItem({ ...editItem, image_url: null });
+      setItems((prev) => prev.map((i) => (i.id === editItem.id ? { ...i, image_url: null } : i)));
+    } catch (err: any) {
+      setEditError(friendlyMenuError(err));
+    } finally {
+      setIsPhotoBusy(false);
     }
   };
 
@@ -625,8 +757,35 @@ export const MenuManagementPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 mt-3">{item.name}</h3>
-                  {item.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.description}</p>}
+                  <div className="flex items-start gap-3 mt-3">
+                    {resolveMediaUrl(item.image_url) && (
+                      <img
+                        src={resolveMediaUrl(item.image_url)!}
+                        alt={item.name}
+                        className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                        <button
+                          onClick={() => openEditItem(item)}
+                          title="Edit dish (name, category, veg/non-veg, photo)"
+                          className="text-slate-400 hover:text-orange-600 cursor-pointer shrink-0 mt-0.5"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {categories.find((c) => c.id === item.category_id)?.name || 'No category'}
+                      </div>
+                    </div>
+                  </div>
+                  {item.description && <p className="text-xs text-slate-500 mt-2 line-clamp-2">{item.description}</p>}
                 </div>
 
                 {/* Portions */}
@@ -800,6 +959,7 @@ export const MenuManagementPage: React.FC = () => {
                   <p className="text-xs text-rose-600">No categories yet. Close this and click "New Category" first.</p>
                 ) : (
                   <select value={newItemCatId} onChange={(e) => setNewItemCatId(e.target.value)} className={fieldCls}>
+                    <option value="">Select category…</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -856,6 +1016,36 @@ export const MenuManagementPage: React.FC = () => {
                   rows={2}
                   className={fieldCls}
                 />
+              </div>
+
+              {/* Photo */}
+              <div>
+                <label className={labelCls}>
+                  Dish Photo <span className="normal-case font-normal text-slate-400">(optional)</span>
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                    {newItemPhotoPreview ? (
+                      <img src={newItemPhotoPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImagePlus className="w-7 h-7 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <label className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer">
+                        {newItemPhoto ? 'Change photo' : 'Choose photo'}
+                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onPickNewPhoto} className="hidden" />
+                      </label>
+                      {newItemPhoto && (
+                        <button type="button" onClick={clearNewPhoto} className="text-xs font-semibold text-rose-600 cursor-pointer">
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">JPG, PNG or WebP, up to 2 MB. Customers see this on the menu.</p>
+                  </div>
+                </div>
               </div>
 
               {/* Portions builder */}
@@ -989,6 +1179,150 @@ export const MenuManagementPage: React.FC = () => {
                   className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-xs cursor-pointer disabled:opacity-60"
                 >
                   {isSavingItem ? 'Saving...' : 'Save Dish'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit dish modal */}
+      {editItem && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">Edit dish</h3>
+              <button onClick={() => setEditItem(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>Dish Name</label>
+                  <input type="text" value={eName} onChange={(e) => setEName(e.target.value)} className={fieldCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Short Code</label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={eCode}
+                    onChange={(e) => setECode(e.target.value.toUpperCase())}
+                    className={`${fieldCls} font-mono`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Category</label>
+                <select value={eCat} onChange={(e) => setECat(e.target.value)} className={fieldCls}>
+                  <option value="">Select category…</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Veg / Non-Veg</label>
+                  <div className="flex gap-2">
+                    {DIET_OPTIONS.map((d) => (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => setEDiet(d.value)}
+                        className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                          eDiet === d.value ? d.cls : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    Spice Level <span className="normal-case font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <select value={eSpice} onChange={(e) => setESpice(e.target.value as SpiceLevel | '')} className={fieldCls}>
+                    {SPICE_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>
+                  Description <span className="normal-case font-normal text-slate-400">(optional)</span>
+                </label>
+                <textarea value={eDesc} onChange={(e) => setEDesc(e.target.value)} rows={2} className={fieldCls} />
+              </div>
+
+              <div>
+                <label className={labelCls}>Dish Photo</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                    {resolveMediaUrl(editItem.image_url) ? (
+                      <img src={resolveMediaUrl(editItem.image_url)!} alt={editItem.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <ImagePlus className="w-7 h-7 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <label className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer">
+                        {isPhotoBusy ? 'Working...' : editItem.image_url ? 'Replace photo' : 'Add photo'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleEditPhoto}
+                          disabled={isPhotoBusy}
+                          className="hidden"
+                        />
+                      </label>
+                      {editItem.image_url && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          disabled={isPhotoBusy}
+                          className="text-xs font-semibold text-rose-600 cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">Photo changes are saved immediately. JPG, PNG or WebP, up to 2 MB.</p>
+                  </div>
+                </div>
+              </div>
+
+              {editError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 whitespace-pre-line">
+                  {editError}
+                </div>
+              )}
+
+              <div className="pt-1 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditItem(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save changes'}
                 </button>
               </div>
             </form>

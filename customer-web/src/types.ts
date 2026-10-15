@@ -36,7 +36,9 @@ export interface MenuCategory {
 
 export interface CustomerMenuResponse {
   categories: MenuCategory[];
-  total_items: number;
+  total_items?: number;
+  /** Most-ordered in-stock dishes (best first, max 6). Empty until orders exist. */
+  popular_item_ids?: string[];
 }
 
 export interface CustomerSession {

@@ -284,6 +284,10 @@ class CustomerMenuResponse(BaseModel):
     cgst_percentage: Decimal = Decimal("2.50")
     sgst_percentage: Decimal = Decimal("2.50")
     categories: list[CustomerMenuCategory]
+    popular_item_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        description="Most-ordered available dishes (last 30 days), best first, max 6.",
+    )
 
 
 class CustomerCategorySummary(BaseModel):

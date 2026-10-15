@@ -86,3 +86,22 @@ export function apiConfigProblem(): string | null {
   if (envUrl) return null;
   return 'This site was deployed without its backend address (VITE_API_BASE_URL). Please tell the restaurant staff.';
 }
+
+/**
+ * Dish photos are stored by the backend as relative paths ("/static/menu/xyz.webp").
+ * The web app is hosted on a different domain than the API, so prefix the API origin.
+ */
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url || !url.trim()) return null;
+  const u = url.trim();
+  if (/^(https?:|data:|blob:)/i.test(u)) return u;
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (u.startsWith('/') && envUrl) {
+    try {
+      return new URL(envUrl).origin + u;
+    } catch {
+      return u;
+    }
+  }
+  return u;
+}

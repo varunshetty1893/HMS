@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import type { MenuItem, MenuPriceVariant } from '../types';
+import React, { useMemo, useState } from 'react';
+import type { CartItem, MenuItem, MenuPriceVariant } from '../types';
 import { formatInr } from '../utils/currency';
 import { useCart } from '../context/CartContext';
-import { Plus, Minus, Check } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
+import { resolveMediaUrl } from '../utils/env';
 
 interface VariantSelectorSheetProps {
   item: MenuItem | null;
@@ -28,35 +29,84 @@ const DietaryBadge: React.FC<{ type: string | null }> = ({ type }) => {
   );
 };
 
+const UNIT_SHORT: Record<string, string> = {
+  PIECE: 'pcs',
+  ML: 'ml',
+  L: 'L',
+  GRAM: 'g',
+  KG: 'kg',
+};
+
+/** "6 pcs" / "250 ml"; nothing for plain portions (Half / Full already say it). */
+function portionDetail(v: MenuPriceVariant): string {
+  const short = UNIT_SHORT[String(v.unit).toUpperCase()];
+  const qty = parseFloat(String(v.quantity_value));
+  if (!short || isNaN(qty)) return '';
+  if (v.variant_name.toLowerCase().includes(String(qty))) return '';
+  return `${qty} ${short}`;
+}
+
+const MAX_PER_PORTION = 20;
+
 export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item, onClose }) => {
-  const { addItem } = useCart();
-
   if (!item) return null;
+  // key = remount with fresh state whenever a different dish is opened
+  return <SheetBody key={item.id} item={item} onClose={onClose} />;
+};
 
-  const availableVariants = item.variants.filter((v) => v.is_available);
+const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, onClose }) => {
+  const { items: cartItems, setItemLines } = useCart();
+
+  const availableVariants = useMemo(() => item.variants.filter((v) => v.is_available), [item]);
   const defaultVariant =
     availableVariants.find((v) => v.is_default) || availableVariants[0] || item.variants[0];
 
-  const [selectedVariant, setSelectedVariant] = useState<MenuPriceVariant>(defaultVariant);
-  const [quantity, setQuantity] = useState<number>(1);
-  const [itemNotes, setItemNotes] = useState<string>('');
+  const existingLines = cartItems.filter((c) => c.menuItemId === item.id);
+  const isEditing = existingLines.length > 0;
 
-  const variantPrice = parseFloat(String(selectedVariant?.price ?? '0')) || 0;
-  const totalPrice = variantPrice * quantity;
+  // Quantity per portion. Opens with what is already in the cart, else 1 of the default portion.
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    const q: Record<string, number> = {};
+    if (existingLines.length > 0) {
+      existingLines.forEach((l) => {
+        q[l.variantId] = (q[l.variantId] || 0) + l.quantity;
+      });
+    } else if (defaultVariant) {
+      q[defaultVariant.id] = 1;
+    }
+    return q;
+  });
+  const [itemNotes, setItemNotes] = useState<string>(existingLines[0]?.itemNotes ?? '');
 
-  const handleAddToCart = () => {
-    if (!selectedVariant) return;
-    addItem({
-      variantId: selectedVariant.id,
+  const setQty = (variantId: string, next: number) =>
+    setQuantities((prev) => ({
+      ...prev,
+      [variantId]: Math.max(0, Math.min(MAX_PER_PORTION, next)),
+    }));
+
+  const selected = availableVariants
+    .map((v) => ({ variant: v, qty: quantities[v.id] || 0 }))
+    .filter((r) => r.qty > 0);
+  const totalQty = selected.reduce((n, r) => n + r.qty, 0);
+  const totalPrice = selected.reduce((sum, r) => sum + (parseFloat(String(r.variant.price)) || 0) * r.qty, 0);
+  const summary = selected.map((r) => `${r.qty} × ${r.variant.variant_name}`).join(' + ');
+
+  const handleConfirm = () => {
+    const notes = itemNotes.trim() ? itemNotes.trim() : undefined;
+    const lines: CartItem[] = selected.map((r) => ({
+      variantId: r.variant.id,
       menuItemId: item.id,
       itemName: item.name,
-      variantName: selectedVariant.variant_name,
-      price: variantPrice,
-      quantity,
-      itemNotes: itemNotes.trim() ? itemNotes.trim() : undefined,
-    });
+      variantName: r.variant.variant_name,
+      price: parseFloat(String(r.variant.price)) || 0,
+      quantity: r.qty,
+      itemNotes: notes,
+    }));
+    setItemLines(item.id, lines);
     onClose();
   };
+
+  const imageUrl = resolveMediaUrl(item.image_url);
 
   return (
     <div
@@ -68,7 +118,6 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item
         className="w-full max-w-md bg-[var(--bg-card)] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[var(--border)] flex flex-col animate-slide-up sm:animate-scale-in max-h-[85dvh] sm:max-h-[85vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle (mobile only) */}
         <div className="flex justify-center pt-3 sm:hidden">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
@@ -91,111 +140,107 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item
               </p>
             )}
           </div>
-          {/* Dish image thumbnail */}
-          <div
-            className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-2xl"
-            style={{ background: 'var(--bg-subtle)' }}
-          >
-            {item.image_url ? (
-              <img src={item.image_url} alt={item.name} className="w-full h-full object-cover"
-                onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextElementSibling!.removeAttribute('hidden'); }}
-              />
-            ) : null}
-            <span hidden={!!item.image_url}>
-              {item.dietary_type === 'VEG' ? '🥗' : item.dietary_type === 'NON_VEG' ? '🍗' : '🍳'}
-            </span>
-          </div>
+          <DishThumb url={imageUrl} name={item.name} dietary={item.dietary_type} />
         </div>
 
-        {/* Scrollable content */}
+        {/* Portions, each with its own quantity */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-          {/* Variant selection */}
           {availableVariants.length > 0 && (
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-2.5"
-                style={{ color: 'var(--text-muted)' }}>
-                Choose Portion
+              <label
+                className="block text-xs font-semibold uppercase tracking-wide mb-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {availableVariants.length > 1 ? 'Choose portions & quantity' : 'Quantity'}
               </label>
+              {availableVariants.length > 1 && (
+                <p className="text-[11px] mb-2.5" style={{ color: 'var(--text-muted)' }}>
+                  You can mix portions, e.g. 1 Full + 2 Half.
+                </p>
+              )}
               <div className="space-y-2">
                 {availableVariants.map((variant) => {
-                  const isSelected = selectedVariant?.id === variant.id;
+                  const qty = quantities[variant.id] || 0;
+                  const detail = portionDetail(variant);
+                  const active = qty > 0;
                   return (
-                    <button
+                    <div
                       key={variant.id}
-                      type="button"
-                      onClick={() => setSelectedVariant(variant)}
-                      className="w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all"
+                      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all"
                       style={
-                        isSelected
+                        active
                           ? { background: 'var(--primary-bg)', border: '1.5px solid var(--primary)' }
                           : { background: 'var(--bg-subtle)', border: '1px solid var(--border)' }
                       }
                     >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                          style={
-                            isSelected
-                              ? { borderColor: 'var(--primary)', background: 'var(--primary)' }
-                              : { borderColor: 'var(--border)', background: 'transparent' }
-                          }
-                        >
-                          {isSelected && <Check size={9} strokeWidth={3} color="#fff" />}
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
+                          {variant.variant_name}
+                          {detail && (
+                            <span className="text-xs font-normal ml-1.5" style={{ color: 'var(--text-muted)' }}>
+                              ({detail})
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            {variant.variant_name}
-                          </span>
-                          <span className="text-xs ml-1.5" style={{ color: 'var(--text-muted)' }}>
-                            ({variant.quantity_value} {variant.unit})
-                          </span>
+                        <div
+                          className="text-sm font-bold font-mono mt-0.5"
+                          style={{ color: active ? 'var(--primary)' : 'var(--text-secondary)' }}
+                        >
+                          {formatInr(variant.price)}
                         </div>
                       </div>
-                      <span className="font-bold text-sm" style={{ color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
-                        {formatInr(variant.price)}
-                      </span>
-                    </button>
+
+                      {active ? (
+                        <div
+                          className="flex items-center gap-1 p-1 rounded-xl shrink-0"
+                          style={{ border: '1.5px solid var(--primary)', background: 'var(--white)' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setQty(variant.id, qty - 1)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
+                            style={{ color: 'var(--primary)' }}
+                            aria-label={`Decrease ${variant.variant_name}`}
+                          >
+                            <Minus size={14} strokeWidth={2.5} />
+                          </button>
+                          <span className="w-6 text-center font-bold text-sm font-mono" style={{ color: 'var(--primary)' }}>
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setQty(variant.id, qty + 1)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
+                            style={{ background: 'var(--primary)', color: '#fff' }}
+                            aria-label={`Increase ${variant.variant_name}`}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setQty(variant.id, 1)}
+                          className="px-4 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1 cursor-pointer shrink-0"
+                          style={{ background: 'var(--white)', color: 'var(--primary)', border: '1.5px solid var(--primary)' }}
+                        >
+                          <Plus size={13} strokeWidth={3} />
+                          <span>Add</span>
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             </div>
           )}
 
-          {/* Quantity */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-              Quantity
-            </span>
-            <div
-              className="flex items-center gap-1 p-1 rounded-xl"
-              style={{ border: '1.5px solid var(--border)', background: 'var(--bg-subtle)' }}
-            >
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: 'var(--white)', color: 'var(--text-primary)' }}
-              >
-                <Minus size={14} />
-              </button>
-              <span className="w-7 text-center font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                {quantity}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.min(20, q + 1))}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: 'var(--primary)', color: '#fff' }}
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          </div>
-
           {/* Item notes */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
-              style={{ color: 'var(--text-muted)' }}>
+            <label
+              className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+              style={{ color: 'var(--text-muted)' }}
+            >
               Special Instructions <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
             </label>
             <input
@@ -205,29 +250,58 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item
               placeholder="Less spicy, no onions, extra crispy…"
               maxLength={100}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition"
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-              }}
-              onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-              onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
             />
           </div>
         </div>
 
         {/* Footer CTA */}
         <div className="px-5 pb-6 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            className="btn-primary w-full"
-          >
-            <span>Add to Cart</span>
-            <span className="ml-auto font-bold">{formatInr(totalPrice)}</span>
-          </button>
+          {summary && (
+            <p className="text-[11px] mb-2 text-center" style={{ color: 'var(--text-muted)' }}>
+              {summary}
+            </p>
+          )}
+          {totalQty === 0 && isEditing ? (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="w-full px-4 py-3 rounded-2xl font-bold text-sm cursor-pointer"
+              style={{ background: '#FEF2F2', color: '#B91C1C', border: '1.5px solid #B91C1C' }}
+            >
+              Remove from cart
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={totalQty === 0}
+              className="btn-primary w-full disabled:opacity-50"
+            >
+              <span>{totalQty === 0 ? 'Select a portion' : isEditing ? 'Update cart' : 'Add to Cart'}</span>
+              {totalQty > 0 && <span className="ml-auto font-bold">{formatInr(totalPrice)}</span>}
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  );
+};
+
+const DishThumb: React.FC<{ url: string | null; name: string; dietary: string | null }> = ({ url, name, dietary }) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div
+      className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-2xl"
+      style={{ background: 'var(--bg-subtle)' }}
+    >
+      {url && !failed ? (
+        <img src={url} alt={name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <span>{dietary === 'VEG' ? '🥗' : dietary === 'EGG' ? '🍳' : '🍛'}</span>
+      )}
     </div>
   );
 };

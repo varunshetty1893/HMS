@@ -5,6 +5,7 @@ import { ConfirmModal } from '@/components/common/ConfirmModal';
 import { PrintableQrCardModal } from '@/components/qr/PrintableQrCardModal';
 import {
   Layers,
+  Pencil,
   Plus,
   Power,
   Printer,
@@ -35,6 +36,14 @@ export const TablesAndQrPage: React.FC = () => {
 
   // Regenerate Confirmation Modal
   const [tableToRegenerate, setTableToRegenerate] = useState<RestaurantTable | null>(null);
+
+  // Edit Table Modal
+  const [tableToEdit, setTableToEdit] = useState<RestaurantTable | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editSeats, setEditSeats] = useState<number>(4);
+  const [editFloor, setEditFloor] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Delete Confirmation Modal
   const [tableToDelete, setTableToDelete] = useState<RestaurantTable | null>(null);
@@ -94,6 +103,36 @@ export const TablesAndQrPage: React.FC = () => {
       fetchTables();
     } catch (err: any) {
       alert(err?.message || 'Failed to regenerate QR token');
+    }
+  };
+
+  const openEditTable = (table: RestaurantTable) => {
+    setTableToEdit(table);
+    setEditDisplayName(table.display_name);
+    setEditSeats(table.seating_capacity || 4);
+    setEditFloor(table.floor_or_zone || '');
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tableToEdit) return;
+    if (!editDisplayName.trim()) return setEditError('Enter a table name.');
+    if (!(Number(editSeats) > 0)) return setEditError('Seats must be at least 1.');
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      await tablesQrApi.updateTable(tableToEdit.id, {
+        display_name: editDisplayName.trim(),
+        seating_capacity: Number(editSeats),
+        floor_or_zone: editFloor.trim() || null,
+      });
+      setTableToEdit(null);
+      fetchTables();
+    } catch (err: any) {
+      setEditError(err?.message || 'Failed to save changes');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -211,11 +250,11 @@ export const TablesAndQrPage: React.FC = () => {
                   <span>Print QR</span>
                 </button>
                 <button
-                  onClick={() => setTableToRegenerate(table)}
-                  title="Rotate QR Token"
-                  className="p-2 rounded-xl text-xs font-semibold text-amber-600 hover:bg-amber-50 border border-amber-200 transition cursor-pointer"
+                  onClick={() => openEditTable(table)}
+                  title="Edit table"
+                  className="p-2 rounded-xl text-xs font-semibold text-sky-600 hover:bg-sky-50 border border-sky-200 transition cursor-pointer"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <Pencil className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleToggleActive(table)}
@@ -338,6 +377,117 @@ export const TablesAndQrPage: React.FC = () => {
                   className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md cursor-pointer"
                 >
                   Create & Generate QR v1
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Table Modal (includes QR rotation) */}
+      {tableToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl" style={card}>
+            <div className="flex items-center justify-between pb-4 border-b" style={{ borderBottomColor: border }}>
+              <h3 className="text-lg font-bold" style={{ color: heading }}>
+                Edit {tableToEdit.display_name}
+              </h3>
+              <button onClick={() => setTableToEdit(null)} style={{ color: muted }} className="cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Table Number</label>
+                  <div
+                    className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono opacity-70"
+                    style={{ backgroundColor: L ? '#f1ece3' : '#1e293b', border: `1.5px solid ${border}`, color: heading }}
+                    title="Table number cannot be changed"
+                  >
+                    {tableToEdit.table_number}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Seating Capacity</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={editSeats}
+                    onChange={(e) => setEditSeats(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono focus:outline-none"
+                    style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Display Label</label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                  style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Floor / Section</label>
+                <input
+                  type="text"
+                  value={editFloor}
+                  onChange={(e) => setEditFloor(e.target.value)}
+                  placeholder="Ground Floor, Rooftop, Terrace..."
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                  style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+                />
+              </div>
+
+              {/* QR security (rarely needed) */}
+              <div className="p-4 rounded-2xl space-y-2" style={cardInner}>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase" style={{ color: sub }}>
+                  <QrCode className="w-4 h-4 text-amber-600" />
+                  <span>QR security</span>
+                </div>
+                <p className="text-xs" style={{ color: muted }}>
+                  Only if the QR was leaked, photographed or lost: this creates a new QR and the old printed one stops working
+                  immediately. You will need to print and place the new QR.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = tableToEdit;
+                    setTableToEdit(null);
+                    setTableToRegenerate(t);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-700 hover:bg-amber-50 border border-amber-300 transition cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Regenerate QR token…</span>
+                </button>
+              </div>
+
+              {editError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">{editError}</div>
+              )}
+
+              <div className="pt-1 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTableToEdit(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer"
+                  style={{ color: sub }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md cursor-pointer disabled:opacity-60"
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save changes'}
                 </button>
               </div>
             </form>

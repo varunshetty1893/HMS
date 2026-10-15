@@ -14,16 +14,19 @@ Enforces:
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ResourceNotFoundError, StateConflictError
 from app.core.logging import get_logger
+from app.core.time_utils import utc_now
 from app.models.menu import MenuCategory, MenuItem, MenuPriceVariant
+from app.models.orders import Order, OrderItem
 from app.models.restaurant import RestaurantSettings
 from app.realtime.manager import ws_manager
 from app.schemas.menu import (
@@ -378,8 +381,9 @@ class MenuService:
             item.description = data.description.strip() if data.description else None
         if data.dietary_type is not None:
             item.dietary_type = data.dietary_type.value
-        if data.spice_level is not None:
-            item.spice_level = data.spice_level.value
+        if "spice_level" in data.model_fields_set:
+            # explicit null clears the spice level (dish has no spice rating)
+            item.spice_level = data.spice_level.value if data.spice_level else None
         if data.tax_rate_override is not None:
             item.tax_rate_override = data.tax_rate_override
         if data.is_available is not None:
@@ -891,13 +895,59 @@ class MenuService:
                 )
             )
 
+        popular_ids = await cls._popular_item_ids(
+            session,
+            {it.id for cat_items in items_by_cat.values() for it in cat_items if it.is_available},
+        )
+
         return CustomerMenuResponse(
             currency_symbol=currency_sym,
             prices_include_tax=prices_inc_tax,
             cgst_percentage=cgst,
             sgst_percentage=sgst,
             categories=cat_responses,
+            popular_item_ids=popular_ids,
         )
+
+    @classmethod
+    async def _popular_item_ids(
+        cls,
+        session: AsyncSession,
+        orderable_ids: set[uuid.UUID],
+        *,
+        limit: int = 6,
+        days: int = 30,
+    ) -> list[uuid.UUID]:
+        """Dishes with the highest billed quantity in the last `days` days (best first).
+
+        Rejected/cancelled orders and cancelled quantities are ignored. Only dishes that are
+        currently on the menu and in stock are returned.
+        """
+        if not orderable_ids:
+            return []
+        since = utc_now() - timedelta(days=days)
+        total_qty = func.sum(OrderItem.active_quantity).label("total_qty")
+        stmt = (
+            select(OrderItem.menu_item_id.label("menu_item_id"), total_qty)
+            .join(Order, Order.id == OrderItem.order_id)
+            .where(
+                Order.status.notin_(["REJECTED", "CANCELLED"]),
+                Order.placed_at >= since,
+                OrderItem.active_quantity > 0,
+            )
+            .group_by(OrderItem.menu_item_id)
+            .order_by(desc(total_qty))
+            .limit(limit * 3)
+        )
+        rows = (await session.execute(stmt)).all()
+        result: list[uuid.UUID] = []
+        for row in rows:
+            item_id = getattr(row, "menu_item_id", None)
+            if item_id in orderable_ids and item_id not in result:
+                result.append(item_id)
+            if len(result) >= limit:
+                break
+        return result
 
     @classmethod
     async def get_customer_categories(

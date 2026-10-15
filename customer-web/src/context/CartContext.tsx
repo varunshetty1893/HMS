@@ -6,6 +6,8 @@ interface CartContextType {
   addItem: (item: CartItem) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeItem: (variantId: string) => void;
+  /** Replace every cart line of one dish (all its portions) in one go. */
+  setItemLines: (menuItemId: string, lines: CartItem[]) => void;
   clearCart: () => void;
   totalItemsCount: number;
   totalEstimatedAmount: number;
@@ -63,6 +65,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems((prev) => prev.filter((it) => it.variantId !== variantId));
   }, []);
 
+  const setItemLines = useCallback((menuItemId: string, lines: CartItem[]) => {
+    setItems((prev) => {
+      const firstIdx = prev.findIndex((it) => it.menuItemId === menuItemId);
+      const rest = prev.filter((it) => it.menuItemId !== menuItemId);
+      const cleaned = lines.filter((l) => l.quantity > 0);
+      if (firstIdx < 0) return [...rest, ...cleaned];
+      // keep the dish at its original position in the cart
+      const insertAt = Math.min(firstIdx, rest.length);
+      return [...rest.slice(0, insertAt), ...cleaned, ...rest.slice(insertAt)];
+    });
+  }, []);
+
   const clearCart = useCallback(() => {
     setItems([]);
     sessionStorage.removeItem(CART_STORAGE_KEY);
@@ -83,6 +97,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addItem,
         updateQuantity,
         removeItem,
+        setItemLines,
         clearCart,
         totalItemsCount,
         totalEstimatedAmount,

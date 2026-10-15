@@ -3,41 +3,18 @@ import type { MenuItem } from '../types';
 import { formatInr } from '../utils/currency';
 import { Plus, Minus, Flame, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { resolveMediaUrl } from '../utils/env';
 
 interface MenuItemCardProps {
   item: MenuItem;
   onSelect: (item: MenuItem) => void;
+  /** True when this dish is among the most ordered (drives the Bestseller badge). */
+  isPopular?: boolean;
 }
 
-// Fallback high-resolution culinary photography
-const CULINARY_FALLBACKS: Record<string, string> = {
-  biryani: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
-  tikka: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=600&q=80',
-  kebab: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80',
-  chicken: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=600&q=80',
-  paneer: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80',
-  dal: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
-  naan: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
-  roti: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
-  lassi: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
-  lime: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80',
-  soda: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80',
-  jamun: 'https://images.unsplash.com/photo-1605197154247-a870d02ea29b?auto=format&fit=crop&w=600&q=80',
-  veg: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
-  nonveg: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
-};
-
-function getDishImage(item: MenuItem): string {
-  if (item.image_url && item.image_url.trim().length > 0) {
-    return item.image_url;
-  }
-  const lower = item.name.toLowerCase();
-  for (const [kw, url] of Object.entries(CULINARY_FALLBACKS)) {
-    if (lower.includes(kw)) return url;
-  }
-  return item.dietary_type === 'NON_VEG'
-    ? CULINARY_FALLBACKS.nonveg
-    : CULINARY_FALLBACKS.veg;
+// Real photo uploaded by the restaurant, or null (a neutral placeholder is drawn instead).
+function getDishImage(item: MenuItem): string | null {
+  return resolveMediaUrl(item.image_url);
 }
 
 const DietaryBadge: React.FC<{ type: string | null }> = ({ type }) => {
@@ -78,7 +55,7 @@ const SpiceBadge: React.FC<{ level: string | null }> = ({ level }) => {
   );
 };
 
-export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect }) => {
+export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPopular = false }) => {
   const { items: cartItems, updateQuantity } = useCart();
 
   const availableVariants = item.variants.filter((v) => v.is_available);
@@ -122,7 +99,9 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect }) =>
   };
 
   const imageUrl = getDishImage(item);
-  const isSpecial = item.name.toLowerCase().includes('biryani') || item.name.toLowerCase().includes('butter chicken') || item.name.toLowerCase().includes('tikka');
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const showImage = !!imageUrl && !imageFailed;
+  const isSpecial = isPopular;
 
   return (
     <div
@@ -236,15 +215,23 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect }) =>
             border: '1px solid var(--border)',
           }}
         >
-          <img
-            src={imageUrl}
-            alt={item.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-            onError={(e) => {
-              e.currentTarget.src = CULINARY_FALLBACKS.veg;
-            }}
-          />
+          {showImage ? (
+            <img
+              src={imageUrl!}
+              alt={item.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-4xl"
+              style={{ background: 'var(--bg-subtle)' }}
+              aria-hidden
+            >
+              {item.dietary_type === 'VEG' ? '🥗' : item.dietary_type === 'EGG' ? '🍳' : '🍛'}
+            </div>
+          )}
         </div>
 
         {/* Action Button positioned beneath/overlapping photo */}

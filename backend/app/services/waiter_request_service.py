@@ -135,7 +135,7 @@ async def create_waiter_request(
     if not table_session:
         from app.services.order_service import OrderService
 
-        table_session, _ = await OrderService._get_or_create_active_table_session(
+        table_session, _ = await OrderService._get_or_create_table_session(
             db,
             table_id=customer_session.table_id,
             customer_session=customer_session,

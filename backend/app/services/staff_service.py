@@ -113,6 +113,18 @@ class StaffService:
         """Update staff parameters, role, or deactivate immediately."""
         user = await cls.get_user(db, user_id)
 
+        # Safety: an admin must not be able to lock themselves out of the system.
+        if user.id == admin_user.id:
+            wants_disable = payload.is_active is False or (
+                payload.status is not None and payload.status != UserStatus.ACTIVE
+            )
+            wants_role_change = payload.role is not None and payload.role.value != user.role
+            if wants_disable or wants_role_change:
+                raise StateConflictError(
+                    "CANNOT_MODIFY_SELF",
+                    "You cannot disable your own account or change your own role.",
+                )
+
         old_state = {
             "full_name": user.full_name,
             "role": user.role,
@@ -130,6 +142,9 @@ class StaffService:
             user.is_active = payload.is_active
             if not payload.is_active:
                 user.status = UserStatus.DISABLED.value
+            elif payload.status is None and user.status == UserStatus.DISABLED.value:
+                # Reactivation must also lift the DISABLED status, otherwise login stays blocked.
+                user.status = UserStatus.ACTIVE.value
 
         # If deactivated or locked, revoke tokens and disconnect WebSockets
         if not user.is_active or user.status == UserStatus.DISABLED.value:

@@ -4,6 +4,8 @@ import { formatDateTimeIst } from '@/utils/dateIst';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ConfirmModal } from '@/components/common/ConfirmModal';
 import {
+  Eye,
+  EyeOff,
   KeyRound,
   Plus,
   Unlock,
@@ -13,9 +15,13 @@ import {
 } from 'lucide-react';
 import { User, UserRole } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
+import { useAuth } from '@/context/AuthContext';
 
 export const StaffManagementPage: React.FC = () => {
   const { L, heading, sub, muted, border, tableWrap, thead, tbodyRow, tbodyRowHover, tabInactive, card } = usePageTheme();
+  const { user: currentUser } = useAuth();
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [staffList, setStaffList] = useState<User[]>([]);
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
@@ -67,6 +73,7 @@ export const StaffManagementPage: React.FC = () => {
         role: newRole,
       });
       setIsCreateOpen(false);
+      setShowNewPassword(false);
       setNewUsername('');
       setNewFullName('');
       setNewPassword('');
@@ -85,6 +92,7 @@ export const StaffManagementPage: React.FC = () => {
       alert(`Password updated for @${resetTargetUser.username}. Existing sessions have been terminated.`);
       setResetTargetUser(null);
       setNewResetPassword('');
+      setShowResetPassword(false);
       fetchStaff();
     } catch (err: any) {
       alert(err?.message || 'Failed to reset password');
@@ -215,9 +223,9 @@ export const StaffManagementPage: React.FC = () => {
                     <span
                       className="text-xs font-mono font-bold px-2.5 py-1 rounded-full"
                       style={{
-                        backgroundColor: L ? '#f5f0e8' : '#1e293b',
-                        color: heading,
-                        border: `1px solid ${border}`,
+                        backgroundColor: user.role === 'ADMIN' ? '#ede9fe' : user.role === 'KITCHEN' ? '#ffedd5' : '#dbeafe',
+                        color: user.role === 'ADMIN' ? '#5b21b6' : user.role === 'KITCHEN' ? '#9a3412' : '#1e40af',
+                        border: '1px solid transparent',
                       }}
                     >
                       {user.role}
@@ -241,7 +249,9 @@ export const StaffManagementPage: React.FC = () => {
                         <button
                           onClick={() => handleUnlockUser(user)}
                           title="Unlock account"
-                          className="p-2 rounded-xl text-xs font-semibold text-amber-400 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 transition cursor-pointer"
+                          aria-label={`Unlock @${user.username}`}
+                          className="p-2 rounded-xl border transition cursor-pointer hover:brightness-95"
+                          style={{ color: '#92400e', backgroundColor: '#fef3c7', borderColor: '#fcd34d' }}
                         >
                           <Unlock className="w-4 h-4" />
                         </button>
@@ -249,22 +259,37 @@ export const StaffManagementPage: React.FC = () => {
 
                       {/* Reset password button */}
                       <button
-                        onClick={() => setResetTargetUser(user)}
-                        title="Reset Password"
-                        className="p-2 rounded-xl text-xs font-semibold text-brand-400 bg-brand-950/40 hover:bg-brand-900/50 border border-brand-800/50 transition cursor-pointer"
+                        onClick={() => {
+                          setShowResetPassword(false);
+                          setNewResetPassword('');
+                          setResetTargetUser(user);
+                        }}
+                        title="Reset password"
+                        aria-label={`Reset password for @${user.username}`}
+                        className="p-2 rounded-xl border transition cursor-pointer hover:brightness-95"
+                        style={{ color: '#9a3412', backgroundColor: '#ffedd5', borderColor: '#fdba74' }}
                       >
                         <KeyRound className="w-4 h-4" />
                       </button>
 
-                      {/* Deactivate / Activate button */}
+                      {/* Deactivate / Activate button (an admin cannot disable their own account) */}
                       <button
                         onClick={() => setUserToDeactivate(user)}
-                        title={user.is_active ? 'Disable Account' : 'Reactivate Account'}
-                        className={`p-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                        disabled={user.id === currentUser?.id}
+                        title={
+                          user.id === currentUser?.id
+                            ? 'You cannot disable your own account'
+                            : user.is_active
+                              ? 'Disable account'
+                              : 'Reactivate account'
+                        }
+                        aria-label={user.is_active ? `Disable @${user.username}` : `Reactivate @${user.username}`}
+                        className="p-2 rounded-xl border transition cursor-pointer hover:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={
                           user.is_active
-                            ? 'text-rose-400 bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/50'
-                            : 'text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-800/50'
-                        }`}
+                            ? { color: '#9f1239', backgroundColor: '#ffe4e6', borderColor: '#fda4af' }
+                            : { color: '#166534', backgroundColor: '#dcfce7', borderColor: '#86efac' }
+                        }
                       >
                         {user.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                       </button>
@@ -342,20 +367,33 @@ export const StaffManagementPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Initial Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                  minLength={6}
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
-                  style={{
-                    backgroundColor: L ? '#faf7f2' : '#0f172a',
-                    border: `1.5px solid ${border}`,
-                    color: heading,
-                  }}
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    className="w-full pl-3.5 pr-11 py-2.5 rounded-xl text-sm focus:outline-none"
+                    style={{
+                      backgroundColor: L ? '#faf7f2' : '#0f172a',
+                      border: `1.5px solid ${border}`,
+                      color: heading,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100"
+                    style={{ color: sub }}
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end gap-3">
@@ -388,20 +426,33 @@ export const StaffManagementPage: React.FC = () => {
             <form onSubmit={handleResetPassword} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>New Password</label>
-                <input
-                  type="password"
-                  value={newResetPassword}
-                  onChange={(e) => setNewResetPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                  minLength={6}
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
-                  style={{
-                    backgroundColor: '#ffffff',
-                    border: `1px solid ${border}`,
-                    color: heading,
-                  }}
-                />
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={newResetPassword}
+                    onChange={(e) => setNewResetPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    className="w-full pl-3.5 pr-11 py-2.5 rounded-xl text-sm focus:outline-none"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: `1px solid ${border}`,
+                      color: heading,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword((v) => !v)}
+                    aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                    title={showResetPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100"
+                    style={{ color: sub }}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3">
                 <button

@@ -122,12 +122,41 @@ export interface QrResolutionResponse {
   expires_at: string;
 }
 
+// Shape actually returned by the backend (`QrResolutionResponse` in backend/app/schemas/qr.py).
+// Older/demo shapes used `session_token`, `session_id` and `expires_at`; accept both.
+interface RawQrResolution {
+  customer_session_token?: string;
+  session_token?: string;
+  table_id: string;
+  table_number: number;
+  table_display_name: string;
+  active_session_id?: string | null;
+  session_id?: string | null;
+  session_expires_at?: string;
+  expires_at?: string;
+}
+
 export async function resolveQrToken(qrToken: string): Promise<QrResolutionResponse> {
   try {
-    return await request<QrResolutionResponse>('/public/qr/resolve', {
+    const raw = await request<RawQrResolution>('/public/qr/resolve', {
       method: 'POST',
       body: JSON.stringify({ qr_token: qrToken }),
     });
+    const sessionToken = raw.customer_session_token ?? raw.session_token;
+    if (!sessionToken) {
+      throw new HmsApiError(
+        'QR_RESPONSE_INVALID',
+        'The restaurant server sent an unexpected reply. Please try again.',
+      );
+    }
+    return {
+      session_token: sessionToken,
+      table_number: raw.table_number,
+      table_display_name: raw.table_display_name,
+      table_id: raw.table_id,
+      session_id: raw.active_session_id ?? raw.session_id ?? '',
+      expires_at: raw.session_expires_at ?? raw.expires_at ?? '',
+    };
   } catch (err) {
     if (!isDevDemoEnabled()) {
       if (err instanceof HmsApiError) throw err;

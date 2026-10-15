@@ -263,6 +263,7 @@ export interface RestaurantSettings {
   apply_outstanding_limit_to_waiter_orders: boolean;
   allow_waiter_discount: boolean;
   waiter_max_discount_percentage: string;
+  waiter_max_price_override_percentage: string;
   created_at: string;
   updated_at: string;
 }

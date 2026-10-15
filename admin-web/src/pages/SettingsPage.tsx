@@ -29,6 +29,7 @@ export const SettingsPage: React.FC = () => {
   const [serviceCharge, setServiceCharge] = useState('0.00');
   const [pricesIncludeTax, setPricesIncludeTax] = useState(false);
   const [outstandingLimit, setOutstandingLimit] = useState('5000.00');
+  const [waiterPriceOverrideLimit, setWaiterPriceOverrideLimit] = useState('0.00');
 
   // Policy switches
   const [allowMultiDevice, setAllowMultiDevice] = useState(true);
@@ -47,6 +48,7 @@ export const SettingsPage: React.FC = () => {
       setServiceCharge(data.service_charge_percentage);
       setPricesIncludeTax(data.prices_include_tax);
       setOutstandingLimit(data.default_session_outstanding_limit);
+      setWaiterPriceOverrideLimit(data.waiter_max_price_override_percentage);
       setAllowMultiDevice(data.allow_multi_device_per_table);
       setAllowCustomerCancel(data.allow_customer_cancel_placed);
       setAllowKitchenToggle(data.kitchen_can_toggle_availability);
@@ -85,6 +87,7 @@ export const SettingsPage: React.FC = () => {
       service_charge_percentage: serviceCharge,
       prices_include_tax: pricesIncludeTax,
       default_session_outstanding_limit: outstandingLimit,
+      waiter_max_price_override_percentage: waiterPriceOverrideLimit,
       allow_multi_device_per_table: allowMultiDevice,
       allow_customer_cancel_placed: allowCustomerCancel,
       kitchen_can_toggle_availability: allowKitchenToggle,
@@ -292,6 +295,20 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
+            <div className="p-3.5 rounded-2xl" style={cardInner}>
+              <label className="block text-sm font-semibold mb-1" style={{ color: heading }}>Waiter bill-time price adjustment limit (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={waiterPriceOverrideLimit}
+                onChange={(e) => setWaiterPriceOverrideLimit(e.target.value)}
+                className="w-40 px-3 py-2 rounded-xl text-sm font-mono focus:outline-none"
+                style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+              />
+              <span className="text-xs ml-3" style={{ color: sub }}>Waiters may move each billed line up or down by this percentage; Admin has no cap. Every adjustment needs a reason.</span>
+            </div>
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>
                 <span className="text-sm font-semibold block" style={{ color: heading }}>Multi-Device Ordering (OD-01)</span>

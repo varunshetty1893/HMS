@@ -41,6 +41,7 @@ class SettingsService:
                 limit_includes_estimated_tax=False,
                 apply_outstanding_limit_to_waiter_orders=False,
                 waiter_max_discount_percentage=Decimal("0.00"),
+                waiter_max_price_override_percentage=Decimal("0.00"),
             )
             db.add(settings)
             await db.flush()

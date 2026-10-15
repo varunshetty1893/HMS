@@ -50,6 +50,11 @@ class RestaurantSettings(Base):
             "waiter_max_discount_percentage >= 0 AND waiter_max_discount_percentage <= 100",
             name="waiter_max_discount_range",
         ),
+        CheckConstraint(
+            "waiter_max_price_override_percentage >= 0 "
+            "AND waiter_max_price_override_percentage <= 100",
+            name="waiter_max_price_override_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -101,6 +106,11 @@ class RestaurantSettings(Base):
         **_bool_default(True)
     )
     waiter_max_discount_percentage: Mapped[Decimal] = mapped_column(  # OD-08
+        percentage(), nullable=False, default=Decimal("0.00"), server_default=text("0.00")
+    )
+    # Maximum absolute per-line price movement a waiter may make at bill generation.
+    # Administrators are intentionally not capped by this operational setting.
+    waiter_max_price_override_percentage: Mapped[Decimal] = mapped_column(
         percentage(), nullable=False, default=Decimal("0.00"), server_default=text("0.00")
     )
 

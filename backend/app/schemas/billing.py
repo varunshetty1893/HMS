@@ -101,6 +101,14 @@ class TableBillResponse(ResponseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class BillLinePriceOverride(StrictRequestModel):
+    """One deliberate bill-time override of an ordered line's unit price."""
+
+    order_item_id: uuid.UUID
+    unit_price: Decimal = Field(ge=Decimal("0.00"), max_digits=12, decimal_places=2)
+    reason: str = Field(min_length=3, max_length=255)
+
+
 class BillGenerateRequest(StrictRequestModel):
     """Payload for POST /api/v1/bills/generate."""
 
@@ -108,6 +116,7 @@ class BillGenerateRequest(StrictRequestModel):
     table_id: uuid.UUID | None = None
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     discount_reason: str | None = Field(default=None, max_length=255)
+    price_overrides: list[BillLinePriceOverride] = Field(default_factory=list, max_length=100)
 
 
 class BillDiscountRequest(StrictRequestModel):

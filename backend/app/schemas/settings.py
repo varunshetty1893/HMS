@@ -43,6 +43,7 @@ class RestaurantSettingsResponse(BaseModel):
     apply_outstanding_limit_to_waiter_orders: bool
     allow_waiter_discount: bool = False
     waiter_max_discount_percentage: Decimal
+    waiter_max_price_override_percentage: Decimal
 
     created_at: datetime | None = None
     updated_at: datetime
@@ -79,5 +80,8 @@ class RestaurantSettingsUpdate(StrictRequestModel):
     apply_outstanding_limit_to_waiter_orders: bool | None = None
     allow_waiter_discount: bool | None = None
     waiter_max_discount_percentage: Decimal | None = Field(
+        default=None, ge=Decimal("0.00"), le=Decimal("100.00")
+    )
+    waiter_max_price_override_percentage: Decimal | None = Field(
         default=None, ge=Decimal("0.00"), le=Decimal("100.00")
     )

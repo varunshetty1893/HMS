@@ -75,6 +75,7 @@ async def seed_settings(session: AsyncSession) -> None:
             limit_includes_estimated_tax=False,
             apply_outstanding_limit_to_waiter_orders=True,
             waiter_max_discount_percentage=Decimal("10.00"),
+            waiter_max_price_override_percentage=Decimal("10.00"),
         )
         session.add(settings_row)
         print("  [+] Created restaurant_settings singleton (id=1)")
@@ -118,6 +119,73 @@ async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
 
 async def seed_menu(session: AsyncSession) -> None:
     """Seed categories, items with unique short codes, and price variants."""
+    # This catalog intentionally uses stable M001..M120 codes so it can be safely
+    # re-run. Existing matching rows are updated in place; only the superseded
+    # original demo rows are retired (never deleted, preserving any history).
+    sections = [
+        ("South Indian Breakfast", "south-indian", False, "VEG", "Idli (2 pcs)|40;Medu Vada (2 pcs)|45;Idli Vada Combo|55;Plain Dosa|60;Masala Dosa|80;Mysore Masala Dosa|95;Onion Dosa|75;Rava Dosa|85;Set Dosa (3 pcs)|75;Pongal with Chutney|70"),
+        ("Breakfast & Quick Meals", "breakfast", False, "VEG", "Poori Bhaji|80;Chole Bhature|110;Aloo Paratha with Curd|90;Gobi Paratha with Curd|100;Paneer Paratha with Curd|120;Vegetable Upma|55;Avalakki / Poha|50;Bread Butter Toast|45;Vegetable Sandwich|80;Cheese Sandwich|100"),
+        ("Vegetarian Starters & Snacks", "veg-starters", True, "VEG", "French Fries|100;Gobi Manchurian|140;Paneer 65|180;Chilli Paneer|190;Vegetable Pakoda|100;Onion Pakoda|90;Hara Bhara Kebab|160;Veg Spring Roll|140;Crispy Corn|150;Mushroom Pepper Fry|180"),
+        ("Non-Vegetarian Starters", "nonveg-starters", True, "NON_VEG", "Chicken 65|210;Chilli Chicken|220;Chicken Manchurian|220;Chicken Lollipop|240;Tandoori Chicken (Half)|280;Chicken Tikka|250;Pepper Chicken|240;Chicken Kebab|230;Fish Fry|260;Prawn Pepper Fry|320"),
+        ("Vegetarian Curries", "veg-curries", True, "VEG", "Dal Fry|130;Dal Tadka|150;Aloo Gobi|160;Mix Vegetable Curry|170;Chana Masala|160;Rajma Masala|170;Paneer Butter Masala|220;Kadai Paneer|220;Palak Paneer|210;Mushroom Masala|210"),
+        ("Chicken, Mutton & Seafood Curries", "nonveg-curries", True, "NON_VEG", "Chicken Curry|220;Andhra Chicken Curry|240;Chicken Masala|250;Butter Chicken|280;Kadai Chicken|260;Chicken Chettinad|260;Mutton Curry|330;Mutton Rogan Josh|350;Fish Curry|260;Prawn Masala|330"),
+        ("Indian Breads, Rice & Meals", "breads-rice", False, "VEG", "Plain Chapati (2 pcs)|35;Tandoori Roti|30;Butter Roti|40;Plain Naan|45;Butter Naan|55;Garlic Naan|70;Plain Steamed Rice|90;Jeera Rice|130;Curd Rice|90;Veg South Indian Meals|150"),
+        ("Biryani & Pulao", "biryani", True, "VEG", "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320"),
+        ("Egg Dishes", "egg", False, "EGG", "Boiled Eggs (2 pcs)|40;Egg Omelette|60;Masala Omelette|75;Cheese Omelette|100;Egg Bhurji|90;Egg Curry|140;Egg Masala|150;Egg Fried Rice|150;Egg Noodles|150;Egg Kathi Roll|130"),
+        ("Vegetarian Chinese Dishes", "veg-chinese", False, "VEG", "Veg Fried Rice|140;Schezwan Veg Fried Rice|160;Veg Hakka Noodles|140;Schezwan Veg Noodles|160;Chilli Garlic Noodles|160;Veg Manchurian Gravy|160;Chilli Mushroom|190;American Chopsuey|180;Veg Momos (6 pcs)|120;Paneer Fried Rice|180"),
+        ("Non-Vegetarian Chinese Dishes", "nonveg-chinese", False, "NON_VEG", "Chicken Fried Rice|180;Schezwan Chicken Fried Rice|200;Chicken Hakka Noodles|180;Schezwan Chicken Noodles|200;Chicken Chilli Garlic Noodles|210;Chicken Manchurian Gravy|230;Chicken Momos (6 pcs)|160;Chicken Chowmein|190;Prawn Fried Rice|250;Mixed Non-Veg Fried Rice|250"),
+        ("Beverages, Juices & Desserts", "beverages-desserts", False, "VEG", "Tea|20;Coffee|30;Fresh Lime Soda|50;Sweet Lassi|70;Mango Milkshake|100;Fresh Watermelon Juice|80;Gulab Jamun (2 pcs)|60;Gajar Ka Halwa|90;Vanilla Ice Cream|70;Chocolate Brownie with Ice Cream|150"),
+    ]
+    dietary_overrides = {76: "EGG", 81: "EGG", 82: "EGG", 83: "EGG", 84: "EGG", 85: "EGG", 86: "EGG", 87: "EGG", 88: "EGG", 89: "EGG", 90: "EGG"}
+    legacy_codes = {"CB", "VB", "MB", "CK", "PN", "BN", "RO", "MS", "BL"}
+    for legacy in (await session.execute(select(MenuItem).where(MenuItem.item_code.in_(legacy_codes)))).scalars():
+        legacy.is_active = False
+        legacy.is_available = False
+
+    number = 1
+    for category_order, (category_name, image_slug, has_half, default_dietary, rows) in enumerate(sections, 1):
+        category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == category_name.lower()))).scalar_one_or_none()
+        if not category:
+            category = MenuCategory(name=category_name)
+            session.add(category)
+            await session.flush()
+        category.description = f"Freshly prepared {category_name.lower()}."
+        category.display_order = category_order
+        category.is_active = True
+
+        for item_order, row in enumerate(rows.split(";"), 1):
+            name, raw_price = row.rsplit("|", 1)
+            code = f"M{number:03d}"
+            dietary = dietary_overrides.get(number, default_dietary)
+            item = (await session.execute(select(MenuItem).where(MenuItem.item_code == code))).scalar_one_or_none()
+            if not item:
+                item = MenuItem(item_code=code, category_id=category.id, name=name)
+                session.add(item)
+                await session.flush()
+            item.category_id, item.name = category.id, name
+            item.description = f"Freshly prepared {name}."
+            item.dietary_type, item.spice_level = dietary, SpiceLevel.MEDIUM.value
+            item.image_url = f"/menu/{image_slug}.png"
+            item.is_active = item.is_available = True
+            item.display_order = item_order
+            full_price = Decimal(raw_price).quantize(Decimal("0.01"))
+            variants = [("Full", Decimal("1.00"), full_price, True)]
+            if has_half:
+                variants.insert(0, ("Half", Decimal("0.50"), (full_price * Decimal("0.60")).quantize(Decimal("0.01")), False))
+            for variant_order, (variant_name, quantity, price, is_default) in enumerate(variants, 1):
+                variant_code = f"{code}-{'H' if variant_name == 'Half' else 'F'}"
+                variant = (await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.variant_code == variant_code))).scalar_one_or_none()
+                if not variant:
+                    variant = MenuPriceVariant(menu_item_id=item.id, variant_code=variant_code, variant_name=variant_name, quantity_value=quantity, unit=PriceUnit.PORTION.value, price=price)
+                    session.add(variant)
+                variant.menu_item_id, variant.variant_name = item.id, variant_name
+                variant.quantity_value, variant.unit, variant.price = quantity, PriceUnit.PORTION.value, price
+                variant.is_default, variant.is_active, variant.is_available = is_default, True, True
+                variant.display_order = variant_order
+            number += 1
+    await session.flush()
+    return
+
     menu_data = [
         {
             "category": "Biriyani",

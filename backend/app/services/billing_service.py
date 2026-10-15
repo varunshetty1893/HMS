@@ -457,18 +457,56 @@ class BillingService:
                 ),
             )
 
-        # 6. Sum items using immutable price snapshots
-        billable_items: list[tuple[Order, OrderItem, Decimal]] = []
+        # 6. Sum items using immutable price snapshots, except explicit audited
+        # bill-time overrides. The order history stays untouched; the invoice is
+        # the authoritative record of a negotiated price.
+        overrides = {override.order_item_id: override for override in payload.price_overrides}
+        if len(overrides) != len(payload.price_overrides):
+            raise DomainValidationError(
+                code="DUPLICATE_PRICE_OVERRIDE",
+                message="Each order line can be price-overridden only once.",
+            )
+        settings: RestaurantSettings | None = None
+        billable_items: list[tuple[Order, OrderItem, Decimal, Decimal]] = []
         subtotal = Decimal("0.00")
 
         for order in orders:
             for item in order.items:
                 if item.active_quantity > 0:
-                    line_tot = (item.unit_price_snapshot * item.active_quantity).quantize(
+                    unit_price = item.unit_price_snapshot
+                    override = overrides.pop(item.id, None)
+                    if override:
+                        requested_price = override.unit_price.quantize(
+                            TWO_PLACES, rounding=ROUND_HALF_UP
+                        )
+                        if staff_user.role != UserRole.ADMIN.value:
+                            settings = settings or await cls._get_restaurant_settings(db)
+                            max_pct = (
+                                settings.waiter_max_price_override_percentage or Decimal("0.00")
+                            )
+                            allowed_delta = (unit_price * max_pct / Decimal("100")).quantize(
+                                TWO_PLACES, rounding=ROUND_HALF_UP
+                            )
+                            if abs(requested_price - unit_price) > allowed_delta:
+                                raise StateConflictError(
+                                    code="PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
+                                    message=(
+                                        f"Waiters may adjust this line by at most {max_pct}%. "
+                                        "The requested price requires an Admin."
+                                    ),
+                                )
+                        unit_price = requested_price
+                    line_tot = (unit_price * item.active_quantity).quantize(
                         TWO_PLACES, rounding=ROUND_HALF_UP
                     )
                     subtotal += line_tot
-                    billable_items.append((order, item, line_tot))
+                    billable_items.append((order, item, unit_price, line_tot))
+
+        if overrides:
+            raise DomainValidationError(
+                code="PRICE_OVERRIDE_LINE_NOT_BILLABLE",
+                message="A requested price override does not belong to an active billable line.",
+            )
 
         subtotal = subtotal.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
         if subtotal <= Decimal("0.00"):
@@ -487,7 +525,7 @@ class BillingService:
                 message=f"Discount amount ({discount_amount}) cannot exceed subtotal ({subtotal}).",
             )
 
-        settings = await cls._get_restaurant_settings(db)
+        settings = settings or await cls._get_restaurant_settings(db)
 
         if discount_amount > Decimal("0.00"):
             if not payload.discount_reason or not payload.discount_reason.strip():
@@ -562,7 +600,7 @@ class BillingService:
 
         # 10. Create frozen BillItem rows
         created_bill_items: list[BillItem] = []
-        for ord_obj, item_obj, line_tot in billable_items:
+        for ord_obj, item_obj, unit_price, line_tot in billable_items:
             b_item = BillItem(
                 id=uuid.uuid4(),
                 bill_id=bill.id,
@@ -575,7 +613,7 @@ class BillingService:
                 variant_name_snapshot=item_obj.variant_name_snapshot,
                 unit_snapshot=item_obj.unit_snapshot,
                 quantity_billed=item_obj.active_quantity,
-                unit_price_snapshot=item_obj.unit_price_snapshot,
+                unit_price_snapshot=unit_price,
                 line_total=line_tot,
             )
             db.add(b_item)
@@ -600,6 +638,14 @@ class BillingService:
                 "subtotal_amount": str(bill.subtotal_amount),
                 "discount_amount": str(bill.discount_amount),
                 "grand_total": str(bill.grand_total),
+                "price_overrides": [
+                    {
+                        "order_item_id": str(override.order_item_id),
+                        "unit_price": str(override.unit_price),
+                        "reason": override.reason,
+                    }
+                    for override in payload.price_overrides
+                ],
             },
             client_ip=client_ip,
         )

@@ -72,6 +72,7 @@ export const INITIAL_SETTINGS: RestaurantSettings = {
   apply_outstanding_limit_to_waiter_orders: true,
   allow_waiter_discount: true,
   waiter_max_discount_percentage: '10.00',
+  waiter_max_price_override_percentage: '10.00',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };

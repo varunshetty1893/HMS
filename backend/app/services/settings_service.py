@@ -72,6 +72,7 @@ class SettingsService:
 
         for field, value in update_dict.items():
             setattr(settings, field, value)
+        settings.updated_by_user_id = admin_user.id
 
         await db.flush()
 

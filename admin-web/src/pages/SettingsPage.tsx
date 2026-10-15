@@ -35,12 +35,8 @@ export const SettingsPage: React.FC = () => {
   const [allowCustomerCancel, setAllowCustomerCancel] = useState(false);
   const [allowKitchenToggle, setAllowKitchenToggle] = useState(true);
   const [limitIncludesTax, setLimitIncludesTax] = useState(false);
-  const [limitAppliesToWaiter, setLimitAppliesToWaiter] = useState(false);
 
-  const fetchSettings = async () => {
-    setIsLoading(true);
-    try {
-      const data = await settingsAuditApi.getSettings();
+  const applySettings = (data: RestaurantSettings) => {
       setSettings(data);
       setRestaurantName(data.restaurant_name);
       setAddress(data.address || '');
@@ -55,7 +51,12 @@ export const SettingsPage: React.FC = () => {
       setAllowCustomerCancel(data.allow_customer_cancel_placed);
       setAllowKitchenToggle(data.kitchen_can_toggle_availability);
       setLimitIncludesTax(data.limit_includes_estimated_tax);
-      setLimitAppliesToWaiter(data.apply_outstanding_limit_to_waiter_orders);
+  };
+
+  const fetchSettings = async () => {
+    setIsLoading(true);
+    try {
+      applySettings(await settingsAuditApi.getSettings());
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Failed to load restaurant settings');
@@ -88,12 +89,11 @@ export const SettingsPage: React.FC = () => {
       allow_customer_cancel_placed: allowCustomerCancel,
       kitchen_can_toggle_availability: allowKitchenToggle,
       limit_includes_estimated_tax: limitIncludesTax,
-      apply_outstanding_limit_to_waiter_orders: limitAppliesToWaiter,
     };
 
     try {
       const updated = await settingsAuditApi.updateSettings(payload);
-      setSettings(updated);
+      applySettings(updated); // re-sync so the form shows exactly what the server stored
       setSuccessMessage('Configuration updated successfully and logged in audit trail.');
     } catch (err: any) {
       setError(err?.message || 'Failed to update settings');
@@ -101,6 +101,9 @@ export const SettingsPage: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  const limitLabel = `₹${Number(outstandingLimit || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const gstinLooksValid = !gstin || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin);
 
   if (isLoading) {
     return <div className="p-12 text-center text-slate-500">Loading settings...</div>;
@@ -146,6 +149,7 @@ export const SettingsPage: React.FC = () => {
                 value={restaurantName}
                 onChange={(e) => setRestaurantName(e.target.value)}
                 required
+                maxLength={120}
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
                 style={{
                   backgroundColor: L ? '#faf7f2' : '#0f172a',
@@ -160,14 +164,20 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                maxLength={15}
                 placeholder="29AAAAA0000A1Z5"
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono focus:outline-none"
                 style={{
                   backgroundColor: L ? '#faf7f2' : '#0f172a',
-                  border: `1.5px solid ${border}`,
+                  border: `1.5px solid ${gstinLooksValid ? border : '#e11d48'}`,
                   color: heading,
                 }}
               />
+              {!gstinLooksValid && (
+                <span className="text-[11px] mt-0.5 block font-medium text-rose-700">
+                  Doesn't look like a valid 15-character GSTIN — check before printing bills.
+                </span>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold uppercase mb-1" style={{ color: sub }}>Phone Number</label>
@@ -175,6 +185,7 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                maxLength={20}
                 placeholder="+91 98765 43210"
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
                 style={{
@@ -190,6 +201,7 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
+                maxLength={255}
                 placeholder="123 Food Street, Indiranagar, Bengaluru"
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
                 style={{
@@ -218,6 +230,8 @@ export const SettingsPage: React.FC = () => {
                 value={cgstPercentage}
                 onChange={(e) => setCgstPercentage(e.target.value)}
                 required
+                min={0}
+                max={28}
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono focus:outline-none"
                 style={{
                   backgroundColor: L ? '#faf7f2' : '#0f172a',
@@ -235,6 +249,8 @@ export const SettingsPage: React.FC = () => {
                 value={sgstPercentage}
                 onChange={(e) => setSgstPercentage(e.target.value)}
                 required
+                min={0}
+                max={28}
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono focus:outline-none"
                 style={{
                   backgroundColor: L ? '#faf7f2' : '#0f172a',
@@ -252,6 +268,8 @@ export const SettingsPage: React.FC = () => {
                 value={outstandingLimit}
                 onChange={(e) => setOutstandingLimit(e.target.value)}
                 required
+                min={100}
+                max={100000}
                 className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono focus:outline-none"
                 style={{
                   backgroundColor: L ? '#faf7f2' : '#0f172a',
@@ -259,7 +277,9 @@ export const SettingsPage: React.FC = () => {
                   color: heading,
                 }}
               />
-              <span className="text-[11px] mt-0.5 block" style={{ color: muted }}>Default ₹5,000.00 cap per session</span>
+              <span className="text-[11px] mt-0.5 block" style={{ color: muted }}>
+                Unpaid-order cap per table for customer (QR) orders only; waiters have no limit. Applies to new table sessions; tables already occupied keep their current limit.
+              </span>
             </div>
           </div>
         </div>
@@ -275,7 +295,7 @@ export const SettingsPage: React.FC = () => {
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>
                 <span className="text-sm font-semibold block" style={{ color: heading }}>Multi-Device Ordering (OD-01)</span>
-                <span className="text-xs" style={{ color: sub }}>Allow multiple customer phones at the same table to order simultaneously.</span>
+                <span className="text-xs" style={{ color: sub }}>Allow multiple customer phones at the same table to order. When off, a second phone is blocked once another phone has ordered.</span>
               </div>
               <input
                 type="checkbox"
@@ -288,7 +308,7 @@ export const SettingsPage: React.FC = () => {
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>
                 <span className="text-sm font-semibold block" style={{ color: heading }}>Customer Self-Cancel (OD-02)</span>
-                <span className="text-xs" style={{ color: sub }}>Allow customer phone to cancel their order while still in PLACED status.</span>
+                <span className="text-xs" style={{ color: sub }}>Allow customer phone to cancel their own order before cooking starts (PLACED / ACCEPTED). When off, only staff can cancel.</span>
               </div>
               <input
                 type="checkbox"
@@ -301,7 +321,7 @@ export const SettingsPage: React.FC = () => {
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>
                 <span className="text-sm font-semibold block" style={{ color: heading }}>Kitchen 86 Stock Toggle (OD-05)</span>
-                <span className="text-xs" style={{ color: sub }}>Allow Kitchen KDS display staff to mark dishes sold out directly.</span>
+                <span className="text-xs" style={{ color: sub }}>Allow Kitchen KDS staff to mark dishes sold out. When off, only Admin can change availability.</span>
               </div>
               <input
                 type="checkbox"
@@ -313,8 +333,8 @@ export const SettingsPage: React.FC = () => {
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>
-                <span className="text-sm font-semibold block" style={{ color: heading }}>Include Tax in ₹5,000 Cap (OD-06)</span>
-                <span className="text-xs" style={{ color: sub }}>Calculates estimated GST before evaluating the session exposure limit.</span>
+                <span className="text-sm font-semibold block" style={{ color: heading }}>Include Tax in {limitLabel} Cap (OD-06)</span>
+                <span className="text-xs" style={{ color: sub }}>Adds estimated CGST + SGST to the table total before checking the cap (customer orders only; waiters are never capped).</span>
               </div>
               <input
                 type="checkbox"
@@ -324,18 +344,6 @@ export const SettingsPage: React.FC = () => {
               />
             </label>
 
-            <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
-              <div>
-                <span className="text-sm font-semibold block" style={{ color: heading }}>Apply Exposure Limit to Waiter Orders (OD-07)</span>
-                <span className="text-xs" style={{ color: sub }}>Blocks waiter manual order entry if table session exceeds ₹5,000 cap.</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={limitAppliesToWaiter}
-                onChange={(e) => setLimitAppliesToWaiter(e.target.checked)}
-                className="w-4 h-4 accent-brand-600 rounded cursor-pointer"
-              />
-            </label>
           </div>
         </div>
 

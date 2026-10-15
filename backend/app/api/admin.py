@@ -217,6 +217,14 @@ async def set_menu_item_availability(
     db: AsyncSession = Depends(get_db),
 ) -> MenuItemResponse:
     """Instant stock availability toggle for Admin and Kitchen."""
+    # OD-05: same switch the KDS endpoint honours, so Kitchen cannot bypass it via this route.
+    if staff.role != UserRole.ADMIN.value:
+        cfg = await SettingsService.get_settings(db)
+        if not cfg.kitchen_can_toggle_availability:
+            raise DomainValidationError(
+                "KITCHEN_TOGGLE_DISABLED",
+                "Kitchen staff is not permitted to toggle item availability. Please ask an Admin.",
+            )
     item = await MenuService.set_item_availability(
         db,
         item_id,

@@ -105,6 +105,25 @@ def _two_dp(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _exposure_amount(amount: Decimal, cfg: RestaurantSettings | None) -> Decimal:
+    """Amount compared against the unpaid-table cap.
+
+    OD-06 (`limit_includes_estimated_tax`): when ON, estimated CGST+SGST is added on top of the
+    item subtotal before the cap is evaluated; when OFF the raw subtotal is used.
+    """
+    if cfg is not None and cfg.limit_includes_estimated_tax is True:
+        rate = Decimal(cfg.cgst_percentage) + Decimal(cfg.sgst_percentage)
+        return _two_dp(amount * (Decimal("100") + rate) / Decimal("100"))
+    return amount
+
+
+def _cap_remaining(
+    limit: Decimal, current_outstanding: Decimal, cfg: RestaurantSettings | None
+) -> Decimal:
+    """Headroom left under the cap, measured the same way the cap is enforced."""
+    return max(Decimal("0.00"), _two_dp(limit - _exposure_amount(current_outstanding, cfg)))
+
+
 def _generate_order_number() -> str:
     """Generate a unique, human-friendly order number (e.g. 'ORD-A3F9B2')."""
     return "ORD-" + secrets.token_hex(3).upper()
@@ -429,11 +448,21 @@ class OrderService:
             customer_session=customer_session,
         )
 
-        # ── 6. ₹5,000 cap enforcement ─────────────────────────────────────
+        _cfg = await db.get(RestaurantSettings, 1)
+
+        # ── 5b. OD-01: single-device tables ───────────────────────────────
+        if not is_first_order:
+            await cls._enforce_single_device(
+                db, table_session=table_session, customer_session=customer_session, cfg=_cfg
+            )
+
+        # ── 6. Unpaid-table cap enforcement (OD-06 may add estimated GST) ─
         new_outstanding = table_session.current_outstanding_amount + order_subtotal
-        if new_outstanding > table_session.custom_outstanding_limit:
-            remaining = _two_dp(
-                table_session.custom_outstanding_limit - table_session.current_outstanding_amount
+        if _exposure_amount(new_outstanding, _cfg) > table_session.custom_outstanding_limit:
+            remaining = _cap_remaining(
+                table_session.custom_outstanding_limit,
+                table_session.current_outstanding_amount,
+                _cfg,
             )
             raise DomainValidationError(
                 code="LIMIT_EXCEEDED",
@@ -672,6 +701,46 @@ class OrderService:
         # Flush so the PK is available for the Order FK
         await db.flush()
         return table_session, True
+
+    @classmethod
+    async def _enforce_single_device(
+        cls,
+        db: AsyncSession,
+        *,
+        table_session: TableSession,
+        customer_session: CustomerSession,
+        cfg: RestaurantSettings | None,
+    ) -> None:
+        """OD-01: when multi-device ordering is OFF, only one phone may order per table session.
+
+        A phone is "the same" if it is the same customer session or has the same non-empty
+        client fingerprint (re-scanning the QR creates a new session on the same phone).
+        """
+        if cfg is None or cfg.allow_multi_device_per_table is not False:
+            return
+        rows = (
+            await db.execute(
+                select(CustomerSession.id, CustomerSession.client_fingerprint_hash)
+                .join(Order, Order.customer_session_id == CustomerSession.id)
+                .where(Order.table_session_id == table_session.id)
+                .distinct()
+            )
+        ).all()
+        mine = customer_session.client_fingerprint_hash
+        for other_id, other_fp in rows:
+            if other_id == customer_session.id:
+                continue
+            if mine and other_fp and mine == other_fp:
+                continue
+            if not mine or not other_fp:
+                continue  # cannot tell phones apart without a fingerprint; do not block
+            raise StateConflictError(
+                code="MULTI_DEVICE_NOT_ALLOWED",
+                message=(
+                    "Another phone is already ordering for this table. "
+                    "Please use that phone or ask the waiter to add your items."
+                ),
+            )
 
     @classmethod
     async def _persist_order(
@@ -1636,6 +1705,9 @@ class OrderService:
         table_session = await db.scalar(sess_stmt)
         is_first_order = False
         now = utc_now()
+        _cfg = (
+            await db.execute(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+        ).scalar_one_or_none()
 
         if not table_session:
             # First order on an available table activates the session
@@ -1644,7 +1716,10 @@ class OrderService:
                 session_code=_generate_session_code(),
                 status=TableSessionStatus.ACTIVE.value,
                 current_outstanding_amount=Decimal("0.00"),
-                custom_outstanding_limit=Decimal("5000.00"),
+                # Configured default (Settings > Default Table Limit), not a hardcoded 5,000.
+                custom_outstanding_limit=(
+                    _cfg.default_session_outstanding_limit if _cfg else Decimal("5000.00")
+                ),
                 opened_by_source=OrderSource.WAITER.value,
                 opened_by_user_id=staff_user.id,
                 started_at=now,
@@ -1654,29 +1729,11 @@ class OrderService:
 
             is_first_order = True
 
-        # ── 6. ₹5,000 cap enforcement ─────────────────────────────────────
+        # ── 6. No unpaid-table cap for waiters ────────────────────────────
+        # The cap protects the restaurant from anonymous customer phones only. Staff orders are
+        # never blocked; they still count towards `current_outstanding_amount`, so a customer who
+        # orders later on the same table is capped against the full running total.
         new_outstanding = table_session.current_outstanding_amount + order_subtotal
-        _cfg = (
-            await db.execute(select(RestaurantSettings).where(RestaurantSettings.id == 1))
-        ).scalar_one_or_none()
-        _enforce_cap = bool(_cfg and _cfg.apply_outstanding_limit_to_waiter_orders)
-        if _enforce_cap and new_outstanding > table_session.custom_outstanding_limit:
-            remaining = _two_dp(
-                table_session.custom_outstanding_limit - table_session.current_outstanding_amount
-            )
-            raise DomainValidationError(
-                code="LIMIT_EXCEEDED",
-                message=(
-                    f"This order would exceed the ₹{table_session.custom_outstanding_limit} "
-                    f"unpaid table limit. You have ₹{remaining} remaining."
-                ),
-                details={
-                    "outstanding_limit": str(table_session.custom_outstanding_limit),
-                    "current_outstanding": str(table_session.current_outstanding_amount),
-                    "order_subtotal": str(order_subtotal),
-                    "remaining": str(remaining),
-                },
-            )
 
         # ── 7. Persist Order ──────────────────────────────────────────────
         order = Order(
@@ -2075,29 +2132,8 @@ class OrderService:
         if not events_to_add:
             return _build_waiter_order_response(order)
 
-        # ── ₹5,000 table cap enforcement on net increase ──────────────────
+        # Waiters are never capped (see create_waiter_order); only keep the running total right.
         new_outstanding = table_session.current_outstanding_amount + net_price_delta
-        _cfg = (
-            await db.execute(select(RestaurantSettings).where(RestaurantSettings.id == 1))
-        ).scalar_one_or_none()
-        _enforce_cap = bool(_cfg and _cfg.apply_outstanding_limit_to_waiter_orders)
-        if _enforce_cap and net_price_delta > 0 and new_outstanding > table_session.custom_outstanding_limit:
-            remaining = _two_dp(
-                table_session.custom_outstanding_limit - table_session.current_outstanding_amount
-            )
-            raise DomainValidationError(
-                code="LIMIT_EXCEEDED",
-                message=(
-                    f"Modification would exceed the ₹{table_session.custom_outstanding_limit} "
-                    f"unpaid table limit. You have ₹{remaining} remaining."
-                ),
-                details={
-                    "outstanding_limit": str(table_session.custom_outstanding_limit),
-                    "current_outstanding": str(table_session.current_outstanding_amount),
-                    "price_delta": str(net_price_delta),
-                    "remaining": str(remaining),
-                },
-            )
 
         table_session.current_outstanding_amount = max(Decimal("0.00"), _two_dp(new_outstanding))
         order.order_subtotal = _two_dp(sum(i.line_subtotal for i in (order.items or [])))
@@ -2450,6 +2486,14 @@ class OrderService:
             and order.table_session_id != customer_session.table_session_id
         ):
             raise StateConflictError("FORBIDDEN", "This order does not belong to your table session.")
+
+        # OD-02: admin can switch customer self-cancel off entirely (staff must cancel instead).
+        _cfg = await db.get(RestaurantSettings, 1)
+        if _cfg is not None and _cfg.allow_customer_cancel_placed is False:
+            raise StateConflictError(
+                "CUSTOMER_CANCEL_DISABLED",
+                "Cancelling from your phone is turned off. Please ask your waiter to cancel it.",
+            )
 
         if order.status not in [OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value]:
             raise StateConflictError(
@@ -2937,9 +2981,15 @@ class OrderService:
 
         # ── unpaid-table cap + per-order sanity (customers are ALWAYS capped) ──────
         new_outstanding = table_session.current_outstanding_amount + net_delta
-        if net_delta > 0 and new_outstanding > table_session.custom_outstanding_limit:
-            remaining = _two_dp(
-                table_session.custom_outstanding_limit - table_session.current_outstanding_amount
+        _cfg = await db.get(RestaurantSettings, 1)
+        if (
+            net_delta > 0
+            and _exposure_amount(new_outstanding, _cfg) > table_session.custom_outstanding_limit
+        ):
+            remaining = _cap_remaining(
+                table_session.custom_outstanding_limit,
+                table_session.current_outstanding_amount,
+                _cfg,
             )
             raise DomainValidationError(
                 code="LIMIT_EXCEEDED",

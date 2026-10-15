@@ -35,11 +35,13 @@ class MenuPriceVariantCreate(StrictRequestModel):
         description="Portion or variant name (e.g., Half, Full, 2 Pcs)",
     )
     quantity_value: Decimal = Field(
+        default=Decimal("1"),
         gt=0,
-        description="Quantity value (e.g., 0.50, 1.00, 2.00)",
+        description="Quantity value (e.g., 0.50, 1.00, 6, 12). Defaults to 1.",
     )
     unit: PriceUnit = Field(
-        description="Measurement unit: PORTION, PIECE, ML, GRAM",
+        default=PriceUnit.PORTION,
+        description="Measurement unit: PORTION, PIECE, ML, L, GRAM, KG, PLATE, BOWL",
     )
     price: Decimal = Field(
         ge=0,

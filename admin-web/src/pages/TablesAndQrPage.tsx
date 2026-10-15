@@ -106,16 +106,20 @@ export const TablesAndQrPage: React.FC = () => {
     }
   };
 
+  // Errors are re-thrown so the confirm dialog shows them inline (no browser alert).
   const handleConfirmDelete = async () => {
     if (!tableToDelete) return;
-    try {
-      await tablesQrApi.deleteTable(tableToDelete.id);
-      setTableToDelete(null);
-      fetchTables();
-    } catch (err: any) {
-      setTableToDelete(null);
-      alert(err?.message || 'Failed to delete table');
-    }
+    await tablesQrApi.deleteTable(tableToDelete.id);
+    setTableToDelete(null);
+    fetchTables();
+  };
+
+  // Used when the table has order history: hide it instead of deleting it.
+  const handleDeactivateInstead = async () => {
+    if (!tableToDelete) return;
+    await tablesQrApi.updateTable(tableToDelete.id, { is_active: false });
+    setTableToDelete(null);
+    fetchTables();
   };
 
   return (
@@ -348,11 +352,16 @@ export const TablesAndQrPage: React.FC = () => {
       <ConfirmModal
         isOpen={!!tableToDelete}
         title={`Delete ${tableToDelete?.display_name ?? 'table'}?`}
-        description="This removes the table and its QR code for good. If this table already has orders, it cannot be deleted. Use the power button to make it inactive instead."
+        description="This removes the table and its QR code for good. Tables that already have orders cannot be deleted, but you can deactivate them (hidden, history kept)."
         confirmLabel="Delete table"
         variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={() => setTableToDelete(null)}
+        fallbackAction={{
+          errorCode: 'TABLE_HAS_HISTORY',
+          label: 'Deactivate instead',
+          onClick: handleDeactivateInstead,
+        }}
       />
 
       {/* Rotate Confirmation Modal */}

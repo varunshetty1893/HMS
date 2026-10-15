@@ -12,6 +12,12 @@ interface ConfirmModalProps {
   reasonPlaceholder?: string;
   onConfirm: (reason?: string) => Promise<void> | void;
   onCancel: () => void;
+  /** Shown instead of the confirm button when onConfirm fails with this error code. */
+  fallbackAction?: {
+    errorCode: string;
+    label: string;
+    onClick: () => Promise<void> | void;
+  };
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -25,10 +31,12 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   reasonPlaceholder = 'Please enter reason...',
   onConfirm,
   onCancel,
+  fallbackAction,
 }) => {
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -38,6 +46,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       return;
     }
     setError(null);
+    setErrorCode(null);
     setIsSubmitting(true);
     try {
       await onConfirm(reason.trim());
@@ -45,10 +54,34 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       onCancel();
     } catch (err: any) {
       setError(err?.message || 'Operation failed');
+      setErrorCode(err?.code || null);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleCancel = () => {
+    setError(null);
+    setErrorCode(null);
+    onCancel();
+  };
+
+  const handleFallback = async () => {
+    if (!fallbackAction) return;
+    setIsSubmitting(true);
+    try {
+      await fallbackAction.onClick();
+      setError(null);
+      setErrorCode(null);
+      onCancel();
+    } catch (err: any) {
+      setError(err?.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const showFallback = !!fallbackAction && errorCode === fallbackAction.errorCode;
 
   const buttonColors =
     variant === 'danger'
@@ -77,7 +110,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="text-gray-400 hover:text-gray-700 p-1 rounded-lg cursor-pointer"
           >
@@ -100,25 +133,40 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
         )}
 
-        {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+        {error && (
+          <p className="mt-3 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            {error}
+          </p>
+        )}
 
         <div className="mt-6 flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={isSubmitting}
             className="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 border border-gray-300 cursor-pointer"
           >
             {cancelLabel}
           </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isSubmitting}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer ${buttonColors}`}
-          >
-            {isSubmitting ? 'Processing...' : confirmLabel}
-          </button>
+          {showFallback ? (
+            <button
+              type="button"
+              onClick={handleFallback}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer bg-brand-600 hover:bg-brand-500 text-white"
+            >
+              {isSubmitting ? 'Processing...' : fallbackAction!.label}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer ${buttonColors}`}
+            >
+              {isSubmitting ? 'Processing...' : confirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

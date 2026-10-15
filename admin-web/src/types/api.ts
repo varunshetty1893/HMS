@@ -29,8 +29,8 @@ export interface AuthTokens {
 }
 
 export type DietaryType = 'VEG' | 'NON_VEG' | 'EGG';
-export type SpiceLevel = 'NONE' | 'MILD' | 'MEDIUM' | 'SPICY' | 'EXTRA_SPICY';
-export type PriceUnit = 'PORTION' | 'PIECE' | 'ML' | 'GRAM';
+export type SpiceLevel = 'MILD' | 'MEDIUM' | 'HOT';
+export type PriceUnit = 'PORTION' | 'PIECE' | 'ML' | 'L' | 'GRAM' | 'KG' | 'PLATE' | 'BOWL';
 
 export interface MenuCategory {
   id: string;
@@ -45,7 +45,7 @@ export interface MenuCategory {
 export interface MenuPriceVariant {
   id: string;
   menu_item_id: string;
-  variant_code: string;
+  variant_code: string | null;
   variant_name: string;
   quantity_value: string;
   unit: PriceUnit;
@@ -64,8 +64,8 @@ export interface MenuItem {
   item_code: string;
   name: string;
   description: string | null;
-  dietary_type: DietaryType;
-  spice_level: SpiceLevel;
+  dietary_type: DietaryType | null;
+  spice_level: SpiceLevel | null;
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;

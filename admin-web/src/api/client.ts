@@ -23,6 +23,33 @@ export class ApiError extends Error {
   }
 }
 
+
+const FIELD_LABELS: Record<string, string> = {
+  item_code: 'Short code',
+  name: 'Name',
+  category_id: 'Category',
+  dietary_type: 'Veg / Non-veg tag',
+  spice_level: 'Spice level',
+  variant_name: 'Portion name',
+  variant_code: 'Portion code',
+  quantity_value: 'Quantity',
+  unit: 'Unit',
+  price: 'Price',
+};
+
+/** Turn FastAPI/Pydantic field issues into one short human sentence. */
+function describeFieldIssues(issues: Array<{ field: string; issue: string; type?: string }>): string {
+  const lines = issues.slice(0, 4).map((i) => {
+    const parts = i.field.split('.');
+    const leaf = parts[parts.length - 1];
+    const label = FIELD_LABELS[leaf] || leaf;
+    const where = parts.includes('variants') ? ` (portion ${Number(parts[parts.indexOf('variants') + 1]) + 1})` : '';
+    if (i.type?.includes('extra_forbidden')) return `${label}${where}: not accepted by server`;
+    return `${label}${where}: ${i.issue}`;
+  });
+  return lines.join('\n');
+}
+
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
@@ -144,8 +171,12 @@ export async function apiClient<T>(
     }
 
     const code = errJson?.error?.code || `HTTP_${response.status}`;
-    const message = errJson?.error?.message || `Request failed with status ${response.status}`;
     const details = errJson?.error?.details;
+    let message = errJson?.error?.message || `Request failed with status ${response.status}`;
+    const fieldIssues = details?.fields;
+    if (Array.isArray(fieldIssues) && fieldIssues.length > 0) {
+      message = describeFieldIssues(fieldIssues);
+    }
 
     throw new ApiError(message, code, response.status, details);
   }

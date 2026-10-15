@@ -340,7 +340,7 @@ class QrService:
         restaurant_name = settings_row.restaurant_name if settings_row else "HMS Restaurant"
         currency_symbol = settings_row.currency_symbol if settings_row else "₹"
 
-        return QrResolutionResponse(
+        response = QrResolutionResponse(
             customer_session_token=bearer_token,
             table_id=table.id,
             table_number=table.table_number,
@@ -352,3 +352,9 @@ class QrService:
             restaurant_name=restaurant_name,
             currency_symbol=currency_symbol,
         )
+
+        # Persist the new CustomerSession. Without this commit the row is rolled back when the
+        # request ends, so the very next call (/customer/session) fails with 401 and the
+        # customer app falls back to the "Dining Table Required" screen.
+        await db.commit()
+        return response

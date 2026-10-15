@@ -26,7 +26,7 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 p-6 shadow-2xl overflow-hidden relative">
+      <div className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-gray-200 p-6 shadow-2xl relative">
         {/* Controls - Hidden during print */}
         <div className="no-print flex items-center justify-between pb-4 border-b border-gray-200">
           <div>

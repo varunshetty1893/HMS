@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Copy, Printer, X } from 'lucide-react';
+import React from 'react';
+import { Printer, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrPrintCardResponse } from '@/types/api';
 import { isDevDemoEnabled } from '@/utils/env';
@@ -13,23 +13,12 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
   cardData,
   onClose,
 }) => {
-  const [copied, setCopied] = useState(false);
   if (!cardData) return null;
 
   // Backend sends `qr_url` + `table_display_name`; older demo data used the other names.
   const orderingUrl = cardData.qr_url || cardData.ordering_url || '';
   const tableName = cardData.table_display_name || cardData.display_name || `Table ${cardData.table_number}`;
   const isLocalUrl = /localhost|127\.0\.0\.1/.test(orderingUrl);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(orderingUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      window.prompt('Copy this link:', orderingUrl);
-    }
-  };
 
   const handlePrint = () => {
     window.print();
@@ -89,21 +78,10 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
               (for example https://your-customer-site.pages.dev/q).
             </div>
           )}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="flex-1 text-[11px] font-mono text-slate-600 truncate">{orderingUrl || 'No link'}</span>
-            <button
-              onClick={handleCopy}
-              disabled={!orderingUrl}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-slate-900 text-white cursor-pointer disabled:opacity-40"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>{copied ? 'Copied' : 'Copy link'}</span>
-            </button>
-          </div>
         </div>
 
         {/* The printable table card */}
-        <div className="mt-6 p-8 bg-white text-slate-900 rounded-2xl shadow-xl flex flex-col items-center text-center border-4 border-slate-900">
+        <div className="print-card mt-6 px-8 py-7 bg-white text-slate-900 rounded-2xl shadow-xl flex flex-col items-center text-center border-4 border-slate-900">
           <img src="/logo.png" alt="Spice Hub" className="w-20 h-20 mb-2" />
           <div className="uppercase tracking-widest text-[11px] font-black text-brand-600 mb-1">
             {cardData.restaurant_name}
@@ -113,7 +91,7 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
           </div>
 
           {/* QR Code Container */}
-          <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl mb-4 shadow-inner">
+          <div className="p-3 bg-white border-2 border-slate-300 rounded-2xl mb-4">
             {orderingUrl ? (
               <QRCodeSVG value={orderingUrl} size={192} level="M" marginSize={2} className="block" />
             ) : (
@@ -123,14 +101,25 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
             )}
           </div>
 
-          <div className="space-y-1">
-            <p className="text-sm font-bold text-slate-900">SCAN TO VIEW MENU & ORDER</p>
-            <p className="text-[11px] text-slate-500 font-medium">No app download required • Pay at counter</p>
-          </div>
+          <p className="text-lg font-black text-slate-950 mb-3">SCAN TO ORDER FROM YOUR TABLE</p>
 
-          <div className="mt-6 pt-3 border-t border-slate-200 w-full flex justify-between items-center text-[10px] text-slate-400 font-mono">
-            <span>TABLE #{cardData.table_number}</span>
-            <span>TOKEN V{cardData.token_version}</span>
+          <ol className="w-full text-left space-y-2.5 text-[13px] text-slate-800">
+            <li className="flex items-center gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">1</span>
+              <span>Open your phone <b>Camera</b> and point it at this code.</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">2</span>
+              <span>Tap the <b>link</b> that appears on your screen.</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">3</span>
+              <span>Choose your dishes and tap <b>Place Order</b>. We will bring it to your table.</span>
+            </li>
+          </ol>
+
+          <div className="mt-5 pt-3 border-t border-slate-200 w-full text-[11px] text-slate-500 font-medium">
+            No app needed &bull; Pay at the counter &bull; Need help? Ask our staff
           </div>
         </div>
       </div>

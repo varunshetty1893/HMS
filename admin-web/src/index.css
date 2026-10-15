@@ -145,5 +145,22 @@
   .print-only {
     display: block !important;
   }
+  /* Print only the table card, not the admin page behind the modal */
+  body * {
+    visibility: hidden;
+  }
+  .print-card,
+  .print-card * {
+    visibility: visible;
+  }
+  .print-card {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 420px;
+    box-shadow: none !important;
+  }
 }
 

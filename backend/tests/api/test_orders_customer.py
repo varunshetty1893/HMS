@@ -500,6 +500,61 @@ class TestIdempotency:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Unit tests — Shared table order visibility
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestSharedTableOrderVisibility:
+    @pytest.mark.asyncio
+    async def test_orders_are_listed_for_the_active_table_session(self) -> None:
+        """Different QR devices at one table receive the same table timeline."""
+        table_session = _make_table_session()
+        first_guest = _make_customer_session(table_id=table_session.table_id)
+        second_guest = _make_customer_session(table_id=table_session.table_id)
+        first_guest.table_session_id = table_session.id
+        second_guest.table_session_id = table_session.id
+
+        first_order = MagicMock()
+        first_order.table_session_id = table_session.id
+        first_order.customer_session_id = first_guest.id
+        second_order = MagicMock()
+        second_order.table_session_id = table_session.id
+        second_order.customer_session_id = second_guest.id
+
+        db = AsyncMock()
+        db.execute = AsyncMock(
+            return_value=MagicMock(
+                scalars=lambda: MagicMock(all=lambda: [second_order, first_order])
+            )
+        )
+
+        orders = await OrderService.list_customer_orders(db, customer_session=second_guest)
+
+        assert orders == [second_order, first_order]
+        assert db.execute.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_early_qr_scan_joins_table_orders_after_first_order(self) -> None:
+        """A guest who scanned before the first order still sees the table order."""
+        table_session = _make_table_session()
+        early_guest = _make_customer_session(table_id=table_session.table_id)
+        early_guest.table_session_id = None
+        order = MagicMock()
+        order.table_session_id = table_session.id
+
+        db = AsyncMock()
+        db.scalar = AsyncMock(return_value=table_session.id)
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [order]))
+        )
+
+        orders = await OrderService.list_customer_orders(db, customer_session=early_guest)
+
+        assert orders == [order]
+        db.scalar.assert_awaited_once()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Unit tests — Historical price snapshot (LIM-T09)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -750,4 +805,3 @@ class TestCustomerOrderCancellation:
             )
 
         assert exc_info.value.code == "FORBIDDEN"
-

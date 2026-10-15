@@ -552,11 +552,33 @@ class OrderService:
         *,
         customer_session: CustomerSession,
     ) -> list[Order]:
-        """Return all orders placed by this customer session, newest first."""
+        """Return all orders for the active table session, newest first.
+
+        A table QR creates a distinct customer session for every guest/device,
+        but guests dining together must see one shared table order timeline. A
+        customer with no table session yet can only see their own (normally
+        empty) history.
+        """
+        table_session_id = customer_session.table_session_id
+        if table_session_id is None:
+            # Two people can scan the QR before either places the first order.
+            # Look up the table's now-active session at read time so the second
+            # phone joins the same table timeline instead of seeing an empty list.
+            table_session_id = await db.scalar(
+                select(TableSession.id).where(
+                    TableSession.table_id == customer_session.table_id,
+                    TableSession.status == TableSessionStatus.ACTIVE.value,
+                )
+            )
+
         stmt = (
             select(Order)
             .options(selectinload(Order.items))
-            .where(Order.customer_session_id == customer_session.id)
+            .where(
+                Order.table_session_id == table_session_id
+                if table_session_id
+                else Order.customer_session_id == customer_session.id
+            )
             .order_by(Order.placed_at.desc())  # type: ignore[union-attr]
         )
         result = await db.execute(stmt)

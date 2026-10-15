@@ -170,6 +170,8 @@ const portionLabel = (v: MenuPriceVariant): string => {
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const hasUploadedDishPhoto = (url: string | null | undefined): boolean =>
+  Boolean(url?.startsWith('/static/menu/'));
 const photoProblem = (f: File): string | null => {
   if (!PHOTO_TYPES.includes(f.type)) return 'Photo must be a JPG, PNG or WebP image.';
   if (f.size > MAX_PHOTO_BYTES) return 'Photo is too big. Please use an image under 2 MB.';
@@ -765,7 +767,7 @@ export const MenuManagementPage: React.FC = () => {
                   </div>
 
                   <div className="flex items-start gap-3 mt-3">
-                    {resolveMediaUrl(item.image_url) && (
+                    {hasUploadedDishPhoto(item.image_url) && resolveMediaUrl(item.image_url) && (
                       <img
                         src={resolveMediaUrl(item.image_url)!}
                         alt={item.name}
@@ -849,7 +851,7 @@ export const MenuManagementPage: React.FC = () => {
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                   <label className="flex items-center gap-1.5 text-orange-600 hover:text-orange-700 cursor-pointer font-medium">
                     <Camera className="w-4 h-4" />
-                    <span>{uploadingItemId === item.id ? 'Uploading...' : item.image_url ? 'Replace Photo' : 'Add Photo'}</span>
+                    <span>{uploadingItemId === item.id ? 'Uploading...' : hasUploadedDishPhoto(item.image_url) ? 'Replace Photo' : 'Add Photo'}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -857,7 +859,7 @@ export const MenuManagementPage: React.FC = () => {
                       className="hidden"
                     />
                   </label>
-                  {item.image_url && <span className="text-emerald-600 font-medium text-[11px]">✓ Photo attached</span>}
+                  {hasUploadedDishPhoto(item.image_url) && <span className="text-emerald-600 font-medium text-[11px]">✓ Photo attached</span>}
                 </div>
               </div>
             );
@@ -1282,7 +1284,7 @@ export const MenuManagementPage: React.FC = () => {
                 <label className={labelCls}>Dish Photo</label>
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                    {resolveMediaUrl(editItem.image_url) ? (
+                    {hasUploadedDishPhoto(editItem.image_url) && resolveMediaUrl(editItem.image_url) ? (
                       <img src={resolveMediaUrl(editItem.image_url)!} alt={editItem.name} className="w-full h-full object-cover" />
                     ) : (
                       <ImagePlus className="w-7 h-7 text-slate-300" />
@@ -1291,7 +1293,7 @@ export const MenuManagementPage: React.FC = () => {
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-3">
                       <label className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer">
-                        {isPhotoBusy ? 'Working...' : editItem.image_url ? 'Replace photo' : 'Add photo'}
+                        {isPhotoBusy ? 'Working...' : hasUploadedDishPhoto(editItem.image_url) ? 'Replace photo' : 'Add photo'}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
@@ -1300,7 +1302,7 @@ export const MenuManagementPage: React.FC = () => {
                           className="hidden"
                         />
                       </label>
-                      {editItem.image_url && (
+                      {hasUploadedDishPhoto(editItem.image_url) && (
                         <button
                           type="button"
                           onClick={handleRemovePhoto}

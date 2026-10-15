@@ -132,7 +132,7 @@ async def seed_menu(session: AsyncSession) -> None:
         ("Vegetarian Curries", "veg-curries", True, "VEG", "Dal Fry|130;Dal Tadka|150;Aloo Gobi|160;Mix Vegetable Curry|170;Chana Masala|160;Rajma Masala|170;Paneer Butter Masala|220;Kadai Paneer|220;Palak Paneer|210;Mushroom Masala|210"),
         ("Chicken, Mutton & Seafood Curries", "nonveg-curries", True, "NON_VEG", "Chicken Curry|220;Andhra Chicken Curry|240;Chicken Masala|250;Butter Chicken|280;Kadai Chicken|260;Chicken Chettinad|260;Mutton Curry|330;Mutton Rogan Josh|350;Fish Curry|260;Prawn Masala|330"),
         ("Indian Breads, Rice & Meals", "breads-rice", False, "VEG", "Plain Chapati (2 pcs)|35;Tandoori Roti|30;Butter Roti|40;Plain Naan|45;Butter Naan|55;Garlic Naan|70;Plain Steamed Rice|90;Jeera Rice|130;Curd Rice|90;Veg South Indian Meals|150"),
-        ("Biryani & Pulao", "biryani", True, "VEG", "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320"),
+        ("Biryani", "biryani", True, "VEG", "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320"),
         ("Egg Dishes", "egg", False, "EGG", "Boiled Eggs (2 pcs)|40;Egg Omelette|60;Masala Omelette|75;Cheese Omelette|100;Egg Bhurji|90;Egg Curry|140;Egg Masala|150;Egg Fried Rice|150;Egg Noodles|150;Egg Kathi Roll|130"),
         ("Vegetarian Chinese Dishes", "veg-chinese", False, "VEG", "Veg Fried Rice|140;Schezwan Veg Fried Rice|160;Veg Hakka Noodles|140;Schezwan Veg Noodles|160;Chilli Garlic Noodles|160;Veg Manchurian Gravy|160;Chilli Mushroom|190;American Chopsuey|180;Veg Momos (6 pcs)|120;Paneer Fried Rice|180"),
         ("Non-Vegetarian Chinese Dishes", "nonveg-chinese", False, "NON_VEG", "Chicken Fried Rice|180;Schezwan Chicken Fried Rice|200;Chicken Hakka Noodles|180;Schezwan Chicken Noodles|200;Chicken Chilli Garlic Noodles|210;Chicken Manchurian Gravy|230;Chicken Momos (6 pcs)|160;Chicken Chowmein|190;Prawn Fried Rice|250;Mixed Non-Veg Fried Rice|250"),
@@ -144,9 +144,16 @@ async def seed_menu(session: AsyncSession) -> None:
         legacy.is_active = False
         legacy.is_available = False
 
+    # Pulao is served by this restaurant as a breakfast/quick-meal item.  Keep
+    # its stable M071..M073 codes while placing it in the intended category.
+    breakfast_category: MenuCategory | None = None
     number = 1
-    for category_order, (category_name, image_slug, has_half, default_dietary, rows) in enumerate(sections, 1):
+    for category_order, (category_name, _image_slug, has_half, default_dietary, rows) in enumerate(sections, 1):
         category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == category_name.lower()))).scalar_one_or_none()
+        if category is None and category_name == "Biryani":
+            category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == "biryani & pulao"))).scalar_one_or_none()
+            if category:
+                category.name = "Biryani"
         if not category:
             category = MenuCategory(name=category_name)
             session.add(category)
@@ -154,6 +161,8 @@ async def seed_menu(session: AsyncSession) -> None:
         category.description = f"Freshly prepared {category_name.lower()}."
         category.display_order = category_order
         category.is_active = True
+        if category_name == "Breakfast & Quick Meals":
+            breakfast_category = category
 
         for item_order, row in enumerate(rows.split(";"), 1):
             name, raw_price = row.rsplit("|", 1)
@@ -164,27 +173,48 @@ async def seed_menu(session: AsyncSession) -> None:
                 item = MenuItem(item_code=code, category_id=category.id, name=name)
                 session.add(item)
                 await session.flush()
-            item.category_id, item.name = category.id, name
+            item_category = breakfast_category if number in {71, 72, 73} else category
+            if item_category is None:
+                raise RuntimeError("Breakfast category must be initialized before Pulao items.")
+            item.category_id, item.name = item_category.id, name
             item.description = f"Freshly prepared {name}."
             item.dietary_type, item.spice_level = dietary, SpiceLevel.MEDIUM.value
-            item.image_url = f"/menu/{image_slug}.png"
+            # `/menu/*.png` was legacy generated artwork, not a restaurant food
+            # photograph. Preserve genuine uploaded URLs and let Admin upload
+            # actual dish photographs through the secure image endpoint.
+            if item.image_url and item.image_url.startswith("/menu/"):
+                item.image_url = None
             item.is_active = item.is_available = True
             item.display_order = item_order
             full_price = Decimal(raw_price).quantize(Decimal("0.01"))
-            variants = [("Full", Decimal("1.00"), full_price, True)]
-            if has_half:
-                variants.insert(0, ("Half", Decimal("0.50"), (full_price * Decimal("0.60")).quantize(Decimal("0.01")), False))
-            for variant_order, (variant_name, quantity, price, is_default) in enumerate(variants, 1):
+            has_portions = has_half and not name.endswith("(Half)")
+            variants = [("Standard", Decimal("1.00"), full_price, True, False)]
+            if has_portions:
+                variants[0] = ("Full", Decimal("1.00"), full_price, True, True)
+                variants.insert(0, ("Half", Decimal("0.50"), (full_price * Decimal("0.60")).quantize(Decimal("0.01")), False, True))
+            for variant_order, (variant_name, quantity, price, is_default, is_portion) in enumerate(variants, 1):
                 variant_code = f"{code}-{'H' if variant_name == 'Half' else 'F'}"
                 variant = (await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.variant_code == variant_code))).scalar_one_or_none()
                 if not variant:
                     variant = MenuPriceVariant(menu_item_id=item.id, variant_code=variant_code, variant_name=variant_name, quantity_value=quantity, unit=PriceUnit.PORTION.value, price=price)
                     session.add(variant)
-                variant.menu_item_id, variant.variant_name = item.id, variant_name
+                variant.menu_item_id, variant.variant_name, variant.is_portion = item.id, variant_name, is_portion
                 variant.quantity_value, variant.unit, variant.price = quantity, PriceUnit.PORTION.value, price
                 variant.is_default, variant.is_active, variant.is_available = is_default, True, True
                 variant.display_order = variant_order
+            if not has_portions:
+                legacy_half = (await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.variant_code == f"{code}-H"))).scalar_one_or_none()
+                if legacy_half:
+                    legacy_half.is_active = legacy_half.is_available = False
             number += 1
+    # Retire the old demo category tabs only when they no longer contain active
+    # dishes. This keeps existing data/history intact and prevents empty tabs.
+    for legacy_name in ("Biriyani", "Biryani & Pulao", "Starters & Appetizers", "Breads & Accompaniments", "Beverages & Desserts"):
+        legacy_category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == legacy_name.lower()))).scalar_one_or_none()
+        if legacy_category:
+            active_count = await session.scalar(select(func.count(MenuItem.id)).where(MenuItem.category_id == legacy_category.id, MenuItem.is_active.is_(True)))
+            if not active_count:
+                legacy_category.is_active = False
     await session.flush()
     return
 

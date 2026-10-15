@@ -60,18 +60,20 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
   const availableVariants = useMemo(() => item.variants.filter((v) => v.is_available), [item]);
   const defaultVariant =
     availableVariants.find((v) => v.is_default) || availableVariants[0] || item.variants[0];
+  const requiresPortionChoice = availableVariants.length > 1 && availableVariants.some((v) => v.is_portion);
 
   const existingLines = cartItems.filter((c) => c.menuItemId === item.id);
   const isEditing = existingLines.length > 0;
 
-  // Quantity per portion. Opens with what is already in the cart, else 1 of the default portion.
+  // A fixed-price dish can start at quantity one. A dish with real portions
+  // must be chosen deliberately; never silently add its default Full option.
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const q: Record<string, number> = {};
     if (existingLines.length > 0) {
       existingLines.forEach((l) => {
         q[l.variantId] = (q[l.variantId] || 0) + l.quantity;
       });
-    } else if (defaultVariant) {
+    } else if (!requiresPortionChoice && defaultVariant) {
       q[defaultVariant.id] = 1;
     }
     return q;
@@ -280,7 +282,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
               disabled={totalQty === 0}
               className="btn-primary w-full disabled:opacity-50"
             >
-              <span>{totalQty === 0 ? 'Select a portion' : isEditing ? 'Update cart' : 'Add to Cart'}</span>
+              <span>{totalQty === 0 ? 'Choose a portion first' : isEditing ? 'Update cart' : 'Add to Cart'}</span>
               {totalQty > 0 && <span className="ml-auto font-bold">{formatInr(totalPrice)}</span>}
             </button>
           )}

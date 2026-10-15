@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import Field
 
@@ -48,6 +49,9 @@ class CustomerSessionResponse(StrictRequestModel):
     table_number: int
     table_display_name: str
     table_status: str
+    table_session_id: uuid.UUID | None = None
+    current_outstanding_amount: Decimal = Decimal("0.00")
+    custom_outstanding_limit: Decimal = Decimal("5000.00")
     status: str
     expires_at: datetime
 

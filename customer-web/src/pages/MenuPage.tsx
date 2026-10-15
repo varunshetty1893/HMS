@@ -51,6 +51,11 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
 
   useEffect(() => { loadMenu(); }, [loadMenu]);
 
+  const visibleCategories = useMemo(
+    () => menuData?.categories.filter((category) => category.items.length > 0) ?? [],
+    [menuData]
+  );
+
   // Jump to category section when tab selected (only when no search active)
   const handleSelectCategory = useCallback((id: string | null) => {
     setSelectedCategoryId(id);
@@ -76,13 +81,20 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
           // Search query filter
           if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase().trim();
-            const nameMatch = item.name.toLowerCase().includes(q);
-            const descMatch = item.description?.toLowerCase().includes(q);
-            const codeMatch = item.item_code.toLowerCase().includes(q);
+            const aliases: Record<string, string[]> = {
+              biryani: ['biriyani'], biriyani: ['biryani'], pulao: ['pulav'], pulav: ['pulao'],
+            };
+            const queries = [q, ...(aliases[q] ?? [])];
+            const includesQuery = (text: string | null | undefined) =>
+              !!text && queries.some((term) => text.toLowerCase().includes(term));
+            const nameMatch = includesQuery(item.name);
+            const descMatch = includesQuery(item.description);
+            const codeMatch = includesQuery(item.item_code);
+            const categoryMatch = includesQuery(cat.name);
             const variantMatch = item.variants.some((v) =>
-              v.variant_name.toLowerCase().includes(q)
+              includesQuery(v.variant_name)
             );
-            return nameMatch || descMatch || codeMatch || variantMatch;
+            return nameMatch || descMatch || codeMatch || categoryMatch || variantMatch;
           }
           return true;
         });
@@ -189,7 +201,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
       {/* ── Category tabs (sticky) ── */}
       {menuData && (
         <CategoryTabs
-          categories={menuData.categories}
+          categories={visibleCategories}
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={handleSelectCategory}
           dietaryFilter={dietaryFilter}

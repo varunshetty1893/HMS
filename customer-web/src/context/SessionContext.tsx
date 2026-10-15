@@ -59,9 +59,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTableDisplayName(sess.table_display_name);
       setTableNumber(sess.table_number);
       setTableId(sess.table_id);
+      setTableSessionId(sess.table_session_id ?? null);
+      setCurrentOutstanding(sess.current_outstanding_amount ?? '0.00');
+      setCustomLimit(sess.custom_outstanding_limit ?? '5000.00');
       sessionStorage.setItem('hms_table_name', sess.table_display_name);
       sessionStorage.setItem('hms_table_number', sess.table_number.toString());
       sessionStorage.setItem('hms_table_id', sess.table_id);
+      if (sess.table_session_id) {
+        sessionStorage.setItem('hms_table_session_id', sess.table_session_id);
+      }
     } catch (err) {
       if (err instanceof HmsApiError && (err.httpStatus === 401 || err.httpStatus === 403)) {
         clearSession();

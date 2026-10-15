@@ -53,7 +53,7 @@ async def get_customer_session(
     # Derive table status
     active_session = (
         await db.execute(
-            select(TableSession.id).where(
+            select(TableSession).where(
                 TableSession.table_id == session.table_id,
                 TableSession.status == "ACTIVE",
             )
@@ -67,6 +67,13 @@ async def get_customer_session(
         table_number=table.table_number,
         table_display_name=table.display_name,
         table_status=table_status,
+        table_session_id=active_session.id if active_session else None,
+        current_outstanding_amount=(
+            active_session.current_outstanding_amount if active_session else 0
+        ),
+        custom_outstanding_limit=(
+            active_session.custom_outstanding_limit if active_session else 5000
+        ),
         status=session.status,
         expires_at=session.expires_at,
     )
@@ -170,13 +177,13 @@ async def place_order(
 @router.get(
     "/orders",
     response_model=list[OrderResponse],
-    summary="List orders for current session",
+    summary="List orders for current table session",
 )
 async def list_orders(
     session: CustomerSession = Depends(get_current_customer_session),
     db: AsyncSession = Depends(get_db),
 ) -> list[OrderResponse]:
-    """Return all orders placed by the current customer session, newest first."""
+    """Return all orders for this active table session, newest first."""
     orders = await OrderService.list_customer_orders(db, customer_session=session)
     return [_build_order_response(o) for o in orders]
 

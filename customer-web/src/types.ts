@@ -49,6 +49,9 @@ export interface CustomerSession {
   table_number: number;
   table_display_name: string;
   table_status: string;
+  table_session_id?: string | null;
+  current_outstanding_amount?: string;
+  custom_outstanding_limit?: string;
   status: string;
   expires_at: string;
 }

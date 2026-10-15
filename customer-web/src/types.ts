@@ -6,6 +6,8 @@ export interface MenuPriceVariant {
   id: string;
   variant_code: string | null;
   variant_name: string;
+  /** Older servers omit this; treat absence as one fixed price. */
+  is_portion?: boolean;
   quantity_value: string;
   unit: string;
   price: string; // Decimal as string

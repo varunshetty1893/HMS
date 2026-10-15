@@ -1,7 +1,7 @@
 import React from 'react';
 import type { MenuItem } from '../types';
 import { formatInr } from '../utils/currency';
-import { Plus, Minus, Flame, Sparkles } from 'lucide-react';
+import { Plus, Minus, Flame, ImageOff, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { resolveMediaUrl } from '../utils/env';
 
@@ -14,6 +14,9 @@ interface MenuItemCardProps {
 
 // Real photo uploaded by the restaurant, or null (a neutral placeholder is drawn instead).
 function getDishImage(item: MenuItem): string | null {
+  // Legacy category illustrations were seeded under /menu/.  Only photos
+  // uploaded through the admin API are served from /static/menu/.
+  if (item.image_url?.trim().startsWith('/menu/')) return null;
   return resolveMediaUrl(item.image_url);
 }
 
@@ -225,11 +228,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, isPo
             />
           ) : (
             <div
-              className="w-full h-full flex items-center justify-center text-4xl"
+              className="w-full h-full flex flex-col items-center justify-center gap-1"
               style={{ background: 'var(--bg-subtle)' }}
-              aria-hidden
             >
-              {item.dietary_type === 'VEG' ? '🥗' : item.dietary_type === 'EGG' ? '🍳' : '🍛'}
+              <ImageOff size={22} style={{ color: 'var(--text-muted)' }} aria-hidden />
+              <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Photo soon</span>
             </div>
           )}
         </div>

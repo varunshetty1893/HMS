@@ -47,6 +47,8 @@ export interface MenuPriceVariant {
   menu_item_id: string;
   variant_code: string | null;
   variant_name: string;
+  /** Optional while an older API deployment is being upgraded; absence means fixed price. */
+  is_portion?: boolean;
   quantity_value: string;
   unit: PriceUnit;
   price: string;

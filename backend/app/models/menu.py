@@ -127,6 +127,12 @@ class MenuPriceVariant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     menu_item_id: Mapped[uuid.UUID] = uuid_fk("menu_items.id", nullable=False)
     variant_code: Mapped[str | None] = mapped_column(String(24), nullable=True)
     variant_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    # A fixed-price dish still has one internal variant so that orders can retain a
+    # price snapshot.  This flag prevents that implementation detail being exposed
+    # to guests as a misleading "Full" or "Regular" portion.
+    is_portion: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     quantity_value: Mapped[Decimal] = mapped_column(Numeric(8, 2, asdecimal=True), nullable=False)
     unit: Mapped[str] = mapped_column(String(20), nullable=False)
     price: Mapped[Decimal] = mapped_column(money(), nullable=False)

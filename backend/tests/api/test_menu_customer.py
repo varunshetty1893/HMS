@@ -153,6 +153,7 @@ def populated_menu() -> tuple[list[MenuCategory], list[MenuItem]]:
         menu_item_id=item1.id,
         variant_code="CB-H",
         variant_name="Half",
+        is_portion=True,
         quantity_value=Decimal("0.50"),
         unit=PriceUnit.PORTION.value,
         price=Decimal("100.00"),
@@ -166,6 +167,7 @@ def populated_menu() -> tuple[list[MenuCategory], list[MenuItem]]:
         menu_item_id=item1.id,
         variant_code="CB-F",
         variant_name="Full",
+        is_portion=True,
         quantity_value=Decimal("1.00"),
         unit=PriceUnit.PORTION.value,
         price=Decimal("180.00"),
@@ -194,6 +196,7 @@ def populated_menu() -> tuple[list[MenuCategory], list[MenuItem]]:
         menu_item_id=item2.id,
         variant_code="VB-F",
         variant_name="Full",
+        is_portion=False,
         quantity_value=Decimal("1.00"),
         unit=PriceUnit.PORTION.value,
         price=Decimal("140.00"),
@@ -241,10 +244,13 @@ async def test_get_customer_menu_full_structure(
         dish1 = next(d for d in cat["items"] if d["item_code"] == "CB")
         assert dish1["is_available"] is True
         assert len(dish1["variants"]) == 2
+        assert all(variant["is_portion"] is True for variant in dish1["variants"])
 
         # Check Veg Biryani (unavailable sold-out badge)
         dish2 = next(d for d in cat["items"] if d["item_code"] == "VB")
         assert dish2["is_available"] is False
+        # A legacy single "Full" row is now correctly exposed as a fixed price.
+        assert dish2["variants"][0]["is_portion"] is False
 
 
 @pytest.mark.asyncio

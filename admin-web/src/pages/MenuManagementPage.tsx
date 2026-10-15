@@ -28,6 +28,7 @@ interface PortionRow {
   unit: PriceUnit;
   price: string;
   code: string; // empty = auto-generate
+  isPortion: boolean;
 }
 
 const UNIT_OPTIONS: { value: PriceUnit; label: string }[] = [
@@ -73,6 +74,7 @@ const newRow = (p: Partial<PortionRow> = {}): PortionRow => ({
   unit: 'PORTION',
   price: '',
   code: '',
+  isPortion: false,
   ...p,
 });
 
@@ -88,15 +90,15 @@ const PRESETS: Preset[] = [
     id: 'single',
     label: 'One price',
     hint: 'Juice, naan, rice, dessert',
-    rows: () => [newRow({ name: 'Regular' })],
+    rows: () => [newRow()],
   },
   {
     id: 'half-full',
     label: 'Half / Full',
     hint: 'Biryani, curry, fried rice',
     rows: () => [
-      newRow({ name: 'Half', quantity: '0.5' }),
-      newRow({ name: 'Full', quantity: '1' }),
+      newRow({ name: 'Half', quantity: '0.5', isPortion: true }),
+      newRow({ name: 'Full', quantity: '1', isPortion: true }),
     ],
   },
   {
@@ -104,8 +106,8 @@ const PRESETS: Preset[] = [
     label: 'Plate by pieces',
     hint: 'Kebab: half = 6 pcs, full = 12 pcs',
     rows: () => [
-      newRow({ name: 'Half Plate (6 pcs)', quantity: '6', unit: 'PIECE' }),
-      newRow({ name: 'Full Plate (12 pcs)', quantity: '12', unit: 'PIECE' }),
+      newRow({ name: 'Half Plate (6 pcs)', quantity: '6', unit: 'PIECE', isPortion: true }),
+      newRow({ name: 'Full Plate (12 pcs)', quantity: '12', unit: 'PIECE', isPortion: true }),
     ],
   },
   {
@@ -113,9 +115,9 @@ const PRESETS: Preset[] = [
     label: 'Small / Medium / Large',
     hint: 'Shakes, pizza, lassi',
     rows: () => [
-      newRow({ name: 'Small' }),
-      newRow({ name: 'Medium' }),
-      newRow({ name: 'Large' }),
+      newRow({ name: 'Small', isPortion: true }),
+      newRow({ name: 'Medium', isPortion: true }),
+      newRow({ name: 'Large', isPortion: true }),
     ],
   },
   {
@@ -123,15 +125,15 @@ const PRESETS: Preset[] = [
     label: 'By volume (ml)',
     hint: 'Juices, soft drinks',
     rows: () => [
-      newRow({ name: '250 ml', quantity: '250', unit: 'ML' }),
-      newRow({ name: '500 ml', quantity: '500', unit: 'ML' }),
+      newRow({ name: '250 ml', quantity: '250', unit: 'ML', isPortion: true }),
+      newRow({ name: '500 ml', quantity: '500', unit: 'ML', isPortion: true }),
     ],
   },
   {
     id: 'custom',
     label: 'Custom',
     hint: 'Add your own portions',
-    rows: () => [newRow(), newRow()],
+    rows: () => [newRow({ isPortion: true }), newRow({ isPortion: true })],
   },
 ];
 
@@ -205,8 +207,8 @@ export const MenuManagementPage: React.FC = () => {
   const [newItemCatId, setNewItemCatId] = useState('');
   const [newItemDiet, setNewItemDiet] = useState<DietaryType>('VEG');
   const [newItemSpice, setNewItemSpice] = useState<SpiceLevel | ''>('');
-  const [presetId, setPresetId] = useState<string>('half-full');
-  const [rows, setRows] = useState<PortionRow[]>(() => PRESETS[1].rows());
+  const [presetId, setPresetId] = useState<string>('single');
+  const [rows, setRows] = useState<PortionRow[]>(() => PRESETS[0].rows());
   const [itemError, setItemError] = useState<string | null>(null);
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [newItemPhoto, setNewItemPhoto] = useState<File | null>(null);
@@ -263,8 +265,8 @@ export const MenuManagementPage: React.FC = () => {
     setNewItemDesc('');
     setNewItemDiet('VEG');
     setNewItemSpice('');
-    setPresetId('half-full');
-    setRows(PRESETS[1].rows());
+    setPresetId('single');
+    setRows(PRESETS[0].rows());
     setItemError(null);
     setNewItemCatId(''); // always make the owner choose the category
     setNewItemPhoto(null);
@@ -322,7 +324,7 @@ export const MenuManagementPage: React.FC = () => {
 
   const addRow = () => {
     setPresetId('custom');
-    setRows((prev) => [...prev, newRow()]);
+    setRows((prev) => [...prev, newRow({ isPortion: true })]);
   };
 
   const autoCodes = useMemo(() => {
@@ -347,10 +349,12 @@ export const MenuManagementPage: React.FC = () => {
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       const label = `Portion ${i + 1}`;
-      if (!r.name.trim()) return `${label}: give it a name (e.g. Half, Full, 6 pcs).`;
-      const key = r.name.trim().toLowerCase();
-      if (seen.has(key)) return `Two portions are named "${r.name.trim()}". Use different names.`;
-      seen.add(key);
+      if (r.isPortion && !r.name.trim()) return `${label}: give it a name (e.g. Half, Full, 6 pcs).`;
+      if (r.isPortion) {
+        const key = r.name.trim().toLowerCase();
+        if (seen.has(key)) return `Two portions are named "${r.name.trim()}". Use different names.`;
+        seen.add(key);
+      }
       const q = parseFloat(r.quantity);
       if (isNaN(q) || q <= 0) return `${label}: quantity must be more than 0.`;
       const p = parseFloat(r.price);
@@ -377,7 +381,8 @@ export const MenuManagementPage: React.FC = () => {
         description: newItemDesc.trim() || null,
         dietary_type: newItemDiet,
         variants: rows.map((r, i) => ({
-          variant_name: r.name.trim(),
+          variant_name: r.isPortion ? r.name.trim() : null,
+          is_portion: r.isPortion,
           variant_code: autoCodes[i] || null,
           quantity_value: String(parseFloat(r.quantity)),
           unit: r.unit,
@@ -411,7 +416,7 @@ export const MenuManagementPage: React.FC = () => {
   const openAddPortion = (item: MenuItem) => {
     setPortionItem(item);
     setEditingVariant(null);
-    setPRow(newRow());
+    setPRow(newRow({ isPortion: true }));
     setPortionError(null);
   };
 
@@ -425,6 +430,7 @@ export const MenuManagementPage: React.FC = () => {
         unit: v.unit,
         price: String(parseFloat(v.price)),
         code: v.variant_code || '',
+        isPortion: v.is_portion,
       })
     );
     setPortionError(null);
@@ -440,6 +446,7 @@ export const MenuManagementPage: React.FC = () => {
     try {
       const body: Record<string, unknown> = {
         variant_name: pRow.name.trim(),
+        is_portion: true,
         quantity_value: String(parseFloat(pRow.quantity)),
         unit: pRow.unit,
         price: parseFloat(pRow.price).toFixed(2),
@@ -810,8 +817,8 @@ export const MenuManagementPage: React.FC = () => {
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="font-mono text-slate-500 text-[10px] shrink-0">{v.variant_code}</span>
-                          <span className="font-medium text-slate-800 truncate">{v.variant_name}</span>
-                          {portionLabel(v) && !v.variant_name.toLowerCase().includes(portionLabel(v).split(' ')[0]) && (
+                          <span className="font-medium text-slate-800 truncate">{v.is_portion ? v.variant_name : 'Fixed price'}</span>
+                          {v.is_portion && portionLabel(v) && !v.variant_name.toLowerCase().includes(portionLabel(v).split(' ')[0]) && (
                             <span className="text-[10px] text-slate-400 shrink-0">· {portionLabel(v)}</span>
                           )}
                         </div>
@@ -1079,7 +1086,7 @@ export const MenuManagementPage: React.FC = () => {
 
                 <div className="space-y-2.5">
                   <div className="hidden sm:grid grid-cols-[1.6fr_0.7fr_0.9fr_0.9fr_auto] gap-2 text-[10px] font-bold uppercase text-slate-400 px-1">
-                    <span>Portion name</span>
+                    <span>{presetId === 'single' ? 'Price type' : 'Portion name'}</span>
                     <span>Qty</span>
                     <span>Unit</span>
                     <span>Price (₹)</span>
@@ -1088,13 +1095,19 @@ export const MenuManagementPage: React.FC = () => {
                   {rows.map((r, i) => (
                     <div key={r.key} className="space-y-1">
                       <div className="grid grid-cols-2 sm:grid-cols-[1.6fr_0.7fr_0.9fr_0.9fr_auto] gap-2 items-center">
-                        <input
-                          type="text"
-                          value={r.name}
-                          onChange={(e) => updateRow(r.key, { name: e.target.value })}
-                          placeholder="Half / Full / 6 pcs"
-                          className={`${smallFieldCls} col-span-2 sm:col-span-1`}
-                        />
+                        {r.isPortion ? (
+                          <input
+                            type="text"
+                            value={r.name}
+                            onChange={(e) => updateRow(r.key, { name: e.target.value })}
+                            placeholder="Half / Full / 6 pcs"
+                            className={`${smallFieldCls} col-span-2 sm:col-span-1`}
+                          />
+                        ) : (
+                          <div className="col-span-2 sm:col-span-1 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                            Fixed price
+                          </div>
+                        )}
                         <input
                           type="number"
                           step="any"
@@ -1134,7 +1147,7 @@ export const MenuManagementPage: React.FC = () => {
                         </button>
                       </div>
                       <div className="flex items-center gap-2 pl-1">
-                        <span className="text-[10px] text-slate-400">Waiter code:</span>
+                        <span className="text-[10px] text-slate-400">{r.isPortion ? 'Waiter code:' : 'Internal code:'}</span>
                         <input
                           type="text"
                           maxLength={24}
@@ -1143,7 +1156,7 @@ export const MenuManagementPage: React.FC = () => {
                           placeholder={autoCodes[i] || 'auto'}
                           className="w-28 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-mono text-slate-700 focus:outline-none focus:border-brand-500"
                         />
-                        {i === 0 && <span className="text-[10px] text-emerald-600 font-semibold">default portion</span>}
+                        {i === 0 && <span className="text-[10px] text-emerald-600 font-semibold">{r.isPortion ? 'default portion' : 'base price'}</span>}
                       </div>
                     </div>
                   ))}

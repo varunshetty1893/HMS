@@ -10,11 +10,11 @@ interface CategoryTabsProps {
   onSelectDietaryFilter: (f: 'ALL' | 'VEG' | 'NON_VEG' | 'EGG') => void;
 }
 
-const DIETARY_OPTIONS: { key: 'ALL' | 'VEG' | 'NON_VEG' | 'EGG'; label: string; emoji: string }[] = [
-  { key: 'ALL',     label: 'All',     emoji: '🍽' },
-  { key: 'VEG',     label: 'Veg',     emoji: '🥗' },
-  { key: 'NON_VEG', label: 'Non-Veg', emoji: '🍗' },
-  { key: 'EGG',     label: 'Egg',     emoji: '🥚' },
+const DIETARY_OPTIONS: { key: 'ALL' | 'VEG' | 'NON_VEG' | 'EGG'; label: string }[] = [
+  { key: 'ALL',     label: 'All' },
+  { key: 'VEG',     label: 'Veg' },
+  { key: 'NON_VEG', label: 'Non-Veg' },
+  { key: 'EGG',     label: 'Egg' },
 ];
 
 export const CategoryTabs: React.FC<CategoryTabsProps> = ({
@@ -183,7 +183,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
           className="flex items-center gap-1.5 px-4 pb-2.5 overflow-x-auto no-scrollbar select-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {DIETARY_OPTIONS.map(({ key, label, emoji }) => (
+          {DIETARY_OPTIONS.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => onSelectDietaryFilter(key)}
@@ -201,7 +201,6 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
                     }
               }
             >
-              <span>{emoji}</span>
               <span>{label}</span>
             </button>
           ))}

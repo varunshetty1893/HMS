@@ -306,6 +306,28 @@ async def test_update_variant_historical_price_protection_audit() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_fixed_price_variant_uses_internal_standard_name() -> None:
+    """Fixed-price dishes retain a variant for price snapshots but expose no portion."""
+    session = FakeMenuSession()
+    item = MenuItem(
+        id=uuid.uuid4(),
+        category_id=uuid.uuid4(),
+        item_code="IDLI",
+        name="Idli (2 pcs)",
+    )
+    session.add(item)
+
+    variant = await MenuService.create_variant(
+        session,  # type: ignore[arg-type]
+        item.id,
+        MenuPriceVariantCreate(price=Decimal("40.00")),
+    )
+
+    assert variant.variant_name == "Standard"
+    assert variant.is_portion is False
+
+
+@pytest.mark.asyncio
 async def test_set_item_availability_records_audit_and_emits() -> None:
     session = FakeMenuSession()
     item = MenuItem(

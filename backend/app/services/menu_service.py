@@ -48,6 +48,11 @@ from app.services.audit_service import AuditService
 
 logger = get_logger(__name__)
 
+# Database records always need a non-empty variant name for uniqueness and order
+# snapshots.  This value is intentionally internal; clients use ``is_portion``
+# to decide whether a label should be displayed.
+FIXED_PRICE_VARIANT_NAME = "Standard"
+
 
 class MenuService:
     """Service handling categories, menu items, price variants, and catalog searches."""
@@ -306,7 +311,8 @@ class MenuService:
             variant = MenuPriceVariant(
                 menu_item_id=item.id,
                 variant_code=v_data.variant_code.strip().upper() if v_data.variant_code else None,
-                variant_name=v_data.variant_name.strip(),
+                variant_name=(v_data.variant_name or FIXED_PRICE_VARIANT_NAME).strip(),
+                is_portion=v_data.is_portion,
                 quantity_value=v_data.quantity_value,
                 unit=v_data.unit.value,
                 price=v_data.price,
@@ -501,7 +507,7 @@ class MenuService:
                     details={"variant_code": clean_vcode},
                 )
 
-        clean_vname = data.variant_name.strip()
+        clean_vname = (data.variant_name or FIXED_PRICE_VARIANT_NAME).strip()
         dup_name = await session.execute(
             select(MenuPriceVariant).where(
                 MenuPriceVariant.menu_item_id == item_id,
@@ -524,6 +530,7 @@ class MenuService:
             menu_item_id=item_id,
             variant_code=clean_vcode,
             variant_name=clean_vname,
+            is_portion=data.is_portion,
             quantity_value=data.quantity_value,
             unit=data.unit.value,
             price=data.price,
@@ -608,6 +615,9 @@ class MenuService:
                         message=f"Variant name '{clean_vname}' already exists for this dish.",
                     )
                 variant.variant_name = clean_vname
+
+        if data.is_portion is not None:
+            variant.is_portion = data.is_portion
 
         if data.quantity_value is not None:
             variant.quantity_value = data.quantity_value
@@ -765,6 +775,7 @@ class MenuService:
                     variant_id=v.id,
                     variant_code=v.variant_code,
                     variant_name=v.variant_name,
+                    is_portion=bool(v.is_portion),
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,
@@ -855,6 +866,7 @@ class MenuService:
                     id=v.id,
                     variant_code=v.variant_code,
                     variant_name=v.variant_name,
+                    is_portion=bool(v.is_portion),
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,
@@ -1017,6 +1029,7 @@ class MenuService:
                 id=v.id,
                 variant_code=v.variant_code,
                 variant_name=v.variant_name,
+                is_portion=bool(v.is_portion),
                 quantity_value=v.quantity_value,
                 unit=v.unit,
                 price=v.price,
@@ -1078,6 +1091,7 @@ class MenuService:
                     id=v.id,
                     variant_code=v.variant_code,
                     variant_name=v.variant_name,
+                    is_portion=bool(v.is_portion),
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,

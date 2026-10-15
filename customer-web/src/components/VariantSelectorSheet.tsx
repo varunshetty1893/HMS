@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { CartItem, MenuItem, MenuPriceVariant } from '../types';
 import { formatInr } from '../utils/currency';
 import { useCart } from '../context/CartContext';
-import { Plus, Minus } from 'lucide-react';
+import { ImageOff, Plus, Minus } from 'lucide-react';
 import { resolveMediaUrl } from '../utils/env';
 
 interface VariantSelectorSheetProps {
@@ -13,9 +13,9 @@ interface VariantSelectorSheetProps {
 const DietaryBadge: React.FC<{ type: string | null }> = ({ type }) => {
   if (!type) return null;
   const cfg: Record<string, { label: string; fg: string; bg: string; border: string }> = {
-    VEG:     { label: '🥗 Vegetarian', fg: 'var(--green)',   bg: 'var(--green-light)',   border: 'var(--green)' },
-    NON_VEG: { label: '🍗 Non-Veg',    fg: '#B91C1C',        bg: '#FEF2F2',              border: '#B91C1C' },
-    EGG:     { label: '🥚 Egg',        fg: 'var(--amber)',   bg: 'var(--amber-light)',   border: 'var(--amber)' },
+    VEG:     { label: 'Vegetarian', fg: 'var(--green)',   bg: 'var(--green-light)',   border: 'var(--green)' },
+    NON_VEG: { label: 'Non-Veg',    fg: '#B91C1C',        bg: '#FEF2F2',              border: '#B91C1C' },
+    EGG:     { label: 'Egg',        fg: 'var(--amber)',   bg: 'var(--amber-light)',   border: 'var(--amber)' },
   };
   const c = cfg[type];
   if (!c) return null;
@@ -89,7 +89,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
     .filter((r) => r.qty > 0);
   const totalQty = selected.reduce((n, r) => n + r.qty, 0);
   const totalPrice = selected.reduce((sum, r) => sum + (parseFloat(String(r.variant.price)) || 0) * r.qty, 0);
-  const summary = selected.map((r) => `${r.qty} × ${r.variant.variant_name}`).join(' + ');
+  const summary = selected.map((r) => r.variant.is_portion ? `${r.qty} × ${r.variant.variant_name}` : `${r.qty} × ${item.name}`).join(' + ');
 
   const handleConfirm = () => {
     const notes = itemNotes.trim() ? itemNotes.trim() : undefined;
@@ -97,7 +97,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
       variantId: r.variant.id,
       menuItemId: item.id,
       itemName: item.name,
-      variantName: r.variant.variant_name,
+      variantName: r.variant.is_portion ? r.variant.variant_name : item.name,
       price: parseFloat(String(r.variant.price)) || 0,
       quantity: r.qty,
       itemNotes: notes,
@@ -106,7 +106,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
     onClose();
   };
 
-  const imageUrl = resolveMediaUrl(item.image_url);
+  const imageUrl = item.image_url?.trim().startsWith('/menu/') ? null : resolveMediaUrl(item.image_url);
 
   return (
     <div
@@ -140,7 +140,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
               </p>
             )}
           </div>
-          <DishThumb url={imageUrl} name={item.name} dietary={item.dietary_type} />
+          <DishThumb url={imageUrl} name={item.name} />
         </div>
 
         {/* Portions, each with its own quantity */}
@@ -175,7 +175,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
                     >
                       <div className="min-w-0">
                         <div className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
-                          {variant.variant_name}
+                          {variant.is_portion ? variant.variant_name : item.name}
                           {detail && (
                             <span className="text-xs font-normal ml-1.5" style={{ color: 'var(--text-muted)' }}>
                               ({detail})
@@ -200,7 +200,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
                             onClick={() => setQty(variant.id, qty - 1)}
                             className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
                             style={{ color: 'var(--primary)' }}
-                            aria-label={`Decrease ${variant.variant_name}`}
+                            aria-label={`Decrease ${variant.is_portion ? variant.variant_name : item.name}`}
                           >
                             <Minus size={14} strokeWidth={2.5} />
                           </button>
@@ -212,7 +212,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
                             onClick={() => setQty(variant.id, qty + 1)}
                             className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer"
                             style={{ background: 'var(--primary)', color: '#fff' }}
-                            aria-label={`Increase ${variant.variant_name}`}
+                            aria-label={`Increase ${variant.is_portion ? variant.variant_name : item.name}`}
                           >
                             <Plus size={14} strokeWidth={2.5} />
                           </button>
@@ -290,7 +290,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
   );
 };
 
-const DishThumb: React.FC<{ url: string | null; name: string; dietary: string | null }> = ({ url, name, dietary }) => {
+const DishThumb: React.FC<{ url: string | null; name: string }> = ({ url, name }) => {
   const [failed, setFailed] = useState(false);
   return (
     <div
@@ -300,7 +300,7 @@ const DishThumb: React.FC<{ url: string | null; name: string; dietary: string | 
       {url && !failed ? (
         <img src={url} alt={name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <span>{dietary === 'VEG' ? '🥗' : dietary === 'EGG' ? '🍳' : '🍛'}</span>
+        <ImageOff size={20} style={{ color: 'var(--text-muted)' }} aria-label={`No photo for ${name}`} />
       )}
     </div>
   );

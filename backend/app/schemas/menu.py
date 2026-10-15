@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import DietaryType, PriceUnit, SpiceLevel
 from app.schemas.common import StrictRequestModel
@@ -29,11 +29,13 @@ class MenuPriceVariantCreate(StrictRequestModel):
         max_length=24,
         description="Globally unique short code (e.g., CB-H, CB-F, CK-2)",
     )
-    variant_name: str = Field(
+    variant_name: str | None = Field(
+        default=None,
         min_length=1,
         max_length=80,
-        description="Portion or variant name (e.g., Half, Full, 2 Pcs)",
+        description="Required only when is_portion is true (e.g., Half, Full, 2 Pcs)",
     )
+    is_portion: bool = Field(default=False)
     quantity_value: Decimal = Field(
         default=Decimal("1"),
         gt=0,
@@ -59,12 +61,27 @@ class MenuPriceVariantCreate(StrictRequestModel):
             return cleaned if cleaned else None
         return None
 
+    @field_validator("variant_name")
+    @classmethod
+    def clean_variant_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        return cleaned or None
+
+    @model_validator(mode="after")
+    def require_name_for_portion(self) -> MenuPriceVariantCreate:
+        if self.is_portion and not self.variant_name:
+            raise ValueError("variant_name is required when is_portion is true.")
+        return self
+
 
 class MenuPriceVariantUpdate(StrictRequestModel):
     """Schema for updating an existing price variant."""
 
     variant_code: str | None = Field(default=None, min_length=1, max_length=24)
     variant_name: str | None = Field(default=None, min_length=1, max_length=80)
+    is_portion: bool | None = None
     quantity_value: Decimal | None = Field(default=None, gt=0)
     unit: PriceUnit | None = None
     price: Decimal | None = Field(default=None, ge=0)
@@ -91,6 +108,7 @@ class MenuPriceVariantResponse(BaseModel):
     menu_item_id: uuid.UUID
     variant_code: str | None
     variant_name: str
+    is_portion: bool
     quantity_value: Decimal
     unit: str
     price: Decimal
@@ -241,6 +259,7 @@ class CustomerMenuVariant(BaseModel):
     id: uuid.UUID
     variant_code: str | None
     variant_name: str
+    is_portion: bool
     quantity_value: Decimal
     unit: str
     price: Decimal
@@ -315,6 +334,7 @@ class WaiterSearchVariant(BaseModel):
     variant_id: uuid.UUID
     variant_code: str | None
     variant_name: str
+    is_portion: bool
     quantity_value: Decimal
     unit: str
     price: Decimal

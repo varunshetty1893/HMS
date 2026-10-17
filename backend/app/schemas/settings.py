@@ -42,8 +42,8 @@ class RestaurantSettingsResponse(BaseModel):
     limit_includes_estimated_tax: bool
     apply_outstanding_limit_to_waiter_orders: bool
     allow_waiter_discount: bool = False
-    waiter_max_discount_percentage: Decimal
-    waiter_max_price_override_percentage: Decimal
+    waiter_max_discount_percentage: Decimal = Decimal("0.00")
+    waiter_max_price_override_percentage: Decimal = Decimal("0.00")
 
     created_at: datetime | None = None
     updated_at: datetime

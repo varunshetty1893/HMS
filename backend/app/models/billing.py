@@ -117,6 +117,14 @@ class BillItem(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     quantity_billed: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price_snapshot: Mapped[Decimal] = mapped_column(money(), nullable=False)
     line_total: Mapped[Decimal] = mapped_column(money(), nullable=False)
+    base_price_snapshot: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    custom_portion_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    extra_pieces_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    adjustment_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    adjustment_amount: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    adjustment_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     bill: Mapped[Bill] = relationship(back_populates="items")
     order_item: Mapped[OrderItem] = relationship(back_populates="bill_items")

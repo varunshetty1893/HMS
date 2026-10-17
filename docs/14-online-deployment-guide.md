@@ -48,15 +48,15 @@
 2. In Render Dashboard, click **New +** -> **Blueprint**.
 3. Select your repository (Render will automatically detect `render.yaml`).
 4. Set the environment variables in Render:
-   - `DATABASE_URL`: Your Neon connection string.
-   - `CORS_ALLOWED_ORIGINS`: JSON array of your production frontend origins, e.g.:
-     `["https://hms-customer.vercel.app","https://hms-admin.vercel.app"]`
+   - `DATABASE_URL`: Your Neon connection string (e.g. `postgresql://...`).
+   - `CORS_ALLOWED_ORIGINS`: JSON array or comma-separated list of your production frontend origins:
+     `https://spicehub.pages.dev,https://spicehub-admin.pages.dev`
    - `PUBLIC_QR_BASE_URL`: Base URL for generated QR codes:
-     `https://hms-customer.vercel.app/q`
+     `https://spicehub.pages.dev/q`
    - `JWT_SECRET_KEY`: High-entropy 64-character hex key (generate with `openssl rand -hex 32`).
    - `CSRF_SECRET_KEY`: High-entropy 64-character hex key.
 5. Deploy the service. Verify the build log runs `alembic upgrade head` successfully and Uvicorn starts.
-6. Verify healthcheck: `GET https://<your-render-app>.onrender.com/api/v1/health` returns `{"status":"healthy"}`.
+6. Verify healthcheck: `GET https://hms-yyoq.onrender.com/api/v1/health` returns `{"status":"ok"}`.
 
 ### Step 3: Initialize Production Admin User
 Run the idempotent production bootstrapping script from your local machine targeting the remote Neon database:
@@ -65,24 +65,28 @@ DATABASE_URL="postgresql+asyncpg://..." ADMIN_USERNAME="admin" ADMIN_PASSWORD="Y
 ```
 This initializes the `restaurant_settings` singleton (id=1) with GST rates and ₹5,000 table safety limits and creates the initial administrator without installing demo/synthetic data.
 
-### Step 4: Deploy Frontends on Vercel
-#### Customer Web
-1. Import repository on Vercel.
+### Step 4: Deploy Frontends on Cloudflare Pages (or Vercel)
+#### Customer Web (`https://spicehub.pages.dev`)
+1. Create a project in Cloudflare Pages (connect to your GitHub repo).
 2. Set **Root Directory** to `customer-web`.
 3. Set **Framework Preset** to `Vite`.
-4. Configure Environment Variables:
-   - `VITE_API_BASE_URL`: `https://<your-render-app>.onrender.com/api/v1`
-   - `VITE_WS_URL`: `wss://<your-render-app>.onrender.com/api/v1/ws`
-5. Deploy.
+4. Build command: `npm run build` | Build output directory: `dist`.
+5. Configure Environment Variables (under **Settings** > **Environment variables**):
+   - `VITE_API_BASE_URL`: `https://hms-yyoq.onrender.com/api/v1`
+   - `VITE_WS_URL`: `wss://hms-yyoq.onrender.com/api/v1/ws`
+   - `VITE_APP_ENV`: `production`
+6. Deploy. Note that `customer-web/public/_redirects` contains `/* /index.html 200` to support SPA routing.
 
-#### Admin Web
-1. Import repository on Vercel as a second project.
+#### Admin Web (`https://spicehub-admin.pages.dev`)
+1. Create a second project in Cloudflare Pages.
 2. Set **Root Directory** to `admin-web`.
 3. Set **Framework Preset** to `Vite`.
-4. Configure Environment Variables:
-   - `VITE_API_BASE_URL`: `https://<your-render-app>.onrender.com/api/v1`
-   - `VITE_WS_URL`: `wss://<your-render-app>.onrender.com/api/v1/ws`
-5. Deploy.
+4. Build command: `npm run build` | Build output directory: `dist`.
+5. Configure Environment Variables (under **Settings** > **Environment variables**):
+   - `VITE_API_BASE_URL`: `https://hms-yyoq.onrender.com/api/v1`
+   - `VITE_WS_URL`: `wss://hms-yyoq.onrender.com/api/v1/ws`
+   - `VITE_APP_ENV`: `production`
+6. Deploy. Note that `admin-web/public/_redirects` contains `/* /index.html 200` to support SPA routing.
 
 ---
 

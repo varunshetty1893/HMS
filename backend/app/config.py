@@ -104,9 +104,9 @@ class Settings(BaseSettings):
                 parsed = json.loads(raw)
                 if not isinstance(parsed, list):
                     raise ValueError("CORS_ALLOWED_ORIGINS JSON value must be a list.")
-                return [str(origin).strip() for origin in parsed if str(origin).strip()]
-            return [origin.strip() for origin in raw.split(",") if origin.strip()]
-        return [str(origin).strip() for origin in value if str(origin).strip()]
+                return [str(origin).strip().rstrip("/") for origin in parsed if str(origin).strip()]
+            return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+        return [str(origin).strip().rstrip("/") for origin in value if str(origin).strip()]
 
     @field_validator("cors_allowed_origins")
     @classmethod

@@ -56,6 +56,7 @@ from app.models import (
     TableQrToken,
     TableSession,
     User,
+    WaiterRequest,
 )
 
 STRONG_JWT = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
@@ -327,7 +328,7 @@ def test_settings_load_values_from_environment_variables(
     [
         "",
         "   ",
-        "postgresql://user:pw@127.0.0.1:5432/db",
+        "oracle+cx_oracle://user:pw@127.0.0.1:1521/db",
         "mysql+aiomysql://user:pw@127.0.0.1:3306/db",
         "127.0.0.1:5432/db",
     ],
@@ -640,12 +641,13 @@ CANONICAL_MODEL_CLASSES: list[tuple[type, str]] = [
     (Notification, "notifications"),
     (AuditLog, "audit_logs"),
     (RestaurantSettings, "restaurant_settings"),
+    (WaiterRequest, "waiter_requests"),
 ]
 
 
 def test_all_twenty_models_registered_on_base_metadata() -> None:
-    assert len(Base.metadata.tables) == 20
-    assert len(CANONICAL_MODEL_CLASSES) == 20
+    assert len(Base.metadata.tables) == 21
+    assert len(CANONICAL_MODEL_CLASSES) == 21
 
     for model_cls, table_name in CANONICAL_MODEL_CLASSES:
         assert issubclass(model_cls, Base), f"{model_cls} must subclass Base"
@@ -685,6 +687,7 @@ def test_models_package_exports_all_twenty_entities() -> None:
         "TimestampMixin",
         "UUIDPrimaryKeyMixin",
         "User",
+        "WaiterRequest",
     }
     assert set(models_pkg.__all__) == expected_exports
     for export_name in expected_exports:

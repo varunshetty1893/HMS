@@ -73,6 +73,7 @@ export interface MenuItem {
   dietary_type: DietaryType | null;
   spice_level: SpiceLevel | null;
   pricing_type?: PricingType;
+  extra_piece_price?: string | null;
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;
@@ -172,8 +173,30 @@ export interface OrderItem {
   active_quantity: number;
   cancelled_quantity: number;
   unit_price_snapshot: string;
+  base_price_snapshot?: string;
+  custom_portion_name?: string | null;
+  extra_pieces_count?: number;
+  extra_piece_price?: string | null;
+  adjustment_type?: string | null;
+  adjustment_amount?: string | null;
+  adjustment_reason?: string | null;
+  adjustment_applied_by_user_id?: string | null;
+  adjustment_approved_by_user_id?: string | null;
   line_subtotal: string;
   item_notes: string | null;
+}
+
+export interface OrderItemAdjustmentRequest {
+  expected_version: number;
+  adjustment_type: string;
+  custom_unit_price?: number | null;
+  custom_portion_name?: string | null;
+  extra_pieces?: number;
+  discount_amount?: number | null;
+  discount_percent?: number | null;
+  surcharge_amount?: number | null;
+  surcharge_percent?: number | null;
+  reason: string;
 }
 
 export interface OrderModificationEvent {
@@ -183,6 +206,7 @@ export interface OrderModificationEvent {
   modification_type: string;
   previous_quantity: number;
   new_quantity: number;
+  price_delta?: string | number | null;
   reason: string;
   modified_by_role: string;
   created_at: string;
@@ -225,6 +249,12 @@ export interface BillItem {
   variant_name: string;
   quantity_billed: number;
   unit_price_snapshot: string;
+  base_price_snapshot?: string;
+  custom_portion_name?: string | null;
+  extra_pieces_count?: number;
+  adjustment_type?: string | null;
+  adjustment_amount?: string | null;
+  adjustment_reason?: string | null;
   line_total: string;
 }
 

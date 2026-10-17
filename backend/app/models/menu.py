@@ -82,6 +82,10 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "pricing_type IS NULL OR " + in_check("pricing_type", PricingType),
             name="pricing_type_valid",
         ),
+        CheckConstraint(
+            "extra_piece_price IS NULL OR extra_piece_price >= 0",
+            name="extra_piece_price_non_negative",
+        ),
         CheckConstraint("btrim(item_code) <> ''", name="item_code_not_blank"),
     )
 
@@ -90,6 +94,7 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     serving_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    extra_piece_price: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
     dietary_type: Mapped[str | None] = mapped_column(String(15), nullable=True)
     spice_level: Mapped[str | None] = mapped_column(String(15), nullable=True)
     pricing_type: Mapped[str] = mapped_column(

@@ -217,6 +217,7 @@ class MenuItemCreate(StrictRequestModel):
     name: str = Field(min_length=1, max_length=150)
     description: str | None = None
     serving_description: str | None = Field(default=None, max_length=255)
+    extra_piece_price: Decimal | None = Field(default=None, ge=0)
     dietary_type: DietaryType | None = None
     spice_level: SpiceLevel | None = None
     pricing_type: PricingType = Field(default=PricingType.FIXED)
@@ -246,6 +247,7 @@ class MenuItemUpdate(StrictRequestModel):
     name: str | None = Field(default=None, min_length=1, max_length=150)
     description: str | None = None
     serving_description: str | None = Field(default=None, max_length=255)
+    extra_piece_price: Decimal | None = Field(default=None, ge=0)
     dietary_type: DietaryType | None = None
     spice_level: SpiceLevel | None = None
     pricing_type: PricingType | None = None
@@ -285,6 +287,7 @@ class MenuItemResponse(BaseModel):
     name: str
     description: str | None
     serving_description: str | None = None
+    extra_piece_price: Decimal | None = None
     dietary_type: str | None
     spice_level: str | None
     pricing_type: str = PricingType.FIXED.value
@@ -344,6 +347,7 @@ class CustomerMenuItem(BaseModel):
     name: str
     description: str | None
     serving_description: str | None = None
+    extra_piece_price: Decimal | None = None
     dietary_type: str | None
     spice_level: str | None
     pricing_type: str = PricingType.FIXED.value

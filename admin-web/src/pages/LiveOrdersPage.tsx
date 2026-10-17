@@ -75,33 +75,38 @@ export const LiveOrdersPage: React.FC = () => {
     setCurrentPage(1);
   }, [statusFilter, sourceFilter, searchQuery, pageSize]);
 
-  const handleOpenDetail = (item: OrderReportItem) => {
-    const raw = item as any;
-    const fullOrder: Order = {
-      id: item.order_id || raw.id || '',
-      order_number: item.order_number,
-      table_id: raw.table_id || '',
-      table_session_id: raw.table_session_id || '',
-      source: (item.source || 'CUSTOMER_QR') as any,
-      status: (item.status || 'PLACED') as any,
-      order_subtotal: item.order_subtotal || '0.00',
-      placed_at: item.placed_at,
-      accepted_at: raw.accepted_at || null,
-      preparing_at: raw.preparing_at || null,
-      ready_at: raw.ready_at || null,
-      served_at: raw.served_at || null,
-      completed_at: item.completed_at || null,
-      cancelled_at: raw.cancelled_at || null,
-      rejected_at: raw.rejected_at || null,
-      cancellation_reason: raw.cancellation_reason || null,
-      rejection_reason: raw.rejection_reason || null,
-      version: raw.version || 1,
-      has_unacknowledged_mods: raw.has_unacknowledged_mods || false,
-      table_number: item.table_number,
-      items: raw.items || [],
-      modification_events: raw.modification_events || [],
-    };
-    setSelectedOrder(fullOrder);
+  const handleOpenDetail = async (item: OrderReportItem) => {
+    try {
+      const fullOrder = await ordersBillsApi.getOrder(item.order_id);
+      setSelectedOrder(fullOrder);
+    } catch {
+      const raw = item as any;
+      const fullOrder: Order = {
+        id: item.order_id || raw.id || '',
+        order_number: item.order_number,
+        table_id: raw.table_id || '',
+        table_session_id: raw.table_session_id || '',
+        source: (item.source || 'CUSTOMER_QR') as any,
+        status: (item.status || 'PLACED') as any,
+        order_subtotal: item.order_subtotal || '0.00',
+        placed_at: item.placed_at,
+        accepted_at: raw.accepted_at || null,
+        preparing_at: raw.preparing_at || null,
+        ready_at: raw.ready_at || null,
+        served_at: raw.served_at || null,
+        completed_at: item.completed_at || null,
+        cancelled_at: raw.cancelled_at || null,
+        rejected_at: raw.rejected_at || null,
+        cancellation_reason: raw.cancellation_reason || null,
+        rejection_reason: raw.rejection_reason || null,
+        version: raw.version || 1,
+        has_unacknowledged_mods: raw.has_unacknowledged_mods || false,
+        table_number: item.table_number,
+        items: raw.items || [],
+        modification_events: raw.modification_events || [],
+      };
+      setSelectedOrder(fullOrder);
+    }
   };
 
   const handleConfirmCancelOrder = async (reason?: string) => {
@@ -422,6 +427,12 @@ export const LiveOrdersPage: React.FC = () => {
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
         onRequestVoid={(ord) => setOrderToVoid(ord)}
+        onOrderUpdated={(updated) => {
+          setSelectedOrder(updated);
+          fetchOrders();
+          setSuccessBanner(`Live adjustment applied on Order #${updated.order_number}.`);
+          setTimeout(() => setSuccessBanner(null), 5000);
+        }}
       />
 
       {/* Cancel Confirmation Modal */}

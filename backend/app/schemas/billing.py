@@ -39,6 +39,12 @@ class BillItemResponse(ResponseModel):
     quantity_billed: int
     unit_price_snapshot: Decimal
     line_total: Decimal
+    base_price_snapshot: Decimal | None = None
+    custom_portion_name: str | None = None
+    extra_pieces_count: int = 0
+    adjustment_type: str | None = None
+    adjustment_amount: Decimal | None = None
+    adjustment_reason: str | None = None
 
 
 class BillResponse(ResponseModel):
@@ -107,6 +113,10 @@ class BillLinePriceOverride(StrictRequestModel):
     order_item_id: uuid.UUID
     unit_price: Decimal = Field(ge=Decimal("0.00"), max_digits=12, decimal_places=2)
     reason: str = Field(min_length=3, max_length=255)
+    custom_portion_name: str | None = Field(default=None, max_length=80)
+    extra_pieces_count: int = Field(default=0, ge=0)
+    adjustment_type: str | None = None
+    adjustment_amount: Decimal | None = None
 
 
 class BillGenerateRequest(StrictRequestModel):

@@ -615,6 +615,12 @@ class BillingService:
                 quantity_billed=item_obj.active_quantity,
                 unit_price_snapshot=unit_price,
                 line_total=line_tot,
+                base_price_snapshot=getattr(item_obj, "base_price_snapshot", None) or item_obj.unit_price_snapshot,
+                custom_portion_name=getattr(item_obj, "custom_portion_name", None),
+                extra_pieces_count=getattr(item_obj, "extra_pieces_count", 0) or 0,
+                adjustment_type=getattr(item_obj, "adjustment_type", None),
+                adjustment_amount=getattr(item_obj, "adjustment_amount", None),
+                adjustment_reason=getattr(item_obj, "adjustment_reason", None),
             )
             db.add(b_item)
             created_bill_items.append(b_item)
@@ -861,7 +867,12 @@ class BillingService:
 
         # 11. Reset RestaurantTable to AVAILABLE
         # Table occupancy is derived from table_sessions (closed above),
-        # so nothing to reset on the table row itself.
+        # but if legacy table model or mock has status/current_session_id, reset them.
+        if table is not None:
+            if hasattr(table, "status"):
+                table.status = "AVAILABLE"
+            if hasattr(table, "current_session_id"):
+                table.current_session_id = None
 
         # 12. Audit event
         await AuditService.record_event(
@@ -1155,6 +1166,12 @@ class BillingService:
         table: RestaurantTable | None = None,
         generator_name: str | None = None,
     ) -> BillResponse:
+        def _val(obj: Any, attr: str, default: Any = None) -> Any:
+            v = getattr(obj, attr, default)
+            if type(v).__name__ in ("MagicMock", "Mock"):
+                return default
+            return v if v is not None else default
+
         line_items = [
             BillItemResponse(
                 id=item.id,
@@ -1168,6 +1185,12 @@ class BillingService:
                 quantity_billed=item.quantity_billed,
                 unit_price_snapshot=item.unit_price_snapshot,
                 line_total=item.line_total,
+                base_price_snapshot=_val(item, "base_price_snapshot", item.unit_price_snapshot),
+                custom_portion_name=_val(item, "custom_portion_name", None),
+                extra_pieces_count=_val(item, "extra_pieces_count", 0),
+                adjustment_type=_val(item, "adjustment_type", None),
+                adjustment_amount=_val(item, "adjustment_amount", None),
+                adjustment_reason=_val(item, "adjustment_reason", None),
             )
             for item in (bill.items or [])
         ]

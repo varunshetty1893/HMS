@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { Bill, Order, OrderReportItem, Payment } from '@/types/api';
+import { Bill, Order, OrderItemAdjustmentRequest, OrderReportItem, Payment } from '@/types/api';
 
 export const ordersBillsApi = {
   listOrders: async (filters: {
@@ -14,6 +14,21 @@ export const ordersBillsApi = {
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
     return apiClient<OrderReportItem[]>(`/admin/orders?${params.toString()}`);
+  },
+
+  getOrder: async (orderId: string): Promise<Order> => {
+    return apiClient<Order>(`/admin/orders/${orderId}`);
+  },
+
+  adjustOrderItem: async (
+    orderId: string,
+    orderItemId: string,
+    payload: OrderItemAdjustmentRequest
+  ): Promise<Order> => {
+    return apiClient<Order>(`/admin/orders/${orderId}/items/${orderItemId}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   voidOrder: async (

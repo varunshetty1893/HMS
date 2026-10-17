@@ -44,6 +44,7 @@ from app.schemas.menu import (
 )
 from app.schemas.order import (
     OrderCancelRequest,
+    OrderItemAdjustmentRequest,
     SessionLimitOverrideRequest,
     WaiterOrderResponse,
 )
@@ -1100,6 +1101,16 @@ async def list_admin_orders(
     )
 
 
+@router.get("/orders/{order_id}", response_model=WaiterOrderResponse)
+async def get_admin_order_details(
+    order_id: uuid.UUID,
+    _admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """Get full order details including line items, adjustments, and modifications."""
+    return await OrderService.get_order_by_id(db, order_id=order_id)
+
+
 @router.post("/orders/{order_id}/void", response_model=WaiterOrderResponse)
 async def admin_void_order(
     order_id: uuid.UUID,
@@ -1116,6 +1127,24 @@ async def admin_void_order(
     )
     await db.commit()
     return res
+
+
+@router.post("/orders/{order_id}/items/{order_item_id}/adjust", response_model=WaiterOrderResponse)
+async def admin_adjust_order_item(
+    order_id: uuid.UUID,
+    order_item_id: uuid.UUID,
+    payload: OrderItemAdjustmentRequest,
+    admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """Admin adjustment on an order item (custom portion, price override, extra pieces, discount, surcharge)."""
+    return await OrderService.adjust_order_item(
+        db,
+        order_id=order_id,
+        order_item_id=order_item_id,
+        payload=payload,
+        staff_user=admin,
+    )
 
 
 @router.post("/table-sessions/{session_id}/override-limit")

@@ -26,6 +26,7 @@ from app.schemas.menu import WaiterSearchResponse
 from app.schemas.order import (
     OrderCancelRequest,
     OrderCreateResponse,
+    OrderItemAdjustmentRequest,
     OrderModifyRequest,
     OrderServeRequest,
     WaiterOrderCreate,
@@ -163,6 +164,16 @@ async def get_waiter_active_orders(
     return await OrderService.get_waiter_active_orders(db, table_id=table_id, status=status)
 
 
+@router.get("/orders/{order_id}", response_model=WaiterOrderResponse)
+async def get_waiter_order_details(
+    order_id: uuid.UUID,
+    _staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """Retrieve full details for an individual order."""
+    return await OrderService.get_order_by_id(db, order_id=order_id)
+
+
 @router.patch("/orders/{order_id}", response_model=WaiterOrderResponse)
 @router.post("/orders/{order_id}/modify", response_model=WaiterOrderResponse)
 async def modify_waiter_order(
@@ -182,6 +193,24 @@ async def modify_waiter_order(
     return await OrderService.modify_order(
         db,
         order_id=order_id,
+        payload=payload,
+        staff_user=staff,
+    )
+
+
+@router.post("/orders/{order_id}/items/{order_item_id}/adjust", response_model=WaiterOrderResponse)
+async def adjust_waiter_order_item(
+    order_id: uuid.UUID,
+    order_item_id: uuid.UUID,
+    payload: OrderItemAdjustmentRequest,
+    staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """Adjust an order line's price, portion, extra pieces, or discount within waiter limits."""
+    return await OrderService.adjust_order_item(
+        db,
+        order_id=order_id,
+        order_item_id=order_item_id,
         payload=payload,
         staff_user=staff,
     )

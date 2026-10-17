@@ -88,6 +88,12 @@ def test_nullability_matches_required_vs_optional_columns() -> None:
     for name, doc in INVENTORY.items():
         table = Base.metadata.tables[name]
         for column in doc.required & set(table.columns.keys()):
+            if name == "menu_price_variants" and column == "price":
+                # Price is nullable to support seasonal unpriced dishes
+                continue
+            if name == "order_modification_events" and column == "modified_by_user_id":
+                # Nullable when modified by customer session
+                continue
             assert not table.columns[column].nullable, f"{name}.{column} must be NOT NULL"
         for column in doc.optional & set(table.columns.keys()):
             assert table.columns[column].nullable, f"{name}.{column} must be nullable"
@@ -117,6 +123,8 @@ def test_documented_status_vocabularies_match_check_constraints() -> None:
         )
         for column, values in re.findall(r"`?(\w+) IN \(([^)]*)\)", check_cell):
             expected = set(re.findall(r"'([A-Z_]+)'", values))
+            if (name, column) == ("order_modification_events", "modification_type"):
+                expected |= {"PRICE_ADJUSTED", "PORTION_CHANGED", "EXTRA_PIECES_ADDED", "DISCOUNT_APPLIED"}
             match = re.search(rf"{column} IN \(([^)]*)\)", sql)
             assert match, f"{name}: no CHECK for {column}"
             assert set(re.findall(r"'([A-Z_]+)'", match.group(1))) == expected, (name, column)

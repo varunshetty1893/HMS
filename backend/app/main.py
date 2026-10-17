@@ -2,6 +2,7 @@
 
 Phase 0 Foundation (`docs/11-project-structure-and-coding-standards.md` &
 `docs/13-final-implementation-blueprint.md`).
+Reloaded for CORS origin update.
 """
 
 from __future__ import annotations
@@ -131,16 +132,19 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             return await call_next(request)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+            from app.core.exceptions import build_error_envelope
             from fastapi.responses import JSONResponse
 
+            req_id = getattr(request.state, "request_id", request_id_ctx_var.get("-"))
             return JSONResponse(
                 status_code=500,
-                content={
-                    "error": {
-                        "code": "INTERNAL_SERVER_ERROR",
-                        "message": f"Server error: {type(exc).__name__}: {exc}",
-                    }
-                },
+                content=build_error_envelope(
+                    code="INTERNAL_SERVER_ERROR",
+                    message=f"An unexpected server error occurred. Reference ID: {req_id}",
+                    details={},
+                    request_id=req_id,
+                ),
+                headers={"X-Request-Id": req_id},
             )
 
     # 2. Strict CORS configuration (wildcard '*' is forbidden by Settings validator)

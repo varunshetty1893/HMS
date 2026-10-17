@@ -26,12 +26,12 @@ def test_alembic_metadata_is_discoverable_and_complete() -> None:
     env_source = (BACKEND_DIR / "alembic" / "env.py").read_text()
     assert "target_metadata = Base.metadata" in env_source
     assert "get_settings().database_url" in env_source or "settings.database_url" in env_source
-    assert len(Base.metadata.tables) == 20
+    assert len(Base.metadata.tables) == 21
 
 
 def test_single_linear_head_with_initial_revision() -> None:
     script = ScriptDirectory.from_config(_config())
-    assert script.get_heads() == ["0001"]
+    assert script.get_heads() == ["0008"]
     revision = script.get_revision("0001")
     assert revision is not None
     assert revision.down_revision is None
@@ -64,7 +64,7 @@ def test_initial_migration_offline_sql_matches_metadata() -> None:
 
 def test_initial_migration_downgrade_offline_drops_everything() -> None:
     buffer = io.StringIO()
-    command.downgrade(_config(buffer), "0001:base", sql=True)
+    command.downgrade(_config(buffer), "head:base", sql=True)
     sql = buffer.getvalue()
     dropped = set(re.findall(r"DROP TABLE (\w+)", sql)) - {"alembic_version"}
     assert dropped == set(Base.metadata.tables)

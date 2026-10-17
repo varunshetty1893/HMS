@@ -37,6 +37,25 @@ class OrderItemCreate(StrictRequestModel):
         max_length=255,
         description="Optional per-item customer note (allergens, spice, etc.).",
     )
+    custom_unit_price: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0.00"),
+        description="Staff-only custom unit price or negotiated price.",
+    )
+    custom_portion_name: str | None = Field(
+        default=None,
+        max_length=80,
+        description="Staff-only custom portion label (e.g. 'Half bowl').",
+    )
+    extra_pieces: int = Field(
+        default=0,
+        ge=0,
+        le=50,
+        description="Staff-specified extra pieces added to this line.",
+    )
+    adjustment_type: str | None = Field(default=None)
+    adjustment_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+    adjustment_reason: str | None = Field(default=None, max_length=255)
 
     @field_validator("quantity")
     @classmethod
@@ -109,6 +128,17 @@ class OrderItemResponse(StrictRequestModel):
     line_subtotal: Decimal
     item_status: str
     item_notes: str | None
+
+    # ── live bill & flexible portion adjustments ──────────────────────────
+    base_price_snapshot: Decimal | None = None
+    custom_portion_name: str | None = None
+    extra_pieces_count: int = 0
+    extra_piece_price: Decimal | None = None
+    adjustment_type: str | None = None
+    adjustment_amount: Decimal | None = None
+    adjustment_reason: str | None = None
+    adjustment_applied_by_user_id: uuid.UUID | None = None
+    adjustment_approved_by_user_id: uuid.UUID | None = None
 
 
 class OrderResponse(StrictRequestModel):
@@ -227,6 +257,42 @@ class OrderItemModification(StrictRequestModel):
         max_length=255,
         description="Updated item notes.",
     )
+    custom_unit_price: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0.00"),
+        description="Staff-only updated unit price.",
+    )
+    custom_portion_name: str | None = Field(
+        default=None,
+        max_length=80,
+        description="Staff-only updated custom portion label.",
+    )
+    extra_pieces: int | None = Field(
+        default=None,
+        ge=0,
+        le=50,
+        description="Updated extra pieces count.",
+    )
+    adjustment_type: str | None = Field(default=None)
+    adjustment_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+
+
+class OrderItemAdjustmentRequest(StrictRequestModel):
+    """Payload to adjust price, portion, extra pieces, or discount on an order line."""
+
+    expected_version: int = Field(..., ge=1, description="Order version for concurrency check.")
+    adjustment_type: str = Field(
+        ...,
+        description="CUSTOM_PRICE, CUSTOM_PORTION, EXTRA_PIECES, DISCOUNT_FIXED, DISCOUNT_PERCENT, SURCHARGE_FIXED, SURCHARGE_PERCENT",
+    )
+    custom_unit_price: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+    custom_portion_name: str | None = Field(default=None, max_length=80)
+    extra_pieces: int = Field(default=0, ge=0, le=50)
+    discount_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+    discount_percent: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
+    surcharge_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+    surcharge_percent: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
+    reason: str = Field(..., min_length=2, max_length=255, description="Mandatory audit explanation.")
 
 
 class OrderModifyRequest(StrictRequestModel):

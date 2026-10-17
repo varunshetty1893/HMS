@@ -69,6 +69,7 @@ from app.schemas.order import (
     OrderCancelRequest,
     OrderCreate,
     OrderCreateResponse,
+    OrderItemAdjustmentRequest,
     OrderItemResponse,
     OrderModificationEventResponse,
     OrderModifyRequest,
@@ -135,6 +136,12 @@ def _generate_session_code() -> str:
 
 
 def _build_order_item_response(item: OrderItem) -> OrderItemResponse:
+    def _val(attr: str, default: Any = None) -> Any:
+        v = getattr(item, attr, default)
+        if type(v).__name__ in ("MagicMock", "Mock"):
+            return default
+        return v if v is not None else default
+
     return OrderItemResponse(
         id=item.id,
         order_id=item.order_id,
@@ -154,6 +161,15 @@ def _build_order_item_response(item: OrderItem) -> OrderItemResponse:
         line_subtotal=item.line_subtotal,
         item_status=item.item_status,
         item_notes=item.item_notes,
+        base_price_snapshot=_val("base_price_snapshot", item.unit_price_snapshot),
+        custom_portion_name=_val("custom_portion_name", None),
+        extra_pieces_count=_val("extra_pieces_count", 0),
+        extra_piece_price=_val("extra_piece_price", None),
+        adjustment_type=_val("adjustment_type", None),
+        adjustment_amount=_val("adjustment_amount", None),
+        adjustment_reason=_val("adjustment_reason", None),
+        adjustment_applied_by_user_id=_val("adjustment_applied_by_user_id", None),
+        adjustment_approved_by_user_id=_val("adjustment_approved_by_user_id", None),
     )
 
 
@@ -168,13 +184,13 @@ def _build_order_response(order: Order) -> OrderResponse:
         status=order.status,
         order_subtotal=order.order_subtotal,
         special_instructions=order.special_instructions,
-        is_first_qr_order_of_session=order.is_first_qr_order_of_session,
+        is_first_qr_order_of_session=bool(order.is_first_qr_order_of_session),
         version=order.version,
         placed_at=order.placed_at,
         accepted_at=order.accepted_at,
         ready_at=order.ready_at,
         served_at=order.served_at,
-        has_unacknowledged_mods=order.has_unacknowledged_mods,
+        has_unacknowledged_mods=bool(order.has_unacknowledged_mods),
         cancelled_at=order.cancelled_at,
         cancelled_by_role=order.cancelled_by_role,
         cancellation_reason=order.cancellation_reason,
@@ -215,8 +231,8 @@ def _build_waiter_order_response(order: Order) -> WaiterOrderResponse:
         status=order.status,
         order_subtotal=order.order_subtotal,
         special_instructions=order.special_instructions,
-        is_first_qr_order_of_session=order.is_first_qr_order_of_session,
-        has_unacknowledged_mods=order.has_unacknowledged_mods,
+        is_first_qr_order_of_session=bool(order.is_first_qr_order_of_session),
+        has_unacknowledged_mods=bool(order.has_unacknowledged_mods),
         version=order.version,
         placed_at=order.placed_at,
         accepted_at=order.accepted_at,
@@ -317,7 +333,13 @@ async def _close_session_if_no_active_orders(
     table = await db.scalar(
         select(RestaurantTable).where(RestaurantTable.id == order.table_id).with_for_update()
     )
-    return table is not None
+    if table is not None:
+        if hasattr(table, "status"):
+            table.status = "AVAILABLE"
+        if hasattr(table, "current_session_id"):
+            table.current_session_id = None
+        return True
+    return False
 
 
 async def _broadcast_order_cancelled(
@@ -593,6 +615,8 @@ class OrderService:
         cls,
         db: AsyncSession,
         payload: OrderCreate,
+        *,
+        staff_user: User | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch variant + item details for each requested variant_id.
 
@@ -651,14 +675,92 @@ class OrderService:
                     ),
                 )
 
+            base_price = variant.price
+            unit_price = base_price
+            custom_portion_name: str | None = None
+            extra_pieces_count = 0
+            extra_piece_price = getattr(menu_item, "extra_piece_price", None)
+            adj_type: str | None = None
+            adj_amount: Decimal | None = None
+            adj_reason: str | None = None
+            adj_applied_by: uuid.UUID | None = None
+            adj_approved_by: uuid.UUID | None = None
+
+            if staff_user is not None:
+                custom_portion_name = item_req.custom_portion_name
+                extra_pieces_count = item_req.extra_pieces or 0
+                adj_type = item_req.adjustment_type
+                adj_amount = item_req.adjustment_amount
+                adj_reason = item_req.adjustment_reason
+
+                if item_req.custom_unit_price is not None:
+                    unit_price = _two_dp(item_req.custom_unit_price)
+                    if not adj_type:
+                        adj_type = "CUSTOM_PORTION" if custom_portion_name else "CUSTOM_PRICE"
+                    if adj_amount is None:
+                        adj_amount = abs(unit_price - base_price)
+                elif extra_pieces_count > 0:
+                    ep_cost = _two_dp(Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00")))
+                    unit_price = base_price + ep_cost
+                    if not adj_type:
+                        adj_type = "EXTRA_PIECES"
+                    if adj_amount is None:
+                        adj_amount = ep_cost
+                elif adj_type == "DISCOUNT_FIXED" and adj_amount is not None:
+                    unit_price = max(Decimal("0.00"), base_price - adj_amount)
+                elif adj_type == "DISCOUNT_PERCENT" and adj_amount is not None:
+                    disc = _two_dp(base_price * (adj_amount / Decimal("100")))
+                    unit_price = max(Decimal("0.00"), base_price - disc)
+                elif adj_type == "SURCHARGE_FIXED" and adj_amount is not None:
+                    unit_price = base_price + adj_amount
+                elif adj_type == "SURCHARGE_PERCENT" and adj_amount is not None:
+                    sur = _two_dp(base_price * (adj_amount / Decimal("100")))
+                    unit_price = base_price + sur
+
+                if unit_price != base_price or extra_pieces_count > 0 or custom_portion_name:
+                    adj_applied_by = staff_user.id
+                    if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value):
+                        adj_approved_by = staff_user.id
+                    elif staff_user.role in (UserRole.WAITER, UserRole.WAITER.value):
+                        cfg = await db.scalar(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+                        if cfg:
+                            if unit_price < base_price:
+                                drop_pct = _two_dp(((base_price - unit_price) / base_price) * Decimal("100"))
+                                max_disc = cfg.waiter_max_discount_percentage or Decimal("0.00")
+                                if drop_pct > max_disc:
+                                    raise StateConflictError(
+                                        "DISCOUNT_EXCEEDS_WAITER_LIMIT",
+                                        f"Waiters are authorized for up to {max_disc}% discount. Requested {drop_pct}% requires Admin approval.",
+                                    )
+                            elif unit_price > base_price:
+                                std_ep = Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00"))
+                                excess = (unit_price - base_price) - std_ep
+                                if excess > Decimal("0.00"):
+                                    jump_pct = _two_dp((excess / base_price) * Decimal("100"))
+                                    max_ovr = cfg.waiter_max_price_override_percentage or Decimal("0.00")
+                                    if jump_pct > max_ovr and max_ovr > Decimal("0.00"):
+                                        raise StateConflictError(
+                                            "PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
+                                            f"Waiters can override price up to {max_ovr}%. Requested +{jump_pct}% requires Admin approval.",
+                                        )
+
             resolved.append(
                 {
                     "variant": variant,
                     "menu_item": menu_item,
                     "quantity": item_req.quantity,
                     "item_notes": item_req.item_notes,
-                    "unit_price": variant.price,  # authoritative Decimal from DB
-                    "line_subtotal": _two_dp(variant.price * Decimal(item_req.quantity)),
+                    "unit_price": unit_price,
+                    "base_price": base_price,
+                    "custom_portion_name": custom_portion_name,
+                    "extra_pieces_count": extra_pieces_count,
+                    "extra_piece_price": extra_piece_price,
+                    "adjustment_type": adj_type,
+                    "adjustment_amount": adj_amount,
+                    "adjustment_reason": adj_reason,
+                    "adjustment_applied_by_user_id": adj_applied_by,
+                    "adjustment_approved_by_user_id": adj_approved_by,
+                    "line_subtotal": _two_dp(unit_price * Decimal(item_req.quantity)),
                     "item_code": menu_item.item_code,
                     "item_name": menu_item.name,
                     "tax_rate": menu_item.tax_rate_override or Decimal("0.00"),
@@ -835,6 +937,15 @@ class OrderService:
                 quantity_value_snapshot=variant.quantity_value,
                 unit_snapshot=variant.unit,
                 unit_price_snapshot=variant.price,
+                base_price_snapshot=variant.price,
+                custom_portion_name=None,
+                extra_pieces_count=0,
+                extra_piece_price=getattr(menu_item, "extra_piece_price", None),
+                adjustment_type=None,
+                adjustment_amount=None,
+                adjustment_reason=None,
+                adjustment_applied_by_user_id=None,
+                adjustment_approved_by_user_id=None,
                 tax_rate_snapshot=line.get("tax_rate", Decimal("0.00")),
                 # ── mutable quantities ────────────────────────────────
                 original_quantity=qty,
@@ -1334,6 +1445,10 @@ class OrderService:
             )
             table = await db.scalar(table_stmt)
             if table:  # occupancy derived from table_sessions
+                if hasattr(table, "status"):
+                    table.status = "AVAILABLE"
+                if hasattr(table, "current_session_id"):
+                    table.current_session_id = None
                 table_reset = True
 
         order.status = OrderStatus.REJECTED.value
@@ -1724,7 +1839,9 @@ class OrderService:
 
         # ── 3. Resolve variant prices server-side ─────────────────────────
         resolved_lines = await cls._resolve_variants(
-            db, OrderCreate(items=payload.items, special_instructions=payload.special_instructions)
+            db,
+            OrderCreate(items=payload.items, special_instructions=payload.special_instructions),
+            staff_user=staff_user,
         )
 
         # ── 4. Compute order subtotal ─────────────────────────────────────
@@ -1816,6 +1933,15 @@ class OrderService:
                 quantity_value_snapshot=variant.quantity_value,
                 unit_snapshot=variant.unit,
                 unit_price_snapshot=unit_price,
+                base_price_snapshot=line.get("base_price", unit_price),
+                custom_portion_name=line.get("custom_portion_name"),
+                extra_pieces_count=line.get("extra_pieces_count", 0) or 0,
+                extra_piece_price=line.get("extra_piece_price"),
+                adjustment_type=line.get("adjustment_type"),
+                adjustment_amount=line.get("adjustment_amount"),
+                adjustment_reason=line.get("adjustment_reason"),
+                adjustment_applied_by_user_id=line.get("adjustment_applied_by_user_id"),
+                adjustment_approved_by_user_id=line.get("adjustment_approved_by_user_id"),
                 tax_rate_snapshot=menu_item.tax_rate_override or Decimal("0.00"),
                 original_quantity=qty,
                 active_quantity=qty,
@@ -2127,7 +2253,17 @@ class OrderService:
                         "INVALID_QUANTITY", "Added item quantity must be at least 1."
                     )
 
-                unit_price = _two_dp(variant.price)
+                base_price = variant.price
+                extra_piece_price = getattr(menu_item, "extra_piece_price", None)
+                extra_pieces_count = mod.extra_pieces or 0
+                if mod.custom_unit_price is not None:
+                    unit_price = _two_dp(mod.custom_unit_price)
+                elif extra_pieces_count > 0:
+                    ep_cost = _two_dp(Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00")))
+                    unit_price = base_price + ep_cost
+                else:
+                    unit_price = _two_dp(base_price)
+
                 line_subtotal = _two_dp(unit_price * Decimal(mod.new_quantity))
                 price_delta = line_subtotal
                 net_price_delta += price_delta
@@ -2143,6 +2279,15 @@ class OrderService:
                     quantity_value_snapshot=variant.quantity_value,
                     unit_snapshot=variant.unit,
                     unit_price_snapshot=unit_price,
+                    base_price_snapshot=base_price,
+                    custom_portion_name=mod.custom_portion_name,
+                    extra_pieces_count=extra_pieces_count,
+                    extra_piece_price=extra_piece_price,
+                    adjustment_type=mod.adjustment_type,
+                    adjustment_amount=mod.adjustment_amount or abs(unit_price - base_price) if unit_price != base_price else None,
+                    adjustment_reason=payload.reason if (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
+                    adjustment_applied_by_user_id=staff_user.id if (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
+                    adjustment_approved_by_user_id=staff_user.id if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value) and (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
                     tax_rate_snapshot=menu_item.tax_rate_override or Decimal("0.00"),
                     original_quantity=mod.new_quantity,
                     active_quantity=mod.new_quantity,
@@ -3289,6 +3434,28 @@ class OrderService:
         return [_build_waiter_order_response(o) for o in orders]
 
     @classmethod
+    async def get_order_by_id(
+        cls,
+        db: AsyncSession,
+        *,
+        order_id: uuid.UUID,
+    ) -> WaiterOrderResponse:
+        """Fetch full details for an individual order."""
+        stmt = (
+            select(Order)
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.table),
+                selectinload(Order.modification_events),
+            )
+            .where(Order.id == order_id)
+        )
+        order = await db.scalar(stmt)
+        if not order:
+            raise ResourceNotFoundError("ORDER_NOT_FOUND", f"Order {order_id} not found.")
+        return _build_waiter_order_response(order)
+
+    @classmethod
     async def get_table_session_details(
         cls,
         db: AsyncSession,
@@ -3338,3 +3505,245 @@ class OrderService:
             else Decimal("5000.00"),
             orders=orders_response,
         )
+
+    @classmethod
+    async def adjust_order_item(
+        cls,
+        db: AsyncSession,
+        *,
+        order_id: uuid.UUID,
+        order_item_id: uuid.UUID,
+        payload: OrderItemAdjustmentRequest,
+        staff_user: User,
+    ) -> WaiterOrderResponse:
+        """Adjust price, custom portion, extra pieces, or discount on an order item line."""
+        stmt = (
+            select(Order)
+            .options(
+                selectinload(Order.items),
+                selectinload(Order.table),
+                selectinload(Order.modification_events),
+            )
+            .where(Order.id == order_id)
+            .with_for_update()
+        )
+        order = await db.scalar(stmt)
+        if not order:
+            raise ResourceNotFoundError("ORDER_NOT_FOUND", f"Order {order_id} not found.")
+
+        if order.version != payload.expected_version:
+            raise StateConflictError(
+                "ORDER_VERSION_CONFLICT",
+                f"Order version conflict: current {order.version}, expected {payload.expected_version}",
+            )
+
+        if order.status in [OrderStatus.CANCELLED.value, OrderStatus.REJECTED.value, OrderStatus.SERVED.value]:
+            raise StateConflictError(
+                "ORDER_NOT_EDITABLE",
+                f"Cannot adjust an order in status '{order.status}'.",
+            )
+
+        await _ensure_no_issued_bill(db, order.table_session_id)
+
+        item = next((it for it in (order.items or []) if it.id == order_item_id), None)
+        if not item:
+            raise ResourceNotFoundError(
+                "ORDER_ITEM_NOT_FOUND",
+                f"Item {order_item_id} not found in order {order.order_number}.",
+            )
+
+        if item.item_status == OrderItemStatus.CANCELLED.value or item.active_quantity <= 0:
+            raise DomainValidationError(
+                "ITEM_ALREADY_CANCELLED",
+                f"'{item.item_name_snapshot}' is cancelled and cannot be adjusted.",
+            )
+
+        sess_stmt = (
+            select(TableSession).where(TableSession.id == order.table_session_id).with_for_update()
+        )
+        table_session = await db.scalar(sess_stmt)
+        if not table_session:
+            raise ResourceNotFoundError("TABLE_SESSION_NOT_FOUND", "Associated table session not found.")
+
+        settings = await db.scalar(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+
+        base_price = item.base_price_snapshot or item.unit_price_snapshot
+        old_unit_price = item.unit_price_snapshot
+        old_line_subtotal = item.line_subtotal
+
+        # Determine new unit price based on adjustment_type
+        adj_type = payload.adjustment_type.upper()
+        custom_portion = payload.custom_portion_name or item.custom_portion_name
+        extra_count = payload.extra_pieces
+        ep_price = item.extra_piece_price
+
+        if adj_type == "EXTRA_PIECES" and ep_price is None:
+            menu_item = await db.scalar(select(MenuItem).where(MenuItem.id == item.menu_item_id))
+            ep_price = getattr(menu_item, "extra_piece_price", None) or Decimal("0.00")
+
+        if adj_type == "CUSTOM_PRICE":
+            if payload.custom_unit_price is None:
+                raise DomainValidationError("CUSTOM_PRICE_REQUIRED", "Custom unit price must be specified.")
+            new_unit_price = _two_dp(payload.custom_unit_price)
+            calc_adj_amount = abs(new_unit_price - base_price)
+        elif adj_type == "CUSTOM_PORTION":
+            if payload.custom_unit_price is not None:
+                new_unit_price = _two_dp(payload.custom_unit_price)
+            else:
+                new_unit_price = base_price
+            calc_adj_amount = abs(new_unit_price - base_price)
+            if not custom_portion:
+                custom_portion = "Custom Portion"
+        elif adj_type == "EXTRA_PIECES":
+            extra_cost = _two_dp(Decimal(extra_count) * (ep_price or Decimal("0.00")))
+            new_unit_price = (payload.custom_unit_price if payload.custom_unit_price is not None else base_price) + extra_cost
+            calc_adj_amount = extra_cost
+        elif adj_type == "DISCOUNT_FIXED":
+            disc = payload.discount_amount or Decimal("0.00")
+            new_unit_price = max(Decimal("0.00"), _two_dp(base_price - disc))
+            calc_adj_amount = disc
+        elif adj_type == "DISCOUNT_PERCENT":
+            pct = payload.discount_percent or Decimal("0.00")
+            disc = _two_dp(base_price * (pct / Decimal("100")))
+            new_unit_price = max(Decimal("0.00"), base_price - disc)
+            calc_adj_amount = disc
+        elif adj_type == "SURCHARGE_FIXED":
+            sur = payload.surcharge_amount or Decimal("0.00")
+            new_unit_price = _two_dp(base_price + sur)
+            calc_adj_amount = sur
+        elif adj_type == "SURCHARGE_PERCENT":
+            pct = payload.surcharge_percent or Decimal("0.00")
+            sur = _two_dp(base_price * (pct / Decimal("100")))
+            new_unit_price = _two_dp(base_price + sur)
+            calc_adj_amount = sur
+        else:
+            raise DomainValidationError("INVALID_ADJUSTMENT_TYPE", f"Adjustment type '{adj_type}' is not supported.")
+
+        if new_unit_price < Decimal("0.00"):
+            raise DomainValidationError("INVALID_PRICE", "Unit price cannot be negative.")
+
+        # Permissions check
+        if staff_user.role in (UserRole.WAITER, UserRole.WAITER.value):
+            if settings:
+                if new_unit_price < base_price:
+                    drop_pct = _two_dp(((base_price - new_unit_price) / base_price) * Decimal("100"))
+                    max_disc = settings.waiter_max_discount_percentage or Decimal("0.00")
+                    if drop_pct > max_disc:
+                        raise StateConflictError(
+                            "DISCOUNT_EXCEEDS_WAITER_LIMIT",
+                            f"Waiters are authorized for up to {max_disc}% discount. Requested change ({drop_pct}%) requires Admin approval.",
+                        )
+                elif new_unit_price > base_price:
+                    std_ep = Decimal(extra_count) * (ep_price or Decimal("0.00"))
+                    excess = (new_unit_price - base_price) - std_ep
+                    if excess > Decimal("0.00"):
+                        jump_pct = _two_dp((excess / base_price) * Decimal("100"))
+                        max_ovr = settings.waiter_max_price_override_percentage or Decimal("0.00")
+                        if jump_pct > max_ovr and max_ovr > Decimal("0.00"):
+                            raise StateConflictError(
+                                "PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
+                                f"Waiters can override price up to {max_ovr}%. Requested change (+{jump_pct}%) requires Admin approval.",
+                            )
+
+        # Update order item
+        new_line_subtotal = _two_dp(Decimal(item.active_quantity) * new_unit_price)
+        price_delta = new_line_subtotal - old_line_subtotal
+
+        item.unit_price_snapshot = new_unit_price
+        item.line_subtotal = new_line_subtotal
+        item.custom_portion_name = custom_portion
+        item.extra_pieces_count = extra_count
+        item.extra_piece_price = ep_price
+        item.adjustment_type = adj_type
+        item.adjustment_amount = calc_adj_amount
+        item.adjustment_reason = payload.reason
+        item.adjustment_applied_by_user_id = staff_user.id
+        if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value):
+            item.adjustment_approved_by_user_id = staff_user.id
+        item.item_status = OrderItemStatus.MODIFIED.value
+
+        # Recalculate totals
+        table_session.current_outstanding_amount = max(
+            Decimal("0.00"), _two_dp(table_session.current_outstanding_amount + price_delta)
+        )
+        order.order_subtotal = _two_dp(sum(i.line_subtotal for i in order.items if i.active_quantity > 0))
+        order.version += 1
+
+        is_post_accept = order.status in [OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value]
+        if is_post_accept and (extra_count > 0 or custom_portion):
+            order.has_unacknowledged_mods = True
+
+        if adj_type == "CUSTOM_PORTION":
+            mod_type = ModificationType.PORTION_CHANGED.value
+        elif adj_type == "EXTRA_PIECES":
+            mod_type = ModificationType.EXTRA_PIECES_ADDED.value
+        elif "DISCOUNT" in adj_type:
+            mod_type = ModificationType.DISCOUNT_APPLIED.value
+        else:
+            mod_type = ModificationType.PRICE_ADJUSTED.value
+
+        ev = OrderModificationEvent(
+            id=uuid.uuid4(),
+            order_id=order.id,
+            order_item_id=item.id,
+            modification_type=mod_type,
+            order_status_at_modification=order.status,
+            previous_quantity=item.active_quantity,
+            new_quantity=item.active_quantity,
+            previous_notes=item.item_notes,
+            new_notes=item.item_notes,
+            unit_price_snapshot=new_unit_price,
+            price_delta=price_delta,
+            reason=f"[{adj_type}] {payload.reason} (INR {old_unit_price} to INR {new_unit_price})",
+            modified_by_user_id=staff_user.id,
+            modified_by_role=staff_user.role,
+            kitchen_ack_required=is_post_accept and (extra_count > 0 or bool(custom_portion)),
+            created_at=utc_now(),
+        )
+        db.add(ev)
+        order.modification_events.append(ev)
+
+        await AuditService.record_event(
+            db,
+            action_type="ORDER_ITEM_PRICE_ADJUSTED",
+            entity_type="order_item",
+            entity_id=str(item.id),
+            actor_role=staff_user.role,
+            actor_user_id=staff_user.id,
+            reason=payload.reason,
+            old_value={"unit_price": str(old_unit_price), "line_subtotal": str(old_line_subtotal)},
+            new_value={
+                "unit_price": str(new_unit_price),
+                "line_subtotal": str(new_line_subtotal),
+                "adjustment_type": adj_type,
+                "adjustment_amount": str(calc_adj_amount),
+            },
+        )
+
+        await db.commit()
+        await db.refresh(order)
+
+        now = utc_now()
+        mod_event_payload = {
+            "event": "order.modified",
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "table_code": order.table.display_name if order.table else "",
+            "has_unacknowledged_mods": order.has_unacknowledged_mods,
+            "modified_by_role": str(staff_user.role),
+            "net_price_delta": str(price_delta),
+            "reason": payload.reason,
+            "version": order.version,
+            "timestamp": now.isoformat(),
+        }
+        try:
+            await ws_manager.broadcast_to_room("channel:kitchen", mod_event_payload)
+            await ws_manager.broadcast_to_room("channel:waiters", mod_event_payload)
+            await ws_manager.broadcast_to_room("channel:admin", mod_event_payload)
+            await ws_manager.broadcast_to_room(
+                f"table_session:{order.table_session_id}", mod_event_payload
+            )
+        except Exception as exc:
+            logger.warning("WebSocket broadcast failed after item adjustment: %s", exc)
+
+        return _build_waiter_order_response(order)

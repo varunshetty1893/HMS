@@ -182,6 +182,19 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     item_notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cancellation_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # --- Live bill & flexible portion adjustment fields ---
+    base_price_snapshot: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    custom_portion_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    extra_pieces_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    extra_piece_price: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    adjustment_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    adjustment_amount: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    adjustment_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adjustment_applied_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
+    adjustment_approved_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
+
     order: Mapped[Order] = relationship(back_populates="items")
     menu_item: Mapped[MenuItem] = relationship(back_populates="order_items")
     variant: Mapped[MenuPriceVariant] = relationship(back_populates="order_items")

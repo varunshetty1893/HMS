@@ -352,6 +352,7 @@ class MenuService:
             name=data.name.strip(),
             description=data.description.strip() if data.description else None,
             serving_description=data.serving_description.strip() if data.serving_description else None,
+            extra_piece_price=data.extra_piece_price,
             dietary_type=data.dietary_type.value if data.dietary_type else None,
             spice_level=data.spice_level.value if data.spice_level else None,
             pricing_type=data.pricing_type.value if data.pricing_type else PricingType.FIXED.value,
@@ -449,6 +450,8 @@ class MenuService:
             item.description = data.description.strip() if data.description else None
         if "serving_description" in data.model_fields_set:
             item.serving_description = data.serving_description.strip() if data.serving_description else None
+        if "extra_piece_price" in data.model_fields_set:
+            item.extra_piece_price = data.extra_piece_price
         if data.dietary_type is not None:
             item.dietary_type = data.dietary_type.value
         if "spice_level" in data.model_fields_set:

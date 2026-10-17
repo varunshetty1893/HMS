@@ -275,7 +275,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
       {/* Bill Detail Modal */}
       {selectedBill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl p-6 shadow-2xl relative" style={modalInner}>
+          <div className="w-full max-w-xl rounded-2xl p-6 shadow-2xl relative" style={modalInner}>
             <div className="flex items-start justify-between pb-4 border-b" style={{ borderBottomColor: border }}>
               <div>
                 <div className="flex items-center gap-2.5">
@@ -294,6 +294,72 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Bill Line Items with Portions & Adjustments */}
+            {selectedBill.line_items && selectedBill.line_items.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: sub }}>
+                  Billed Dishes ({selectedBill.line_items.length})
+                </h4>
+                <div className="rounded-xl border divide-y overflow-hidden max-h-52 overflow-y-auto" style={{ borderColor: border }}>
+                  {selectedBill.line_items.map((item, idx) => {
+                    const hasCustomPortion = Boolean(item.custom_portion_name);
+                    const hasExtraPieces = (item.extra_pieces_count || 0) > 0;
+                    const hasAdjustment = Boolean(item.adjustment_type);
+                    const isPriceAltered =
+                      item.base_price_snapshot &&
+                      Number(item.base_price_snapshot) !== Number(item.unit_price_snapshot);
+
+                    return (
+                      <div
+                        key={item.id || `bi-${idx}`}
+                        className="p-2.5 text-xs flex items-center justify-between"
+                        style={{ backgroundColor: L ? '#f8fafc' : 'rgba(30,41,59,0.5)' }}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold" style={{ color: heading }}>{item.item_name}</span>
+                            <span style={{ color: muted }}>({item.variant_name})</span>
+                          </div>
+                          {(hasCustomPortion || hasExtraPieces || hasAdjustment) && (
+                            <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                              {hasCustomPortion && (
+                                <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
+                                  {item.custom_portion_name}
+                                </span>
+                              )}
+                              {hasExtraPieces && (
+                                <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  +{item.extra_pieces_count} extra pc
+                                </span>
+                              )}
+                              {hasAdjustment && (
+                                <span className="text-[10px] font-semibold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                  {item.adjustment_type?.replace(/_/g, ' ')}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div className="text-[11px]" style={{ color: muted }}>
+                            Qty: <strong style={{ color: heading }}>{item.quantity_billed}</strong>
+                            <span className="mx-1">•</span>
+                            {isPriceAltered && (
+                              <span className="line-through mr-1" style={{ color: muted }}>
+                                {formatInr(item.base_price_snapshot || 0)}
+                              </span>
+                            )}
+                            <span style={{ color: heading }}>{formatInr(item.unit_price_snapshot)}</span> each
+                          </div>
+                        </div>
+                        <div className="font-mono font-bold" style={{ color: heading }}>
+                          {formatInr(item.line_total)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Bill Summary */}
             <div className="mt-4 space-y-2 text-sm">

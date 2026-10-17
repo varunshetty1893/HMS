@@ -206,6 +206,7 @@ export const MenuManagementPage: React.FC = () => {
   const [spiceLevel, setSpiceLevel] = useState<SpiceLevel | ''>('');
   const [description, setDescription] = useState('');
   const [servingDescription, setServingDescription] = useState('');
+  const [extraPiecePrice, setExtraPiecePrice] = useState('');
   const [isAvailable, setIsAvailable] = useState(true);
 
   // Section 2: Pricing method & portions
@@ -274,6 +275,7 @@ export const MenuManagementPage: React.FC = () => {
     setSpiceLevel('');
     setDescription('');
     setServingDescription('');
+    setExtraPiecePrice('');
     setIsAvailable(true);
     setPricingMethod('FIXED');
     setPortionRows(METHOD_PRESETS.FIXED.rows());
@@ -297,6 +299,11 @@ export const MenuManagementPage: React.FC = () => {
     setSpiceLevel((item.spice_level || '') as SpiceLevel | '');
     setDescription(item.description || '');
     setServingDescription(item.serving_description || '');
+    setExtraPiecePrice(
+      item.extra_piece_price !== null && item.extra_piece_price !== undefined
+        ? String(parseFloat(item.extra_piece_price))
+        : ''
+    );
     setIsAvailable(item.is_available);
 
     const isSeason = item.pricing_type === 'SEASONAL';
@@ -520,6 +527,7 @@ export const MenuManagementPage: React.FC = () => {
         };
       });
 
+      const parsedExtraPiece = extraPiecePrice.trim() ? parseFloat(extraPiecePrice).toFixed(2) : null;
       const dishPayload: Record<string, unknown> = {
         name: dishName.trim(),
         item_code: dishCode.trim().toUpperCase(),
@@ -528,6 +536,7 @@ export const MenuManagementPage: React.FC = () => {
         spice_level: spiceLevel || null,
         description: description.trim() || null,
         serving_description: servingDescription.trim() || null,
+        extra_piece_price: parsedExtraPiece,
         pricing_type: pricingType,
         is_available: isAvailable,
         variants: variantsPayload,
@@ -970,6 +979,15 @@ export const MenuManagementPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Extra Piece Price badge if present */}
+                  {item.extra_piece_price && (
+                    <div className="mt-1.5">
+                      <span className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-lg inline-block border border-amber-200">
+                        + Extra piece: {formatInr(item.extra_piece_price)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Customer Description */}
                   {item.description && (
                     <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
@@ -1219,6 +1237,34 @@ export const MenuManagementPage: React.FC = () => {
                         placeholder="Mouth-watering dish details, marinades, preparation styles..."
                         className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
                       />
+                    </div>
+
+                    {/* Extra Piece Add-on Price (Optional) */}
+                    <div className="sm:col-span-2">
+                      <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <label className="block text-xs font-bold text-amber-950">
+                              Extra Piece Price (₹) <span className="text-amber-700 font-normal">(optional add-on)</span>
+                            </label>
+                            <p className="text-[11px] text-amber-800 mt-0.5">
+                              For countable items (idli, kebab, cutlet, wings) where customers can request extra pieces (e.g. ₹20/piece).
+                            </p>
+                          </div>
+                          <div className="relative w-full sm:w-40 shrink-0">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={extraPiecePrice}
+                              onChange={(e) => setExtraPiecePrice(e.target.value)}
+                              placeholder="e.g. 20"
+                              className="w-full pl-7 pr-3 py-2 rounded-xl border border-amber-200 bg-white text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -291,6 +291,7 @@ class BillingService:
                     subtotal += line_tot
                     preview_lines.append(
                         BillItemResponse(
+                            id=item.id,
                             order_id=order.id,
                             order_number=order.order_number,
                             item_code=item.item_code_snapshot,
@@ -484,17 +485,18 @@ class BillingService:
                             max_pct = (
                                 settings.waiter_max_price_override_percentage or Decimal("0.00")
                             )
-                            allowed_delta = (unit_price * max_pct / Decimal("100")).quantize(
-                                TWO_PLACES, rounding=ROUND_HALF_UP
-                            )
-                            if abs(requested_price - unit_price) > allowed_delta:
-                                raise StateConflictError(
-                                    code="PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
-                                    message=(
-                                        f"Waiters may adjust this line by at most {max_pct}%. "
-                                        "The requested price requires an Admin."
-                                    ),
+                            if max_pct > Decimal("0.00"):
+                                allowed_delta = (unit_price * max_pct / Decimal("100")).quantize(
+                                    TWO_PLACES, rounding=ROUND_HALF_UP
                                 )
+                                if abs(requested_price - unit_price) > allowed_delta:
+                                    raise StateConflictError(
+                                        code="PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
+                                        message=(
+                                            f"Waiters may adjust this line by at most {max_pct}%. "
+                                            "The requested price requires an Admin."
+                                        ),
+                                    )
                         unit_price = requested_price
                     line_tot = (unit_price * item.active_quantity).quantize(
                         TWO_PLACES, rounding=ROUND_HALF_UP
@@ -536,18 +538,19 @@ class BillingService:
             if staff_user.role != UserRole.ADMIN.value:
                 # Check waiter max discount
                 max_allowed_pct = settings.waiter_max_discount_percentage or Decimal("0.00")
-                max_allowed_amount = (subtotal * max_allowed_pct / Decimal("100")).quantize(
-                    TWO_PLACES, rounding=ROUND_HALF_UP
-                )
-                if discount_amount > max_allowed_amount:
-                    raise StateConflictError(
-                        code="DISCOUNT_EXCEEDS_WAITER_LIMIT",
-                        message=(
-                            f"Waiters are authorized for up to {max_allowed_pct}% discount "
-                            f"(₹{max_allowed_amount}). Requested ₹{discount_amount} "
-                            "requires Admin approval."
-                        ),
+                if max_allowed_pct > Decimal("0.00"):
+                    max_allowed_amount = (subtotal * max_allowed_pct / Decimal("100")).quantize(
+                        TWO_PLACES, rounding=ROUND_HALF_UP
                     )
+                    if discount_amount > max_allowed_amount:
+                        raise StateConflictError(
+                            code="DISCOUNT_EXCEEDS_WAITER_LIMIT",
+                            message=(
+                                f"Waiters are authorized for up to {max_allowed_pct}% discount "
+                                f"(₹{max_allowed_amount}). Requested ₹{discount_amount} "
+                                "requires Admin approval."
+                            ),
+                        )
 
         taxable_amount = (subtotal - discount_amount).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
         cgst_rate = settings.cgst_percentage
@@ -977,16 +980,16 @@ class BillingService:
     # ─────────────────────────────────────────────────────────────────────────
 
     @classmethod
-    async def apply_admin_discount(
+    async def apply_bill_discount(
         cls,
         db: AsyncSession,
         *,
         bill_id: uuid.UUID,
         payload: BillDiscountRequest,
-        admin_user: User,
+        staff_user: User,
         client_ip: str | None = None,
     ) -> BillResponse:
-        """Admin applies or updates a discount on an ISSUED bill."""
+        """Staff applies or updates a discount on an ISSUED bill."""
         bill_stmt = (
             select(Bill)
             .options(selectinload(Bill.items))
@@ -1016,9 +1019,26 @@ class BillingService:
                 ),
             )
 
+        if staff_user.role != UserRole.ADMIN.value:
+            settings = await cls._get_restaurant_settings(db)
+            max_allowed_pct = settings.waiter_max_discount_percentage or Decimal("0.00")
+            if max_allowed_pct > Decimal("0.00"):
+                max_allowed_amount = (bill.subtotal_amount * max_allowed_pct / Decimal("100")).quantize(
+                    TWO_PLACES, rounding=ROUND_HALF_UP
+                )
+                if discount_amount > max_allowed_amount:
+                    raise StateConflictError(
+                        code="DISCOUNT_EXCEEDS_WAITER_LIMIT",
+                        message=(
+                            f"Waiters are authorized for up to {max_allowed_pct}% discount "
+                            f"(₹{max_allowed_amount}). Requested ₹{discount_amount} "
+                            "requires Admin approval."
+                        ),
+                    )
+
         bill.discount_amount = discount_amount
         bill.discount_reason = payload.discount_reason
-        bill.discount_approved_by_user_id = admin_user.id
+        bill.discount_approved_by_user_id = staff_user.id
         bill.taxable_amount = (bill.subtotal_amount - discount_amount).quantize(
             TWO_PLACES, rounding=ROUND_HALF_UP
         )
@@ -1039,8 +1059,8 @@ class BillingService:
 
         await AuditService.record_event(
             db,
-            actor_user_id=admin_user.id,
-            actor_role=admin_user.role,
+            actor_user_id=staff_user.id,
+            actor_role=staff_user.role,
             action_type="BILL_DISCOUNT_APPLIED",
             entity_type="BILL",
             entity_id=str(bill.id),
@@ -1058,7 +1078,25 @@ class BillingService:
         table = (
             await db.execute(select(RestaurantTable).where(RestaurantTable.id == bill.table_id))
         ).scalar_one_or_none()
-        return cls._bill_to_response(bill, table, admin_user.full_name)
+        return cls._bill_to_response(bill, table, staff_user.full_name)
+
+    @classmethod
+    async def apply_admin_discount(
+        cls,
+        db: AsyncSession,
+        *,
+        bill_id: uuid.UUID,
+        payload: BillDiscountRequest,
+        admin_user: User,
+        client_ip: str | None = None,
+    ) -> BillResponse:
+        return await cls.apply_bill_discount(
+            db,
+            bill_id=bill_id,
+            payload=payload,
+            staff_user=admin_user,
+            client_ip=client_ip,
+        )
 
     @classmethod
     async def void_bill_for_revision(

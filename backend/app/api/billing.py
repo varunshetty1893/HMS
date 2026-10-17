@@ -162,6 +162,31 @@ async def record_payment(
 
 
 @router.post(
+    "/bills/{bill_id}/discount",
+    response_model=BillResponse,
+    summary="Apply discount to an ISSUED bill (Waiter or Admin)",
+)
+async def apply_staff_bill_discount(
+    request: Request,
+    bill_id: uuid.UUID,
+    payload: BillDiscountRequest,
+    staff: StaffUser,
+    db: AsyncSession = Depends(get_db),
+) -> BillResponse:
+    """Staff applies or updates a discount on an ISSUED bill, recalculating taxes."""
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
+        request.client.host if request.client else None
+    )
+    return await BillingService.apply_bill_discount(
+        db,
+        bill_id=bill_id,
+        payload=payload,
+        staff_user=staff,
+        client_ip=client_ip,
+    )
+
+
+@router.post(
     "/admin/bills/{bill_id}/discount",
     response_model=BillResponse,
     summary="Apply audited discount to an ISSUED bill (Admin only)",

@@ -1,6 +1,7 @@
 /// Bill line item representation using frozen historical snapshot.
 class BillItemModel {
   final String? id;
+  final String? orderId;
   final String orderNumber;
   final String itemCode;
   final String itemName;
@@ -13,6 +14,7 @@ class BillItemModel {
 
   const BillItemModel({
     this.id,
+    this.orderId,
     required this.orderNumber,
     required this.itemCode,
     required this.itemName,
@@ -27,6 +29,7 @@ class BillItemModel {
   factory BillItemModel.fromJson(Map<String, dynamic> json) {
     return BillItemModel(
       id: json['id']?.toString(),
+      orderId: json['order_id']?.toString(),
       orderNumber: json['order_number']?.toString() ?? '',
       itemCode: json['item_code']?.toString() ?? '',
       itemName: json['item_name']?.toString() ?? '',

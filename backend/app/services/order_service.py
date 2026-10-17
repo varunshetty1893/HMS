@@ -727,7 +727,7 @@ class OrderService:
                             if unit_price < base_price:
                                 drop_pct = _two_dp(((base_price - unit_price) / base_price) * Decimal("100"))
                                 max_disc = cfg.waiter_max_discount_percentage or Decimal("0.00")
-                                if drop_pct > max_disc:
+                                if max_disc > Decimal("0.00") and drop_pct > max_disc:
                                     raise StateConflictError(
                                         "DISCOUNT_EXCEEDS_WAITER_LIMIT",
                                         f"Waiters are authorized for up to {max_disc}% discount. Requested {drop_pct}% requires Admin approval.",
@@ -3529,7 +3529,7 @@ class OrderService:
                 f"Order version conflict: current {order.version}, expected {payload.expected_version}",
             )
 
-        if order.status in [OrderStatus.CANCELLED.value, OrderStatus.REJECTED.value, OrderStatus.SERVED.value]:
+        if order.status in [OrderStatus.CANCELLED.value, OrderStatus.REJECTED.value]:
             raise StateConflictError(
                 "ORDER_NOT_EDITABLE",
                 f"Cannot adjust an order in status '{order.status}'.",
@@ -3620,7 +3620,7 @@ class OrderService:
                 if new_unit_price < base_price:
                     drop_pct = _two_dp(((base_price - new_unit_price) / base_price) * Decimal("100"))
                     max_disc = settings.waiter_max_discount_percentage or Decimal("0.00")
-                    if drop_pct > max_disc:
+                    if max_disc > Decimal("0.00") and drop_pct > max_disc:
                         raise StateConflictError(
                             "DISCOUNT_EXCEEDS_WAITER_LIMIT",
                             f"Waiters are authorized for up to {max_disc}% discount. Requested change ({drop_pct}%) requires Admin approval.",

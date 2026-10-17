@@ -2520,15 +2520,7 @@ class OrderService:
         if prev_status in (OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value):
             pass
         elif prev_status in (OrderStatus.PREPARING.value, OrderStatus.READY.value):
-            admin_on_preparing = (
-                prev_status == OrderStatus.PREPARING.value and staff_user.role == UserRole.ADMIN
-            )
-            if not (payload.force or admin_on_preparing):
-                raise StateConflictError(
-                    "FORCE_CANCEL_REQUIRED",
-                    f"Kitchen already has this order ({prev_status}). Use FORCE cancellation "
-                    "- the kitchen will be told to stop / discard it.",
-                )
+            # Waiters and Admins can cancel orders anytime before served (kitchen is alerted to stop cooking / discard food)
             forced = True
         else:
             raise StateConflictError(

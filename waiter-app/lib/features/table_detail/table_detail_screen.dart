@@ -248,8 +248,11 @@ class TableDetailScreen extends ConsumerWidget {
     final canEdit = order.status == 'PLACED' ||
         order.status == 'ACCEPTED' ||
         order.status == 'PREPARING' ||
-        order.status == 'READY'; // READY: only force-cancel inside the edit screen
-    final canCancel = order.status == 'PLACED' || order.status == 'ACCEPTED';
+        order.status == 'READY';
+    final canCancel = order.status == 'PLACED' ||
+        order.status == 'ACCEPTED' ||
+        order.status == 'PREPARING' ||
+        order.status == 'READY';
     final canServe = order.status == 'READY';
 
     return Container(
@@ -333,20 +336,52 @@ class TableDetailScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text(
-                            '${item.quantity}x ${item.itemName}${item.variantName != null ? ' (${item.variantName})' : ''}',
-                            style: const TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 14,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${item.quantity}x ${item.itemName}${item.variantName != null ? ' (${item.variantName})' : ''}',
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                '${CurrencyFormatter.format(item.unitPrice)} each',
+                                style: const TextStyle(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          CurrencyFormatter.format(item.subtotal),
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 13,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              CurrencyFormatter.format(item.subtotal),
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (canEdit) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                color: AppTheme.accentColor,
+                                tooltip: 'Change Item Price',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => _showPriceAdjustDialog(
+                                  context,
+                                  controller,
+                                  order.id,
+                                  item,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -438,6 +473,111 @@ class TableDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _showPriceAdjustDialog(
+    BuildContext context,
+    TableDetailController controller,
+    String orderId,
+    OrderItemModel item,
+  ) {
+    final priceController =
+        TextEditingController(text: item.unitPrice.toStringAsFixed(2));
+    final reasonController =
+        TextEditingController(text: 'Special requested price');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Change Price: ${item.itemName}',
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Current: ${CurrencyFormatter.format(item.unitPrice)} each',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+              decoration: InputDecoration(
+                labelText: 'New Unit Price (₹)',
+                filled: true,
+                fillColor: AppTheme.surfaceColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppTheme.borderColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'Reason for Adjustment',
+                filled: true,
+                fillColor: AppTheme.surfaceColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppTheme.borderColor),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final newPrice = double.tryParse(priceController.text.trim());
+              final reason = reasonController.text.trim();
+              if (newPrice == null || newPrice < 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid price')),
+                );
+                return;
+              }
+              Navigator.of(ctx).pop();
+              final success = await controller.adjustItemPrice(
+                orderId: orderId,
+                itemId: item.id,
+                newUnitPrice: newPrice,
+                reason: reason.isNotEmpty ? reason : 'Adjusted by staff',
+              );
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Updated price to ₹${newPrice.toStringAsFixed(2)}'),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save Price'),
+          ),
         ],
       ),
     );

@@ -109,7 +109,7 @@ class OrderModel {
   bool get isServed => status == 'SERVED';
   bool get isCancelled => status == 'CANCELLED';
 
-  bool get canModify => isPlaced || isAccepted || isPreparing;
-  bool get canCancel => isPlaced || isAccepted;
+  bool get canModify => isPlaced || isAccepted || isPreparing || isReady;
+  bool get canCancel => isPlaced || isAccepted || isPreparing || isReady;
   bool get canServe => isReady;
 }

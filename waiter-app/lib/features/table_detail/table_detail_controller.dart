@@ -107,6 +107,31 @@ class TableDetailController extends StateNotifier<TableDetailState> {
         data: {
           'expected_version': _versionOf(orderId),
           'cancellation_reason': reason,
+          'force': true,
+        },
+      );
+      await loadSessionDetail(silent: true);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: describeError(e));
+      return false;
+    }
+  }
+
+  Future<bool> adjustItemPrice({
+    required String orderId,
+    required String itemId,
+    required double newUnitPrice,
+    required String reason,
+  }) async {
+    try {
+      await _apiClient.post(
+        '/api/v1/waiter/orders/$orderId/items/$itemId/adjust',
+        data: {
+          'expected_version': _versionOf(orderId),
+          'adjustment_type': 'CUSTOM_PRICE',
+          'custom_unit_price': newUnitPrice.toStringAsFixed(2),
+          'reason': reason,
         },
       );
       await loadSessionDetail(silent: true);

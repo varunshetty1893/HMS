@@ -117,6 +117,7 @@ export interface RestaurantTable {
   created_at: string;
   updated_at: string;
   occupancy_status?: TableOccupancyStatus;
+  current_occupancy?: TableOccupancyStatus;
   active_qr_version?: number;
   active_qr_prefix?: string;
   current_session_code?: string;

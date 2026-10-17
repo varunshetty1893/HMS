@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { QrPrintCardResponse, RestaurantTable } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
+import { adminWs } from '@/realtime/adminWs';
 
 export const TablesAndQrPage: React.FC = () => {
   const { L, heading, sub, muted, border, card, cardInner } = usePageTheme();
@@ -66,6 +67,12 @@ export const TablesAndQrPage: React.FC = () => {
 
   useEffect(() => {
     fetchTables();
+    const unsub = adminWs.on('*', () => {
+      fetchTables();
+    });
+    return () => {
+      unsub();
+    };
   }, []);
 
   const handleCreateTable = async (e: React.FormEvent) => {
@@ -208,7 +215,7 @@ export const TablesAndQrPage: React.FC = () => {
                     <span className="text-xs font-mono" style={{ color: muted }}>#{table.table_number}</span>
                   </div>
                   <StatusBadge
-                    status={table.is_active ? table.occupancy_status || 'AVAILABLE' : 'DISABLED'}
+                    status={table.is_active ? table.current_occupancy || table.occupancy_status || 'AVAILABLE' : 'DISABLED'}
                     size="sm"
                   />
                 </div>

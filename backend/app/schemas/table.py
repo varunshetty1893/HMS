@@ -82,6 +82,10 @@ class TableResponse(StrictRequestModel):
     current_occupancy: str = Field(
         description="Authoritative derived occupancy: 'AVAILABLE' or 'OCCUPIED'"
     )
+    occupancy_status: str | None = Field(
+        default=None,
+        description="Alias for current_occupancy for frontend clients",
+    )
     active_session_id: uuid.UUID | None = None
     active_qr_version: int | None = None
     active_qr_prefix: str | None = None

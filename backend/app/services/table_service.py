@@ -322,7 +322,15 @@ class TableService:
             TableSession.status == "ACTIVE",
         )
         active_session_id = (await db.execute(session_stmt)).scalar_one_or_none()
-        current_occupancy = "OCCUPIED" if active_session_id else "AVAILABLE"
+
+        # Check for any active unserved or in-progress orders on this table
+        active_order_stmt = select(Order.id).where(
+            Order.table_id == table.id,
+            Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
+        ).limit(1)
+        has_active_order = (await db.execute(active_order_stmt)).scalar_one_or_none() is not None
+
+        current_occupancy = "OCCUPIED" if (active_session_id or has_active_order) else "AVAILABLE"
 
         # Latest active QR token info
         qr_stmt = select(TableQrToken).where(
@@ -342,6 +350,7 @@ class TableService:
             display_order=table.display_order,
             notes=table.notes,
             current_occupancy=current_occupancy,
+            occupancy_status=current_occupancy,
             active_session_id=active_session_id,
             active_qr_version=active_qr.token_version if active_qr else None,
             active_qr_prefix=active_qr.token_prefix if active_qr else None,

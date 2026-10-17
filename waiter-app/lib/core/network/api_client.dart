@@ -110,6 +110,17 @@ class ApiClient {
         message = err['message'] ?? message;
         details =
             err['details'] is Map<String, dynamic> ? err['details'] : null;
+
+        // Extract human-friendly validation field issue if available
+        if (code == 'VALIDATION_ERROR' && details != null && details['fields'] is List) {
+          final fields = details['fields'] as List;
+          if (fields.isNotEmpty && fields.first is Map) {
+            final f = fields.first as Map;
+            final fieldName = f['field'] ?? 'Field';
+            final issue = f['issue'] ?? 'Invalid value';
+            message = '$fieldName: $issue';
+          }
+        }
       }
     } catch (_) {}
 

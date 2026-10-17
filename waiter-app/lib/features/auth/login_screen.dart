@@ -26,7 +26,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    final username = _usernameController.text.trim();
+    var username = _usernameController.text.trim();
+    if (username.startsWith('@')) {
+      username = username.substring(1).trim();
+    }
     final password = _passwordController.text;
 
     if (_selectedRole == null) {

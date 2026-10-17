@@ -136,6 +136,13 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
             <h2 className="text-lg font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
               {item.name}
             </h2>
+            {item.serving_description && (
+              <div className="mt-1.5">
+                <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md inline-block border border-emerald-100">
+                  {item.serving_description}
+                </span>
+              </div>
+            )}
             {item.description && (
               <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 {item.description}
@@ -165,12 +172,15 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
                   const qty = quantities[variant.id] || 0;
                   const detail = portionDetail(variant);
                   const active = qty > 0;
+                  const isUnpriced = variant.pricing_status === 'SEASONAL_UNPRICED' || variant.price === null || parseFloat(String(variant.price)) <= 0;
                   return (
                     <div
                       key={variant.id}
                       className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all"
                       style={
-                        active
+                        isUnpriced
+                          ? { background: 'var(--bg-subtle)', border: '1px solid var(--border)', opacity: 0.85 }
+                          : active
                           ? { background: 'var(--primary-bg)', border: '1.5px solid var(--primary)' }
                           : { background: 'var(--bg-subtle)', border: '1px solid var(--border)' }
                       }
@@ -186,13 +196,23 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
                         </div>
                         <div
                           className="text-sm font-bold font-mono mt-0.5"
-                          style={{ color: active ? 'var(--primary)' : 'var(--text-secondary)' }}
+                          style={{ color: isUnpriced ? 'var(--blue)' : active ? 'var(--primary)' : 'var(--text-secondary)' }}
                         >
-                          {formatInr(variant.price)}
+                          {isUnpriced ? (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                              Seasonal Price
+                            </span>
+                          ) : (
+                            formatInr(variant.price)
+                          )}
                         </div>
                       </div>
 
-                      {active ? (
+                      {isUnpriced ? (
+                        <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
+                          Ask Waiter
+                        </span>
+                      ) : active ? (
                         <div
                           className="flex items-center gap-1 p-1 rounded-xl shrink-0"
                           style={{ border: '1.5px solid var(--primary)', background: 'var(--white)' }}

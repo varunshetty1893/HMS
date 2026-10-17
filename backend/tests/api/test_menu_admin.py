@@ -24,13 +24,26 @@ from httpx import ASGITransport, AsyncClient
 from app.core.dependencies import get_current_staff_user
 from app.core.exceptions import StateConflictError
 from app.main import create_app
-from app.models.enums import DietaryType, PriceUnit, SpiceLevel, UserRole, UserStatus
+from app.models.enums import (
+    DietaryType,
+    PriceUnit,
+    PricingStatus,
+    PricingType,
+    SpiceLevel,
+    UserRole,
+    UserStatus,
+)
 from app.models.identity import User
 from app.models.menu import MenuCategory, MenuItem, MenuPriceVariant
 from app.models.operations import AuditLog
 from app.schemas.menu import (
+    CategoryReorderItem,
+    CategoryReorderRequest,
+    ItemReorderItem,
+    ItemReorderRequest,
     MenuCategoryCreate,
     MenuItemCreate,
+    MenuItemUpdate,
     MenuPriceVariantCreate,
     MenuPriceVariantUpdate,
 )
@@ -389,3 +402,144 @@ async def test_unauthenticated_admin_request_returns_401() -> None:
         resp = await client.get("/api/v1/admin/menu/categories")
         assert resp.status_code == 401
         assert resp.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+@pytest.mark.asyncio
+async def test_create_item_with_serving_description_and_plate_by_pieces() -> None:
+    session = FakeMenuSession()
+    cat = await MenuService.create_category(session, MenuCategoryCreate(name="Snacks - Chicken"))
+    session.add(cat)
+
+    payload = MenuItemCreate(
+        category_id=cat.id,
+        item_code="CK-PLT",
+        name="Chicken Kebab",
+        serving_description="Served with mint chutney and fresh onion rings",
+        dietary_type=DietaryType.NON_VEG,
+        spice_level=SpiceLevel.MEDIUM,
+        variants=[
+            MenuPriceVariantCreate(
+                variant_name="4 pieces",
+                is_portion=True,
+                quantity_value=Decimal("4.00"),
+                unit=PriceUnit.PORTION,
+                price=Decimal("150.00"),
+            ),
+            MenuPriceVariantCreate(
+                variant_name="8 pieces",
+                is_portion=True,
+                quantity_value=Decimal("8.00"),
+                unit=PriceUnit.PORTION,
+                price=Decimal("280.00"),
+            ),
+        ],
+    )
+    item = await MenuService.create_item(session, payload)
+    assert item.name == "Chicken Kebab"
+    assert item.serving_description == "Served with mint chutney and fresh onion rings"
+    assert len(item.variants) == 2
+    assert item.variants[0].variant_name == "4 pieces"
+    assert item.variants[1].variant_name == "8 pieces"
+
+
+@pytest.mark.asyncio
+async def test_create_seasonal_item_with_unpriced_variant() -> None:
+    session = FakeMenuSession()
+    cat = await MenuService.create_category(session, MenuCategoryCreate(name="Seafood"))
+    session.add(cat)
+
+    payload = MenuItemCreate(
+        category_id=cat.id,
+        item_code="POMF",
+        name="Tandoori Pomfret",
+        serving_description="Fresh catch prepared in clay oven",
+        pricing_type=PricingType.SEASONAL,
+        variants=[
+            MenuPriceVariantCreate(
+                price=None,
+                pricing_status=PricingStatus.SEASONAL_UNPRICED,
+            )
+        ],
+    )
+    item = await MenuService.create_item(session, payload)
+    assert item.pricing_type == PricingType.SEASONAL
+    assert item.variants[0].price is None
+    assert item.variants[0].pricing_status == PricingStatus.SEASONAL_UNPRICED
+
+
+@pytest.mark.asyncio
+async def test_update_item_atomically_synchronizes_variants() -> None:
+    session = FakeMenuSession()
+    cat = await MenuService.create_category(session, MenuCategoryCreate(name="Biryani"))
+    session.add(cat)
+
+    created = await MenuService.create_item(
+        session,
+        MenuItemCreate(
+            category_id=cat.id,
+            item_code="CB-TEST",
+            name="Chicken Biryani",
+            variants=[
+                MenuPriceVariantCreate(
+                    variant_name="Half",
+                    is_portion=True,
+                    price=Decimal("130.00"),
+                ),
+            ],
+        ),
+    )
+    var_half = created.variants[0]
+
+    # Update item and add Full portion atomically
+    updated = await MenuService.update_item(
+        session,
+        created.id,
+        MenuItemUpdate(
+            name="Special Chicken Biryani",
+            serving_description="Served with Mirchi ka Salan and Raita",
+            variants=[
+                MenuPriceVariantCreate(
+                    id=var_half.id,
+                    variant_name="Half",
+                    is_portion=True,
+                    price=Decimal("140.00"),
+                ),
+                MenuPriceVariantCreate(
+                    variant_name="Full",
+                    is_portion=True,
+                    price=Decimal("240.00"),
+                ),
+            ],
+        ),
+    )
+    assert updated.name == "Special Chicken Biryani"
+    assert updated.serving_description == "Served with Mirchi ka Salan and Raita"
+    assert len(updated.variants) == 2
+    assert updated.variants[0].price == Decimal("140.00")
+    assert updated.variants[1].price == Decimal("240.00")
+
+
+@pytest.mark.asyncio
+async def test_reorder_categories_and_safe_delete() -> None:
+    session = FakeMenuSession()
+    cat1 = await MenuService.create_category(session, MenuCategoryCreate(name="Cat 1"))
+    cat2 = await MenuService.create_category(session, MenuCategoryCreate(name="Cat 2"))
+    session.add(cat1)
+    session.add(cat2)
+
+    await MenuService.reorder_categories(
+        session,
+        CategoryReorderRequest(
+            categories=[
+                CategoryReorderItem(id=cat2.id, display_order=0),
+                CategoryReorderItem(id=cat1.id, display_order=1),
+            ]
+        ),
+    )
+    assert cat2.display_order == 0
+    assert cat1.display_order == 1
+
+    # Safe delete (deactivate)
+    await MenuService.delete_category(session, cat1.id)
+    assert cat1.is_active is False
+

@@ -25,6 +25,7 @@ from sqlalchemy.orm import selectinload
 from app.core.exceptions import ResourceNotFoundError, StateConflictError
 from app.core.logging import get_logger
 from app.core.time_utils import utc_now
+from app.models.enums import PricingStatus, PricingType
 from app.models.menu import MenuCategory, MenuItem, MenuPriceVariant
 from app.models.orders import Order, OrderItem
 from app.models.restaurant import RestaurantSettings
@@ -193,6 +194,62 @@ class MenuService:
         )
         return category
 
+    @classmethod
+    async def reorder_categories(
+        cls,
+        session: AsyncSession,
+        category_orders: list[tuple[uuid.UUID, int]] | Any,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_role: str = "ADMIN",
+    ) -> list[MenuCategory]:
+        """Batch update category display orders."""
+        pairs: list[tuple[uuid.UUID, int]] = []
+        if isinstance(category_orders, list):
+            pairs = category_orders
+        elif hasattr(category_orders, "categories"):
+            pairs = [(c.id, c.display_order) for c in category_orders.categories]
+
+        for cat_id, order in pairs:
+            cat = await session.get(MenuCategory, cat_id)
+            if cat:
+                cat.display_order = order
+        await session.flush()
+        await AuditService.record_event(
+            session,
+            action_type="MENU_CATEGORIES_REORDERED",
+            entity_type="menu_category",
+            entity_id="batch",
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+            new_value={"reordered_count": len(pairs)},
+        )
+        return await cls.list_categories(session)
+
+    @classmethod
+    async def delete_category(
+        cls,
+        session: AsyncSession,
+        category_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_role: str = "ADMIN",
+    ) -> MenuCategory:
+        """Safely deactivate a category without breaking existing dishes or historical orders."""
+        category = await cls.get_category(session, category_id)
+        category.is_active = False
+        await session.flush()
+        await AuditService.record_event(
+            session,
+            action_type="MENU_CATEGORY_DEACTIVATED",
+            entity_type="menu_category",
+            entity_id=str(category.id),
+            actor_role=actor_role,
+            actor_user_id=actor_user_id,
+            new_value={"name": category.name, "is_active": False},
+        )
+        return category
+
     # =========================================================================
     # Menu Item & Variant Management
     # =========================================================================
@@ -294,8 +351,10 @@ class MenuService:
             item_code=clean_item_code,
             name=data.name.strip(),
             description=data.description.strip() if data.description else None,
+            serving_description=data.serving_description.strip() if data.serving_description else None,
             dietary_type=data.dietary_type.value if data.dietary_type else None,
             spice_level=data.spice_level.value if data.spice_level else None,
+            pricing_type=data.pricing_type.value if data.pricing_type else PricingType.FIXED.value,
             image_url=data.image_url,
             tax_rate_override=data.tax_rate_override,
             is_available=data.is_available,
@@ -308,6 +367,7 @@ class MenuService:
         has_default = any(v.is_default for v in data.variants)
         for idx, v_data in enumerate(data.variants):
             is_def = v_data.is_default or (not has_default and idx == 0)
+            v_status = v_data.pricing_status.value if v_data.pricing_status else PricingStatus.ACTIVE.value
             variant = MenuPriceVariant(
                 menu_item_id=item.id,
                 variant_code=v_data.variant_code.strip().upper() if v_data.variant_code else None,
@@ -316,8 +376,10 @@ class MenuService:
                 quantity_value=v_data.quantity_value,
                 unit=v_data.unit.value,
                 price=v_data.price,
+                pricing_status=v_status,
                 is_default=is_def,
                 is_available=v_data.is_available,
+                is_active=v_data.is_active,
                 display_order=v_data.display_order,
             )
             session.add(variant)
@@ -351,7 +413,7 @@ class MenuService:
         actor_user_id: uuid.UUID | None = None,
         actor_role: str = "ADMIN",
     ) -> MenuItem:
-        """Update menu item details with code uniqueness validation."""
+        """Update menu item details with code uniqueness validation and optional variant sync."""
         item = await cls.get_item(session, item_id)
         old_val: dict[str, Any] = {
             "item_code": item.item_code,
@@ -385,11 +447,14 @@ class MenuService:
             item.name = data.name.strip()
         if data.description is not None:
             item.description = data.description.strip() if data.description else None
+        if "serving_description" in data.model_fields_set:
+            item.serving_description = data.serving_description.strip() if data.serving_description else None
         if data.dietary_type is not None:
             item.dietary_type = data.dietary_type.value
         if "spice_level" in data.model_fields_set:
-            # explicit null clears the spice level (dish has no spice rating)
             item.spice_level = data.spice_level.value if data.spice_level else None
+        if data.pricing_type is not None:
+            item.pricing_type = data.pricing_type.value
         if data.tax_rate_override is not None:
             item.tax_rate_override = data.tax_rate_override
         if data.is_available is not None:
@@ -398,6 +463,95 @@ class MenuService:
             item.is_active = data.is_active
         if data.display_order is not None:
             item.display_order = data.display_order
+
+        # Atomic variant synchronization if provided
+        if data.variants is not None:
+            stmt = select(MenuPriceVariant).where(MenuPriceVariant.menu_item_id == item.id)
+            existing_vars = {v.id: v for v in (await session.execute(stmt)).scalars().all()}
+            incoming_ids: set[uuid.UUID] = set()
+
+            for idx, v_data in enumerate(data.variants):
+                v_code = v_data.variant_code.strip().upper() if v_data.variant_code else None
+                v_name = (v_data.variant_name or FIXED_PRICE_VARIANT_NAME).strip()
+                v_status = v_data.pricing_status.value if v_data.pricing_status else PricingStatus.ACTIVE.value
+
+                if v_data.id and v_data.id in existing_vars:
+                    var = existing_vars[v_data.id]
+                    incoming_ids.add(var.id)
+
+                    if v_code and v_code != var.variant_code:
+                        dup = await session.execute(
+                            select(MenuPriceVariant).where(
+                                func.upper(MenuPriceVariant.variant_code) == v_code,
+                                MenuPriceVariant.id != var.id,
+                            )
+                        )
+                        if dup.scalar_one_or_none():
+                            raise StateConflictError(
+                                code="VARIANT_CODE_ALREADY_EXISTS",
+                                message=f"Variant code '{v_code}' is already in use.",
+                            )
+                        var.variant_code = v_code
+
+                    if var.price != v_data.price:
+                        old_p = var.price
+                        var.price = v_data.price
+                        await AuditService.record_event(
+                            session,
+                            action_type="PRICE_VARIANT_PRICE_CHANGED",
+                            entity_type="menu_price_variant",
+                            entity_id=str(var.id),
+                            actor_role=actor_role,
+                            actor_user_id=actor_user_id,
+                            old_value={"price": str(old_p) if old_p is not None else None},
+                            new_value={"price": str(var.price) if var.price is not None else None},
+                        )
+
+                    var.variant_name = v_name
+                    var.is_portion = v_data.is_portion
+                    var.quantity_value = v_data.quantity_value
+                    var.unit = v_data.unit.value
+                    var.pricing_status = v_status
+                    var.is_default = v_data.is_default
+                    var.is_available = v_data.is_available
+                    var.is_active = v_data.is_active
+                    var.display_order = v_data.display_order
+                else:
+                    if v_code:
+                        dup = await session.execute(
+                            select(MenuPriceVariant).where(
+                                func.upper(MenuPriceVariant.variant_code) == v_code
+                            )
+                        )
+                        if dup.scalar_one_or_none():
+                            raise StateConflictError(
+                                code="VARIANT_CODE_ALREADY_EXISTS",
+                                message=f"Variant code '{v_code}' is already in use.",
+                            )
+
+                    new_var = MenuPriceVariant(
+                        menu_item_id=item.id,
+                        variant_code=v_code,
+                        variant_name=v_name,
+                        is_portion=v_data.is_portion,
+                        quantity_value=v_data.quantity_value,
+                        unit=v_data.unit.value,
+                        price=v_data.price,
+                        pricing_status=v_status,
+                        is_default=v_data.is_default,
+                        is_available=v_data.is_available,
+                        is_active=v_data.is_active,
+                        display_order=v_data.display_order,
+                    )
+                    session.add(new_var)
+                    await session.flush()
+                    incoming_ids.add(new_var.id)
+
+            # Soft-deactivate omitted variants to preserve historical orders
+            for v_id, existing_v in existing_vars.items():
+                if v_id not in incoming_ids and existing_v.is_active:
+                    existing_v.is_active = False
+                    existing_v.is_available = False
 
         await session.flush()
 
@@ -417,7 +571,32 @@ class MenuService:
                 "is_available": item.is_available,
             },
         )
-        return item
+        return await cls.get_item(session, item.id)
+
+    @classmethod
+    async def reorder_items(
+        cls,
+        session: AsyncSession,
+        item_orders: list[tuple[uuid.UUID, int]] | Any,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_role: str = "ADMIN",
+    ) -> list[MenuItem]:
+        """Batch update dish display orders within categories."""
+        pairs: list[tuple[uuid.UUID, int]] = []
+        if isinstance(item_orders, list):
+            pairs = item_orders
+        elif hasattr(item_orders, "items"):
+            pairs = [(it.id, it.display_order) for it in item_orders.items]
+
+        items = []
+        for it_id, order in pairs:
+            it = await session.get(MenuItem, it_id)
+            if it:
+                it.display_order = order
+                items.append(it)
+        await session.flush()
+        return items
 
     @classmethod
     async def set_item_availability(
@@ -526,6 +705,7 @@ class MenuService:
                 if v.is_default:
                     v.is_default = False
 
+        v_status = data.pricing_status.value if data.pricing_status else PricingStatus.ACTIVE.value
         variant = MenuPriceVariant(
             menu_item_id=item_id,
             variant_code=clean_vcode,
@@ -534,6 +714,7 @@ class MenuService:
             quantity_value=data.quantity_value,
             unit=data.unit.value,
             price=data.price,
+            pricing_status=v_status,
             is_default=data.is_default,
             is_available=data.is_available,
             display_order=data.display_order,
@@ -551,7 +732,8 @@ class MenuService:
             new_value={
                 "variant_code": variant.variant_code,
                 "variant_name": variant.variant_name,
-                "price": str(variant.price),
+                "price": str(variant.price) if variant.price is not None else None,
+                "pricing_status": variant.pricing_status,
             },
         )
         return variant
@@ -581,7 +763,7 @@ class MenuService:
             )
 
         old_price = variant.price
-        price_changed = data.price is not None and data.price != old_price
+        price_changed = "price" in data.model_fields_set and data.price != old_price
 
         if data.variant_code is not None:
             clean_code = data.variant_code.strip().upper()
@@ -625,6 +807,8 @@ class MenuService:
             variant.unit = data.unit.value
         if price_changed:
             variant.price = data.price
+        if data.pricing_status is not None:
+            variant.pricing_status = data.pricing_status.value
         if data.is_default is not None:
             if data.is_default:
                 # Unset existing defaults
@@ -779,9 +963,13 @@ class MenuService:
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,
+                    pricing_status=v.pricing_status,
                     is_available=v.is_available,
                 )
-                for v in sorted(item.variants, key=lambda x: (x.display_order, x.price))
+                for v in sorted(
+                    item.variants,
+                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                )
                 if v.is_active
             ]
 
@@ -870,10 +1058,14 @@ class MenuService:
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,
+                    pricing_status=v.pricing_status,
                     is_default=v.is_default,
                     is_available=v.is_available,
                 )
-                for v in sorted(item.variants, key=lambda x: (x.display_order, x.price))
+                for v in sorted(
+                    item.variants,
+                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                )
                 if v.is_active and (not available_only or v.is_available)
             ]
 
@@ -886,8 +1078,10 @@ class MenuService:
                     item_code=item.item_code,
                     name=item.name,
                     description=item.description,
+                    serving_description=item.serving_description,
                     dietary_type=item.dietary_type,
                     spice_level=item.spice_level,
+                    pricing_type=item.pricing_type,
                     image_url=item.image_url,
                     is_available=item.is_available,
                     variants=active_variants,
@@ -1033,10 +1227,14 @@ class MenuService:
                 quantity_value=v.quantity_value,
                 unit=v.unit,
                 price=v.price,
+                pricing_status=v.pricing_status,
                 is_default=v.is_default,
                 is_available=v.is_available,
             )
-            for v in sorted(item.variants, key=lambda x: (x.display_order, x.price))
+            for v in sorted(
+                item.variants,
+                key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+            )
             if v.is_active
         ]
 
@@ -1045,8 +1243,10 @@ class MenuService:
             item_code=item.item_code,
             name=item.name,
             description=item.description,
+            serving_description=item.serving_description,
             dietary_type=item.dietary_type,
             spice_level=item.spice_level,
+            pricing_type=item.pricing_type,
             image_url=item.image_url,
             is_available=item.is_available,
             variants=active_variants,
@@ -1095,10 +1295,14 @@ class MenuService:
                     quantity_value=v.quantity_value,
                     unit=v.unit,
                     price=v.price,
+                    pricing_status=v.pricing_status,
                     is_default=v.is_default,
                     is_available=v.is_available,
                 )
-                for v in sorted(item.variants, key=lambda x: (x.display_order, x.price))
+                for v in sorted(
+                    item.variants,
+                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                )
                 if v.is_active
             ]
             results.append(
@@ -1107,8 +1311,10 @@ class MenuService:
                     item_code=item.item_code,
                     name=item.name,
                     description=item.description,
+                    serving_description=item.serving_description,
                     dietary_type=item.dietary_type,
                     spice_level=item.spice_level,
+                    pricing_type=item.pricing_type,
                     image_url=item.image_url,
                     is_available=item.is_available,
                     variants=active_variants,

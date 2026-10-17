@@ -8,11 +8,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.enums import DietaryType, PriceUnit, SpiceLevel
+from app.models.enums import DietaryType, PriceUnit, PricingStatus, PricingType, SpiceLevel
 from app.schemas.common import StrictRequestModel
 
 # =============================================================================
@@ -23,6 +23,10 @@ from app.schemas.common import StrictRequestModel
 class MenuPriceVariantCreate(StrictRequestModel):
     """Schema for adding a price variant to a dish."""
 
+    id: uuid.UUID | None = Field(
+        default=None,
+        description="Optional ID when updating an existing variant during full dish save",
+    )
     variant_code: str | None = Field(
         default=None,
         min_length=1,
@@ -45,12 +49,15 @@ class MenuPriceVariantCreate(StrictRequestModel):
         default=PriceUnit.PORTION,
         description="Measurement unit: PORTION, PIECE, ML, L, GRAM, KG, PLATE, BOWL",
     )
-    price: Decimal = Field(
+    price: Decimal | None = Field(
+        default=None,
         ge=0,
-        description="Base unit price in currency",
+        description="Base unit price in currency. Nullable when pricing_status is SEASONAL_UNPRICED.",
     )
+    pricing_status: PricingStatus = Field(default=PricingStatus.ACTIVE)
     is_default: bool = Field(default=False)
     is_available: bool = Field(default=True)
+    is_active: bool = Field(default=True)
     display_order: int = Field(default=0, ge=0)
 
     @field_validator("variant_code")
@@ -85,6 +92,7 @@ class MenuPriceVariantUpdate(StrictRequestModel):
     quantity_value: Decimal | None = Field(default=None, gt=0)
     unit: PriceUnit | None = None
     price: Decimal | None = Field(default=None, ge=0)
+    pricing_status: PricingStatus | None = None
     is_default: bool | None = None
     is_available: bool | None = None
     is_active: bool | None = None
@@ -111,13 +119,21 @@ class MenuPriceVariantResponse(BaseModel):
     is_portion: bool
     quantity_value: Decimal
     unit: str
-    price: Decimal
+    price: Decimal | None
+    pricing_status: str = PricingStatus.ACTIVE.value
     is_default: bool
     is_available: bool
     is_active: bool
     display_order: int
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("pricing_status", mode="before")
+    @classmethod
+    def coerce_pricing_status(cls, v: Any) -> str:
+        if not v:
+            return PricingStatus.ACTIVE.value
+        return v.value if hasattr(v, "value") else str(v)
 
 
 # =============================================================================
@@ -141,6 +157,32 @@ class MenuCategoryUpdate(StrictRequestModel):
     description: str | None = Field(default=None, max_length=255)
     display_order: int | None = Field(default=None, ge=0)
     is_active: bool | None = None
+
+
+class CategoryReorderItem(StrictRequestModel):
+    """Item for batch reordering categories."""
+
+    id: uuid.UUID
+    display_order: int = Field(ge=0)
+
+
+class CategoryReorderRequest(StrictRequestModel):
+    """Batch reorder request for categories."""
+
+    categories: list[CategoryReorderItem] = Field(min_length=1)
+
+
+class ItemReorderItem(StrictRequestModel):
+    """Item for batch reordering dishes within a category."""
+
+    id: uuid.UUID
+    display_order: int = Field(ge=0)
+
+
+class ItemReorderRequest(StrictRequestModel):
+    """Batch reorder request for dishes."""
+
+    items: list[ItemReorderItem] = Field(min_length=1)
 
 
 class MenuCategoryResponse(BaseModel):
@@ -174,8 +216,10 @@ class MenuItemCreate(StrictRequestModel):
     )
     name: str = Field(min_length=1, max_length=150)
     description: str | None = None
+    serving_description: str | None = Field(default=None, max_length=255)
     dietary_type: DietaryType | None = None
     spice_level: SpiceLevel | None = None
+    pricing_type: PricingType = Field(default=PricingType.FIXED)
     image_url: str | None = Field(default=None, max_length=500)
     tax_rate_override: Decimal | None = Field(default=None, ge=0)
     is_available: bool = Field(default=True)
@@ -201,12 +245,18 @@ class MenuItemUpdate(StrictRequestModel):
     item_code: str | None = Field(default=None, min_length=1, max_length=16)
     name: str | None = Field(default=None, min_length=1, max_length=150)
     description: str | None = None
+    serving_description: str | None = Field(default=None, max_length=255)
     dietary_type: DietaryType | None = None
     spice_level: SpiceLevel | None = None
+    pricing_type: PricingType | None = None
     tax_rate_override: Decimal | None = Field(default=None, ge=0)
     is_available: bool | None = None
     is_active: bool | None = None
     display_order: int | None = Field(default=None, ge=0)
+    variants: list[MenuPriceVariantCreate] | None = Field(
+        default=None,
+        description="When provided, replaces or synchronizes all dish variants atomically",
+    )
 
     @field_validator("item_code")
     @classmethod
@@ -234,8 +284,10 @@ class MenuItemResponse(BaseModel):
     item_code: str
     name: str
     description: str | None
+    serving_description: str | None = None
     dietary_type: str | None
     spice_level: str | None
+    pricing_type: str = PricingType.FIXED.value
     image_url: str | None
     tax_rate_override: Decimal | None
     is_available: bool
@@ -244,6 +296,13 @@ class MenuItemResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     variants: list[MenuPriceVariantResponse] = Field(default_factory=list)
+
+    @field_validator("pricing_type", mode="before")
+    @classmethod
+    def coerce_pricing_type(cls, v: Any) -> str:
+        if not v:
+            return PricingType.FIXED.value
+        return v.value if hasattr(v, "value") else str(v)
 
 
 # =============================================================================
@@ -262,9 +321,17 @@ class CustomerMenuVariant(BaseModel):
     is_portion: bool
     quantity_value: Decimal
     unit: str
-    price: Decimal
+    price: Decimal | None
+    pricing_status: str = PricingStatus.ACTIVE.value
     is_default: bool
     is_available: bool
+
+    @field_validator("pricing_status", mode="before")
+    @classmethod
+    def coerce_pricing_status(cls, v: Any) -> str:
+        if not v:
+            return PricingStatus.ACTIVE.value
+        return v.value if hasattr(v, "value") else str(v)
 
 
 class CustomerMenuItem(BaseModel):
@@ -276,11 +343,20 @@ class CustomerMenuItem(BaseModel):
     item_code: str
     name: str
     description: str | None
+    serving_description: str | None = None
     dietary_type: str | None
     spice_level: str | None
+    pricing_type: str = PricingType.FIXED.value
     image_url: str | None
     is_available: bool
     variants: list[CustomerMenuVariant]
+
+    @field_validator("pricing_type", mode="before")
+    @classmethod
+    def coerce_pricing_type(cls, v: Any) -> str:
+        if not v:
+            return PricingType.FIXED.value
+        return v.value if hasattr(v, "value") else str(v)
 
 
 class CustomerMenuCategory(BaseModel):
@@ -337,8 +413,16 @@ class WaiterSearchVariant(BaseModel):
     is_portion: bool
     quantity_value: Decimal
     unit: str
-    price: Decimal
+    price: Decimal | None
+    pricing_status: str = PricingStatus.ACTIVE.value
     is_available: bool
+
+    @field_validator("pricing_status", mode="before")
+    @classmethod
+    def coerce_pricing_status(cls, v: Any) -> str:
+        if not v:
+            return PricingStatus.ACTIVE.value
+        return v.value if hasattr(v, "value") else str(v)
 
 
 class WaiterSearchResultItem(BaseModel):

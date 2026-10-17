@@ -31,6 +31,8 @@ export interface AuthTokens {
 export type DietaryType = 'VEG' | 'NON_VEG' | 'EGG';
 export type SpiceLevel = 'MILD' | 'MEDIUM' | 'HOT';
 export type PriceUnit = 'PORTION' | 'PIECE' | 'ML' | 'L' | 'GRAM' | 'KG' | 'PLATE' | 'BOWL';
+export type PricingType = 'FIXED' | 'SEASONAL';
+export type PricingStatus = 'ACTIVE' | 'SEASONAL_UNPRICED';
 
 export interface MenuCategory {
   id: string;
@@ -51,7 +53,8 @@ export interface MenuPriceVariant {
   is_portion?: boolean;
   quantity_value: string;
   unit: PriceUnit;
-  price: string;
+  price: string | null;
+  pricing_status?: PricingStatus;
   is_default: boolean;
   is_available: boolean;
   is_active: boolean;
@@ -66,8 +69,10 @@ export interface MenuItem {
   item_code: string;
   name: string;
   description: string | null;
+  serving_description?: string | null;
   dietary_type: DietaryType | null;
   spice_level: SpiceLevel | null;
+  pricing_type?: PricingType;
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;
@@ -76,6 +81,24 @@ export interface MenuItem {
   updated_at: string;
   variants: MenuPriceVariant[];
   category?: MenuCategory;
+}
+
+export interface CategoryReorderItem {
+  id: string;
+  display_order: number;
+}
+
+export interface CategoryReorderRequest {
+  categories: CategoryReorderItem[];
+}
+
+export interface ItemReorderItem {
+  id: string;
+  display_order: number;
+}
+
+export interface ItemReorderRequest {
+  items: ItemReorderItem[];
 }
 
 export type TableOperationalStatus = 'ENABLED' | 'MAINTENANCE' | 'DISABLED';

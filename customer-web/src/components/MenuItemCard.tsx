@@ -64,9 +64,12 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
   const { items: cartItems, updateQuantity } = useCart();
 
   const availableVariants = item.variants.filter((v) => v.is_available);
-  const minPrice = availableVariants.length > 0
-    ? Math.min(...availableVariants.map((v) => parseFloat(v.price) || 0))
+  const isSeasonal = item.pricing_type === 'SEASONAL' || availableVariants.some((v) => v.pricing_status === 'SEASONAL_UNPRICED' || v.price === null);
+  const pricedVariants = availableVariants.filter((v) => v.price !== null && parseFloat(v.price) > 0);
+  const minPrice = pricedVariants.length > 0
+    ? Math.min(...pricedVariants.map((v) => parseFloat(v.price!) || 0))
     : 0;
+  const isPriceUnavailable = isSeasonal && pricedVariants.length === 0;
   const hasMultipleVariants = availableVariants.length > 1;
 
   // Cart quantity for this item across all variants
@@ -81,7 +84,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
 
   const handleAddClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!item.is_available) return;
+    if (!item.is_available || isPriceUnavailable) return;
     onSelect(item);
   };
 
@@ -96,6 +99,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isPriceUnavailable) return;
     if (singleVariant && singleCartItem) {
       updateQuantity(singleCartItem.variantId, singleCartItem.quantity + 1);
     } else {
@@ -109,7 +113,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
 
   const actionNode = (
     <div onClick={(e) => e.stopPropagation()}>
-      {cartQty > 0 ? (
+      {isPriceUnavailable ? (
+        <span className="inline-flex items-center justify-center px-2 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg">
+          Ask Waiter
+        </span>
+      ) : cartQty > 0 ? (
         <div className="flex items-center justify-between rounded-xl overflow-hidden"
           style={{ background: 'var(--white)', border: '1.5px solid var(--primary)' }}>
           <button onClick={handleDecrement} className="w-9 h-9 flex items-center justify-center cursor-pointer" style={{ color: 'var(--primary)' }} aria-label="Decrease quantity">
@@ -149,9 +157,22 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
         </div>
         <h3 className="font-bold text-sm leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: 'var(--text-primary)' }}>{item.name}</h3>
         <div className="flex items-baseline gap-1">
-          <span className="font-bold text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{formatInr(minPrice)}</span>
-          {hasMultipleVariants && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>onwards</span>}
+          {isPriceUnavailable ? (
+            <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+              Seasonal Price
+            </span>
+          ) : (
+            <>
+              <span className="font-bold text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{formatInr(minPrice)}</span>
+              {hasMultipleVariants && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>onwards</span>}
+            </>
+          )}
         </div>
+        {item.serving_description && (
+          <p className="text-[10px] text-emerald-800 line-clamp-1 italic font-medium">
+            {item.serving_description}
+          </p>
+        )}
         {hasMultipleVariants && (
           <div className="flex gap-1 flex-wrap">
             {availableVariants.slice(0, 3).map((v) => (
@@ -191,7 +212,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <DietaryBadge type={item.dietary_type} />
             <SpiceBadge level={item.spice_level} />
-                        {!item.is_available && (
+            {!item.is_available && (
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{ background: '#FEF2F2', color: '#B91C1C' }}
@@ -211,16 +232,33 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onSelect, comp
 
           {/* Price */}
           <div className="flex items-baseline gap-1.5 mt-1">
-            <span
-              className="font-bold text-base font-mono"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {formatInr(minPrice)}
-            </span>
-            {hasMultipleVariants && (
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>onwards</span>
+            {isPriceUnavailable ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                Seasonal Price
+              </span>
+            ) : (
+              <>
+                <span
+                  className="font-bold text-base font-mono"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {formatInr(minPrice)}
+                </span>
+                {hasMultipleVariants && (
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>onwards</span>
+                )}
+              </>
             )}
           </div>
+
+          {/* Serving description (e.g. 2 pieces with sambar and chutney) */}
+          {item.serving_description && (
+            <div className="mt-1">
+              <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md inline-block border border-emerald-100">
+                {item.serving_description}
+              </span>
+            </div>
+          )}
 
           {/* Description */}
           {item.description && (

@@ -21,7 +21,14 @@ from app.models.base import (
     percentage,
     uuid_fk,
 )
-from app.models.enums import DietaryType, PriceUnit, SpiceLevel, in_check
+from app.models.enums import (
+    DietaryType,
+    PriceUnit,
+    PricingStatus,
+    PricingType,
+    SpiceLevel,
+    in_check,
+)
 
 if TYPE_CHECKING:
     from app.models.orders import OrderItem
@@ -71,6 +78,10 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "spice_level IS NULL OR " + in_check("spice_level", SpiceLevel),
             name="spice_level_valid",
         ),
+        CheckConstraint(
+            "pricing_type IS NULL OR " + in_check("pricing_type", PricingType),
+            name="pricing_type_valid",
+        ),
         CheckConstraint("btrim(item_code) <> ''", name="item_code_not_blank"),
     )
 
@@ -78,8 +89,12 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     item_code: Mapped[str] = mapped_column(String(16), nullable=False)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    serving_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     dietary_type: Mapped[str | None] = mapped_column(String(15), nullable=True)
     spice_level: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    pricing_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=PricingType.FIXED.value, server_default=text("'FIXED'")
+    )
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     tax_rate_override: Mapped[Decimal | None] = mapped_column(percentage(), nullable=True)
     is_available: Mapped[bool] = mapped_column(
@@ -119,9 +134,10 @@ class MenuPriceVariant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "is_available",
             "display_order",
         ),
-        CheckConstraint("price >= 0", name="price_non_negative"),
+        CheckConstraint("price IS NULL OR price >= 0", name="price_non_negative"),
         CheckConstraint("quantity_value > 0", name="quantity_value_positive"),
         CheckConstraint(in_check("unit", PriceUnit), name="unit_valid"),
+        CheckConstraint(in_check("pricing_status", PricingStatus), name="pricing_status_valid"),
     )
 
     menu_item_id: Mapped[uuid.UUID] = uuid_fk("menu_items.id", nullable=False)
@@ -135,7 +151,10 @@ class MenuPriceVariant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     quantity_value: Mapped[Decimal] = mapped_column(Numeric(8, 2, asdecimal=True), nullable=False)
     unit: Mapped[str] = mapped_column(String(20), nullable=False)
-    price: Mapped[Decimal] = mapped_column(money(), nullable=False)
+    price: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    pricing_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=PricingStatus.ACTIVE.value, server_default=text("'ACTIVE'")
+    )
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )

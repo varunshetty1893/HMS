@@ -46,7 +46,10 @@ export const OrderEditPanel: React.FC<OrderEditPanelProps> = ({
     if (!mi) return [];
     return mi.variants.filter(
       (v) =>
-        v.id !== currentVariantId && v.is_available && parseFloat(v.price) < currentPrice,
+        v.id !== currentVariantId &&
+        v.is_available &&
+        v.price !== null &&
+        parseFloat(v.price) < currentPrice,
     );
   };
 
@@ -65,7 +68,7 @@ export const OrderEditPanel: React.FC<OrderEditPanelProps> = ({
             switch_to_variant_id: sw.variantId,
             switch_quantity: sw.qty,
           });
-          d += sw.qty * (parseFloat(target.price) - unit);
+          d += sw.qty * (parseFloat(target.price || '0') - unit);
         }
         remaining += item.active_quantity;
         continue;
@@ -189,7 +192,7 @@ export const OrderEditPanel: React.FC<OrderEditPanelProps> = ({
                   <option value="">Keep {item.variant_name_snapshot}</option>
                   {options.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.variant_name} ({formatInr(parseFloat(v.price))})
+                      {v.variant_name} ({formatInr(parseFloat(v.price || '0'))})
                     </option>
                   ))}
                 </select>

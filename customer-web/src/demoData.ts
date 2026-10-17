@@ -393,7 +393,7 @@ export function saveDemoOrder(payload: OrderCreate): OrderCreateResponse {
         const v = menuItem.variants.find((vr) => vr.id === it.variant_id);
         if (v) {
           variantName = v.variant_name;
-          unitPrice = v.price;
+          unitPrice = v.price || '0';
           itemName = menuItem.name;
           itemCode = menuItem.item_code;
           menuItemId = menuItem.id;
@@ -512,7 +512,7 @@ export function modifyDemoOrder(orderId: string, changes: CustomerItemChange[]):
       item.item_status = ch.new_quantity === 0 ? 'CANCELLED' : 'MODIFIED';
       item.line_subtotal = (parseFloat(item.unit_price_snapshot) * ch.new_quantity).toFixed(2);
     } else if (ch.switch_to_variant_id) {
-      let target = null as null | { id: string; variant_name: string; price: string };
+      let target = null as null | { id: string; variant_name: string; price: string | null };
       for (const cat of DEMO_MENU.categories) {
         for (const mi of cat.items) {
           if (mi.id !== item.menu_item_id) continue;
@@ -521,7 +521,7 @@ export function modifyDemoOrder(orderId: string, changes: CustomerItemChange[]):
         }
       }
       if (!target) throw new Error('That portion size is not available right now.');
-      if (parseFloat(target.price) >= parseFloat(item.unit_price_snapshot)) {
+      if (parseFloat(target.price || '0') >= parseFloat(item.unit_price_snapshot)) {
         throw new Error('You can only switch to a smaller (cheaper) portion.');
       }
       const move = ch.switch_quantity ?? item.active_quantity;
@@ -534,11 +534,11 @@ export function modifyDemoOrder(orderId: string, changes: CustomerItemChange[]):
         id: `demo-item-${Date.now()}-sw`,
         menu_price_variant_id: target.id,
         variant_name_snapshot: target.variant_name,
-        unit_price_snapshot: target.price,
+        unit_price_snapshot: target.price || '0',
         original_quantity: move,
         active_quantity: move,
         cancelled_quantity: 0,
-        line_subtotal: (parseFloat(target.price) * move).toFixed(2),
+        line_subtotal: (parseFloat(target.price || '0') * move).toFixed(2),
         item_status: 'ACTIVE',
       });
     }

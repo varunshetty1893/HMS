@@ -10,7 +10,8 @@ export interface MenuPriceVariant {
   is_portion?: boolean;
   quantity_value: string;
   unit: string;
-  price: string; // Decimal as string
+  price: string | null; // Decimal as string, null if seasonal unpriced
+  pricing_status?: 'ACTIVE' | 'SEASONAL_UNPRICED';
   is_default: boolean;
   is_available: boolean;
 }
@@ -20,8 +21,10 @@ export interface MenuItem {
   item_code: string;
   name: string;
   description: string | null;
+  serving_description?: string | null;
   dietary_type: 'VEG' | 'NON_VEG' | 'EGG' | null;
   spice_level: 'MILD' | 'MEDIUM' | 'HOT' | null;
+  pricing_type?: 'FIXED' | 'SEASONAL';
   image_url: string | null;
   is_available: boolean;
   display_order: number;

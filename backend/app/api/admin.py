@@ -29,6 +29,8 @@ from app.schemas.audit import AuditLogFacets, AuditLogPageResponse, AuditLogResp
 from app.schemas.billing import BillResponse, PaymentResponse
 from app.schemas.common import PaginationMeta
 from app.schemas.menu import (
+    CategoryReorderRequest,
+    ItemReorderRequest,
     MenuCategoryCreate,
     MenuCategoryResponse,
     MenuCategoryUpdate,
@@ -133,6 +135,23 @@ async def create_menu_category(
     return MenuCategoryResponse.model_validate(category)
 
 
+@router.put("/menu/categories/reorder", status_code=status.HTTP_200_OK)
+async def reorder_menu_categories(
+    payload: CategoryReorderRequest,
+    admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Bulk update display orders for categories."""
+    await MenuService.reorder_categories(
+        db,
+        payload,
+        actor_user_id=admin.id,
+        actor_role=admin.role,
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
 @router.patch("/menu/categories/{category_id}", response_model=MenuCategoryResponse)
 async def update_menu_category(
     category_id: uuid.UUID,
@@ -150,6 +169,23 @@ async def update_menu_category(
     )
     await db.commit()
     return MenuCategoryResponse.model_validate(category)
+
+
+@router.delete("/menu/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_menu_category(
+    category_id: uuid.UUID,
+    admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Soft-deactivate category safely preserving historical orders."""
+    await MenuService.delete_category(
+        db,
+        category_id,
+        actor_user_id=admin.id,
+        actor_role=admin.role,
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # =============================================================================
@@ -188,6 +224,23 @@ async def create_menu_item(
     )
     await db.commit()
     return MenuItemResponse.model_validate(item)
+
+
+@router.put("/menu/items/reorder", status_code=status.HTTP_200_OK)
+async def reorder_menu_items(
+    payload: ItemReorderRequest,
+    admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Bulk update display orders for dishes within a category."""
+    await MenuService.reorder_items(
+        db,
+        payload,
+        actor_user_id=admin.id,
+        actor_role=admin.role,
+    )
+    await db.commit()
+    return {"status": "ok"}
 
 
 @router.patch("/menu/items/{item_id}", response_model=MenuItemResponse)

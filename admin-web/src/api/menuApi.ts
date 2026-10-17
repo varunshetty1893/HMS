@@ -33,6 +33,19 @@ export const menuApi = {
     });
   },
 
+  deleteCategory: async (categoryId: string): Promise<void> => {
+    return apiClient<void>(`/admin/menu/categories/${categoryId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  reorderCategories: async (categories: { id: string; display_order: number }[]): Promise<{ status: string }> => {
+    return apiClient<{ status: string }>('/admin/menu/categories/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ categories }),
+    });
+  },
+
   listItems: async (categoryId?: string, activeOnly = false): Promise<MenuItem[]> => {
     const params = new URLSearchParams();
     if (categoryId) params.append('category_id', categoryId);
@@ -44,6 +57,13 @@ export const menuApi = {
     return apiClient<MenuItem>('/admin/menu/items', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  reorderItems: async (items: { id: string; display_order: number }[]): Promise<{ status: string }> => {
+    return apiClient<{ status: string }>('/admin/menu/items/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     });
   },
 

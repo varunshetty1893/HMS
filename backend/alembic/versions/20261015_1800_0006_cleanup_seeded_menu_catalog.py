@@ -34,7 +34,7 @@ def upgrade() -> None:
         """
     )
 
-    # The source menu explicitly sells Tandoori Chicken as “Half”; it is not a
+    # The source menu explicitly sells Tandoori Chicken as "Half"; it is not a
     # generated Half/Full choice. Retire the synthetic half-price row and keep
     # the listed price as one fixed item.
     op.execute(

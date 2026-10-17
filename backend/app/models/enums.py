@@ -98,6 +98,16 @@ class PriceUnit(_StrEnum):
     BOTTLE = "BOTTLE"
 
 
+class PricingType(_StrEnum):
+    FIXED = "FIXED"
+    SEASONAL = "SEASONAL"
+
+
+class PricingStatus(_StrEnum):
+    ACTIVE = "ACTIVE"
+    SEASONAL_UNPRICED = "SEASONAL_UNPRICED"
+
+
 class OrderStatus(_StrEnum):
     PLACED = "PLACED"
     ACCEPTED = "ACCEPTED"

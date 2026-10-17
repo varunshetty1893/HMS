@@ -805,3 +805,30 @@ class TestCustomerOrderCancellation:
             )
 
         assert exc_info.value.code == "FORBIDDEN"
+
+    @pytest.mark.asyncio
+    async def test_order_seasonal_unpriced_item_rejected(self) -> None:
+        """Verify checkout is blocked for seasonal items with unavailable/null prices."""
+        variant_id = uuid.uuid4()
+        variant = _make_variant(variant_id=variant_id, price=None)
+        variant.pricing_status = "SEASONAL_UNPRICED"
+        variant.item.pricing_type = "SEASONAL"
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [variant]
+        db.execute.return_value = mock_result
+
+        order_item_in = MagicMock()
+        order_item_in.variant_id = variant_id
+        order_item_in.quantity = 1
+        order_item_in.notes = None
+
+        payload = MagicMock()
+        payload.items = [order_item_in]
+
+        with pytest.raises(DomainValidationError) as exc_info:
+            await OrderService._resolve_variants(db, payload)
+
+        assert exc_info.value.code == "SEASONAL_PRICE_UNAVAILABLE"
+

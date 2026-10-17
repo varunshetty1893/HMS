@@ -622,11 +622,33 @@ class OrderService:
                     code="VARIANT_UNAVAILABLE",
                     message=(f"'{variant.variant_name}' is currently unavailable."),
                 )
+            if (
+                variant.price is None
+                or variant.pricing_status == "SEASONAL_UNPRICED"
+                or variant.price <= Decimal("0.00")
+            ):
+                raise DomainValidationError(
+                    code="SEASONAL_PRICE_UNAVAILABLE",
+                    message=(
+                        f"'{variant.variant_name}' has seasonal/market pricing and cannot be ordered "
+                        f"until the price is confirmed by restaurant staff."
+                    ),
+                )
             menu_item: MenuItem = variant.item
             if not menu_item.is_available:
                 raise DomainValidationError(
                     code="ITEM_UNAVAILABLE",
                     message=f"'{menu_item.name}' is currently unavailable.",
+                )
+            if menu_item.pricing_type == "SEASONAL" and (
+                variant.price is None or variant.pricing_status == "SEASONAL_UNPRICED"
+            ):
+                raise DomainValidationError(
+                    code="SEASONAL_PRICE_UNAVAILABLE",
+                    message=(
+                        f"'{menu_item.name}' has seasonal/market pricing and cannot be ordered "
+                        f"until the price is confirmed by restaurant staff."
+                    ),
                 )
 
             resolved.append(
@@ -2839,6 +2861,11 @@ class OrderService:
                 raise DomainValidationError(
                     "INVALID_PORTION_CHANGE",
                     f"'{item.item_name_snapshot}' is already ordered in that portion.",
+                )
+            if target.price is None or target.pricing_status == "SEASONAL_UNPRICED":
+                raise DomainValidationError(
+                    "SEASONAL_PRICE_UNAVAILABLE",
+                    f"'{target.variant_name}' has seasonal/market pricing and cannot be selected.",
                 )
             target_price = _two_dp(target.price)
             if target_price >= item.unit_price_snapshot:

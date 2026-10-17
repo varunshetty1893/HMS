@@ -541,8 +541,8 @@ class BillingService:
                     message="A discount reason is required when applying a discount.",
                 )
             if staff_user.role != UserRole.ADMIN.value:
-                # Check waiter max discount
-                max_allowed_pct = settings.waiter_max_discount_percentage or Decimal("0.00")
+                # Check waiter discount limit using the price-override setting (single shared cap)
+                max_allowed_pct = settings.waiter_max_price_override_percentage or Decimal("0.00")
                 if max_allowed_pct > Decimal("0.00"):
                     max_allowed_amount = (subtotal * max_allowed_pct / Decimal("100")).quantize(
                         TWO_PLACES, rounding=ROUND_HALF_UP
@@ -1026,7 +1026,8 @@ class BillingService:
 
         if staff_user.role != UserRole.ADMIN.value:
             settings = await cls._get_restaurant_settings(db)
-            max_allowed_pct = settings.waiter_max_discount_percentage or Decimal("0.00")
+            # Use the single price-override cap for discounts too
+            max_allowed_pct = settings.waiter_max_price_override_percentage or Decimal("0.00")
             if max_allowed_pct > Decimal("0.00"):
                 max_allowed_amount = (bill.subtotal_amount * max_allowed_pct / Decimal("100")).quantize(
                     TWO_PLACES, rounding=ROUND_HALF_UP

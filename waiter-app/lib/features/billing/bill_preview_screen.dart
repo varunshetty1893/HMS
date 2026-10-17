@@ -572,18 +572,20 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
   Widget _buildBody(
       BillingState st, TableBillModel tableBill, BillModel? bill) {
     final isPreview = bill == null;
+    // Always allow editing — even on ISSUED bills waiter can adjust and re-generate
+    const canEdit = true;
     final items = isPreview ? tableBill.previewLineItems : bill.lineItems;
 
-    // Live totals
+    // Live totals — always recalculate with any pending overrides
     double liveSubtotal = 0.0;
-    if (isPreview) {
-      for (final it in items) {
-        final ov = st.itemOverrides[it.id];
-        final p = ov?.unitPrice ?? it.unitPriceSnapshot;
-        final q = ov?.quantity ?? it.quantityBilled;
-        liveSubtotal += p * q;
-      }
-    } else {
+    for (final it in items) {
+      final ov = st.itemOverrides[it.id];
+      final p = ov?.unitPrice ?? it.unitPriceSnapshot;
+      final q = ov?.quantity ?? it.quantityBilled;
+      liveSubtotal += p * q;
+    }
+    // If no overrides yet and bill is issued, use the frozen subtotal
+    if (!isPreview && st.itemOverrides.isEmpty) {
       liveSubtotal = bill.subtotalAmount;
     }
 
@@ -623,7 +625,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
               const SizedBox(height: 14),
 
               // ── Editable Item Table ──────────────────────────────────
-              _buildItemTable(st, items, isPreview),
+              _buildItemTable(st, items, canEdit),
               const SizedBox(height: 14),
 
               // ── Financial summary ────────────────────────────────────
@@ -1104,25 +1106,60 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
         border: Border(top: BorderSide(color: WaiterTheme.surfaceVariant)),
       ),
       child: bill != null
-          ? SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.payment),
-                label: Text(
-                  'Record Payment  ${CurrencyFormatter.format(bill.grandTotal)}',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // If waiter has pending overrides on an issued bill → offer re-generate
+                if (st.itemOverrides.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        icon: st.isSubmitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.receipt_long, size: 18),
+                        label: Text(
+                          'Apply Changes & Re-generate  ${CurrencyFormatter.format(grandTotal)}',
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: WaiterTheme.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: st.isSubmitting
+                            ? null
+                            : () => _showGenerateConfirm(st, grandTotal),
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.payment),
+                    label: Text(
+                      'Record Payment  ${CurrencyFormatter.format(bill.grandTotal)}',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: WaiterTheme.availableGreen,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => PaymentRecordingScreen(bill: bill)),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: WaiterTheme.availableGreen,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => PaymentRecordingScreen(bill: bill)),
-                ),
-              ),
+              ],
             )
           : SizedBox(
               width: double.infinity,

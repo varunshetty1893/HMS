@@ -120,6 +120,18 @@ class BillLinePriceOverride(StrictRequestModel):
     adjustment_amount: Decimal | None = None
 
 
+class CustomBillLineItem(StrictRequestModel):
+    """An ad-hoc item billed at the waiter/admin's discretion — not linked to any menu item.
+
+    Examples: bottled water, milk, special service charge, packaging, etc.
+    """
+
+    item_name: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(ge=1, le=999, default=1)
+    unit_price: Decimal = Field(ge=Decimal("0.01"), max_digits=12, decimal_places=2)
+    reason: str = Field(min_length=3, max_length=255, default="Custom item added at billing")
+
+
 class BillGenerateRequest(StrictRequestModel):
     """Payload for POST /api/v1/bills/generate."""
 
@@ -128,6 +140,7 @@ class BillGenerateRequest(StrictRequestModel):
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     discount_reason: str | None = Field(default=None, max_length=255)
     price_overrides: list[BillLinePriceOverride] = Field(default_factory=list, max_length=100)
+    custom_line_items: list[CustomBillLineItem] = Field(default_factory=list, max_length=50)
 
 
 class BillDiscountRequest(StrictRequestModel):

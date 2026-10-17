@@ -515,6 +515,15 @@ class BillingService:
                 message="A requested price override does not belong to an active billable line.",
             )
 
+        # 6b. Custom (ad-hoc) line items — items not in the menu added by waiter/admin
+        custom_bill_rows: list[tuple[str, Decimal, int, Decimal]] = []  # (name, unit_price, qty, line_tot)
+        for custom in (payload.custom_line_items or []):
+            cp = custom.unit_price.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+            qty = custom.quantity
+            lt = (cp * qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+            subtotal += lt
+            custom_bill_rows.append((custom.item_name, cp, qty, lt))
+
         subtotal = subtotal.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
         if subtotal <= Decimal("0.00"):
             raise DomainValidationError(
@@ -541,8 +550,8 @@ class BillingService:
                     message="A discount reason is required when applying a discount.",
                 )
             if staff_user.role != UserRole.ADMIN.value:
-                # Check waiter discount limit using the price-override setting (single shared cap)
-                max_allowed_pct = settings.waiter_max_price_override_percentage or Decimal("0.00")
+                # Check waiter discount cap. 0 means "no cap set" = unlimited.
+                max_allowed_pct = settings.waiter_max_price_override_percentage
                 if max_allowed_pct > Decimal("0.00"):
                     max_allowed_amount = (subtotal * max_allowed_pct / Decimal("100")).quantize(
                         TWO_PLACES, rounding=ROUND_HALF_UP
@@ -556,6 +565,7 @@ class BillingService:
                                 "requires Admin approval."
                             ),
                         )
+                # else: 0 means uncapped — waiter may apply any discount
 
         taxable_amount = (subtotal - discount_amount).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
         cgst_rate = settings.cgst_percentage
@@ -632,6 +642,32 @@ class BillingService:
             )
             db.add(b_item)
             created_bill_items.append(b_item)
+
+        # 10b. Custom (ad-hoc) bill items — no order link
+        for idx_c, (c_name, c_price, c_qty, c_tot) in enumerate(custom_bill_rows):
+            c_item = BillItem(
+                id=uuid.uuid4(),
+                bill_id=bill.id,
+                order_id=None,
+                order_item_id=None,
+                order_number_snapshot="CUSTOM",
+                item_code_snapshot=f"CUSTOM-{idx_c + 1:03d}",
+                item_name_snapshot=c_name,
+                variant_code_snapshot=None,
+                variant_name_snapshot="",
+                unit_snapshot="ITEM",
+                quantity_billed=c_qty,
+                unit_price_snapshot=c_price,
+                line_total=c_tot,
+                base_price_snapshot=c_price,
+                custom_portion_name=None,
+                extra_pieces_count=0,
+                adjustment_type=None,
+                adjustment_amount=None,
+                adjustment_reason="Custom item added at billing",
+            )
+            db.add(c_item)
+            created_bill_items.append(c_item)
 
         # Assigning bill.items directly would lazy-load the old collection, which
         # raises MissingGreenlet under AsyncSession. The BillItem rows are already
@@ -1026,8 +1062,8 @@ class BillingService:
 
         if staff_user.role != UserRole.ADMIN.value:
             settings = await cls._get_restaurant_settings(db)
-            # Use the single price-override cap for discounts too
-            max_allowed_pct = settings.waiter_max_price_override_percentage or Decimal("0.00")
+            # 0 means uncapped — waiter may apply any discount amount
+            max_allowed_pct = settings.waiter_max_price_override_percentage
             if max_allowed_pct > Decimal("0.00"):
                 max_allowed_amount = (bill.subtotal_amount * max_allowed_pct / Decimal("100")).quantize(
                     TWO_PLACES, rounding=ROUND_HALF_UP
@@ -1041,6 +1077,7 @@ class BillingService:
                             "requires Admin approval."
                         ),
                     )
+            # else: 0 means uncapped
 
         bill.discount_amount = discount_amount
         bill.discount_reason = payload.discount_reason

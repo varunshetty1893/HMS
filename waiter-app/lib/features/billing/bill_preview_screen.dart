@@ -265,6 +265,233 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
     );
   }
 
+  /// Add / edit a custom ad-hoc item (not in menu).
+  void _showCustomItemDialog({int? editIndex, CustomItem? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final qtyCtrl =
+        TextEditingController(text: (existing?.quantity ?? 1).toString());
+    final priceCtrl = TextEditingController(
+        text: existing != null ? existing.unitPrice.toStringAsFixed(2) : '');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDS) {
+        final p = double.tryParse(priceCtrl.text) ?? 0.0;
+        final q = int.tryParse(qtyCtrl.text) ?? 1;
+        final liveTotal = p * q;
+
+        return AlertDialog(
+          backgroundColor: WaiterTheme.surface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            const Icon(Icons.add_shopping_cart, color: WaiterTheme.primary),
+            const SizedBox(width: 10),
+            Text(
+              editIndex != null ? 'Edit Custom Item' : 'Add Custom Item',
+              style: const TextStyle(
+                  color: WaiterTheme.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
+            ),
+          ]),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'For items not on the menu (e.g. milk, water, service)',
+                    style: TextStyle(
+                        color: WaiterTheme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Name
+                  const Text('Item Name',
+                      style: TextStyle(
+                          color: WaiterTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: nameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    style: const TextStyle(
+                        color: WaiterTheme.textPrimary, fontSize: 15),
+                    decoration: _inputDec(null).copyWith(
+                        hintText: 'e.g. Fresh Milk, Mineral Water …',
+                        hintStyle: const TextStyle(
+                            color: WaiterTheme.textMuted, fontSize: 12)),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Item name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Qty row
+                  const Text('Quantity',
+                      style: TextStyle(
+                          color: WaiterTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _qtyButton(Icons.remove, () {
+                        final v = (int.tryParse(qtyCtrl.text) ?? 1) - 1;
+                        if (v >= 1) {
+                          qtyCtrl.text = v.toString();
+                          setDS(() {});
+                        }
+                      }),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          controller: qtyCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: WaiterTheme.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold),
+                          decoration: _inputDec(null),
+                          onChanged: (_) => setDS(() {}),
+                          validator: (v) {
+                            final n = int.tryParse(v ?? '');
+                            if (n == null || n < 1) return 'Min qty is 1';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _qtyButton(Icons.add, () {
+                        final v = (int.tryParse(qtyCtrl.text) ?? 0) + 1;
+                        qtyCtrl.text = v.toString();
+                        setDS(() {});
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Unit price
+                  const Text('Unit Price (₹)',
+                      style: TextStyle(
+                          color: WaiterTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    style: const TextStyle(
+                        color: WaiterTheme.textPrimary, fontSize: 16),
+                    decoration: _inputDec('₹'),
+                    onChanged: (_) => setDS(() {}),
+                    validator: (v) {
+                      final n = double.tryParse(v ?? '');
+                      if (n == null || n <= 0) {
+                        return 'Enter a valid price > 0';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Live total
+                  if (liveTotal > 0)
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: WaiterTheme.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color:
+                                WaiterTheme.primary.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Line Total:',
+                              style: TextStyle(
+                                  color: WaiterTheme.textSecondary,
+                                  fontSize: 13)),
+                          Text(
+                            CurrencyFormatter.format(liveTotal),
+                            style: const TextStyle(
+                              color: WaiterTheme.primary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (editIndex != null)
+              TextButton(
+                onPressed: () {
+                  ref
+                      .read(billingControllerProvider.notifier)
+                      .removeCustomItem(editIndex);
+                  Navigator.of(ctx).pop();
+                  _snack('Custom item removed');
+                },
+                child: const Text('Remove',
+                    style: TextStyle(color: WaiterTheme.errorRed)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel',
+                  style: TextStyle(color: WaiterTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: WaiterTheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  final item = CustomItem(
+                    name: nameCtrl.text.trim(),
+                    quantity: int.tryParse(qtyCtrl.text.trim()) ?? 1,
+                    unitPrice: double.tryParse(priceCtrl.text.trim()) ?? 0,
+                  );
+                  final notifier =
+                      ref.read(billingControllerProvider.notifier);
+                  if (editIndex != null) {
+                    notifier.updateCustomItem(editIndex, item);
+                    _snack('${item.name} updated');
+                  } else {
+                    notifier.addCustomItem(item);
+                    _snack('${item.name} added to bill');
+                  }
+                  Navigator.of(ctx).pop();
+                }
+              },
+              child:
+                  Text(editIndex != null ? 'Update' : 'Add to Bill'),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
   /// Discount dialog – supports flat ₹ or % for both preview and issued bill.
   void _showDiscountDialog({
     required double subtotal,
@@ -584,8 +811,12 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
       final q = ov?.quantity ?? it.quantityBilled;
       liveSubtotal += p * q;
     }
-    // If no overrides yet and bill is issued, use the frozen subtotal
-    if (!isPreview && st.itemOverrides.isEmpty) {
+    // Add any pending custom items
+    for (final ci in st.customItems) {
+      liveSubtotal += ci.lineTotal;
+    }
+    // If no overrides/custom items yet and bill is issued, use the frozen subtotal
+    if (!isPreview && st.itemOverrides.isEmpty && st.customItems.isEmpty) {
       liveSubtotal = bill.subtotalAmount;
     }
 
@@ -626,6 +857,10 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
 
               // ── Editable Item Table ──────────────────────────────────
               _buildItemTable(st, items, canEdit),
+              const SizedBox(height: 10),
+
+              // ── Custom (ad-hoc) items section ────────────────────────
+              _buildCustomItemsSection(st),
               const SizedBox(height: 14),
 
               // ── Financial summary ────────────────────────────────────
@@ -648,6 +883,180 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
 
         // ── Bottom action bar ──────────────────────────────────────────
         _buildActionBar(st, tableBill, bill, liveGrandTotal),
+      ],
+    );
+  }
+
+  // ── Custom items section ─────────────────────────────────────────────────────
+  Widget _buildCustomItemsSection(BillingState st) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Existing custom rows
+        if (st.customItems.isNotEmpty)
+          Container(
+            decoration: BoxDecoration(
+              color: WaiterTheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: WaiterTheme.primary.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: WaiterTheme.primary.withValues(alpha: 0.08),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.add_shopping_cart,
+                          size: 14, color: WaiterTheme.primary),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text('CUSTOM ITEMS',
+                            style: TextStyle(
+                                color: WaiterTheme.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8)),
+                      ),
+                      Text('${st.customItems.length} added',
+                          style: const TextStyle(
+                              color: WaiterTheme.textMuted, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                const Divider(color: WaiterTheme.surfaceVariant, height: 1),
+                ...st.customItems.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final ci = e.value;
+                  return Column(
+                    children: [
+                      if (idx > 0)
+                        const Divider(
+                            color: WaiterTheme.surfaceVariant,
+                            height: 1,
+                            indent: 14),
+                      InkWell(
+                        onTap: () => _showCustomItemDialog(
+                            editIndex: idx, existing: ci),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Container(
+                                        margin: const EdgeInsets.only(right: 5),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: WaiterTheme.primary
+                                              .withValues(alpha: 0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(3),
+                                        ),
+                                        child: const Text('CUSTOM',
+                                            style: TextStyle(
+                                                color: WaiterTheme.primary,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                      Expanded(
+                                        child: Text(ci.name,
+                                            style: const TextStyle(
+                                                color: WaiterTheme.textPrimary,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600)),
+                                      ),
+                                    ]),
+                                    const Text('Not in menu',
+                                        style: TextStyle(
+                                            color: WaiterTheme.textMuted,
+                                            fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: 52,
+                                child: Center(
+                                  child: Text('${ci.quantity}',
+                                      style: const TextStyle(
+                                          color: WaiterTheme.textPrimary,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 72,
+                                child: Center(
+                                  child: Text(
+                                      '₹${ci.unitPrice.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          color: WaiterTheme.textSecondary,
+                                          fontSize: 13)),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 72,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                      CurrencyFormatter.format(ci.lineTotal),
+                                      style: const TextStyle(
+                                          color: WaiterTheme.primary,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 36,
+                                child: Center(
+                                  child: IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18, color: WaiterTheme.primary),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () => _showCustomItemDialog(
+                                        editIndex: idx, existing: ci),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+
+        // Add custom item button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add Custom Item to Bill'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: WaiterTheme.primary,
+              side: const BorderSide(color: WaiterTheme.primary),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _showCustomItemDialog(),
+          ),
+        ),
       ],
     );
   }

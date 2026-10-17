@@ -26,6 +26,29 @@ class ItemOverride {
   }
 }
 
+/// Ad-hoc custom item added at billing time (e.g. milk, water, packaging).
+class CustomItem {
+  final String name;
+  final int quantity;
+  final double unitPrice;
+
+  const CustomItem({
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+  });
+
+  double get lineTotal => unitPrice * quantity;
+
+  CustomItem copyWith({String? name, int? quantity, double? unitPrice}) {
+    return CustomItem(
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      unitPrice: unitPrice ?? this.unitPrice,
+    );
+  }
+}
+
 class BillingState {
   final bool isLoading;
   final bool isSubmitting;
@@ -36,6 +59,9 @@ class BillingState {
 
   /// keyed by order_item id (UUID string from backend)
   final Map<String, ItemOverride> itemOverrides;
+
+  /// Ad-hoc items not linked to any menu item
+  final List<CustomItem> customItems;
 
   final double discountAmount;
   final String? discountReason;
@@ -48,6 +74,7 @@ class BillingState {
     this.lastPayment,
     this.error,
     this.itemOverrides = const {},
+    this.customItems = const [],
     this.discountAmount = 0.0,
     this.discountReason,
   });
@@ -61,6 +88,7 @@ class BillingState {
     String? error,
     bool clearError = false,
     Map<String, ItemOverride>? itemOverrides,
+    List<CustomItem>? customItems,
     double? discountAmount,
     String? discountReason,
     bool clearDiscount = false,
@@ -73,6 +101,7 @@ class BillingState {
       lastPayment: lastPayment ?? this.lastPayment,
       error: clearError ? null : (error ?? this.error),
       itemOverrides: itemOverrides ?? this.itemOverrides,
+      customItems: customItems ?? this.customItems,
       discountAmount:
           clearDiscount ? 0.0 : (discountAmount ?? this.discountAmount),
       discountReason:
@@ -110,6 +139,27 @@ class BillingController extends StateNotifier<BillingState> {
 
   void clearAllOverrides() {
     state = state.copyWith(itemOverrides: {}, clearError: true);
+  }
+
+  // ── Custom Items ────────────────────────────────────────────────────────────
+
+  void addCustomItem(CustomItem item) {
+    final updated = List<CustomItem>.from(state.customItems)..add(item);
+    state = state.copyWith(customItems: updated, clearError: true);
+  }
+
+  void updateCustomItem(int index, CustomItem item) {
+    final updated = List<CustomItem>.from(state.customItems)..[index] = item;
+    state = state.copyWith(customItems: updated, clearError: true);
+  }
+
+  void removeCustomItem(int index) {
+    final updated = List<CustomItem>.from(state.customItems)..removeAt(index);
+    state = state.copyWith(customItems: updated, clearError: true);
+  }
+
+  void clearCustomItems() {
+    state = state.copyWith(customItems: [], clearError: true);
   }
 
   // ── Discount ────────────────────────────────────────────────────────────────
@@ -161,6 +211,13 @@ class BillingController extends StateNotifier<BillingState> {
         };
       }).toList();
 
+      final customLines = state.customItems.map((c) => {
+        'item_name': c.name,
+        'quantity': c.quantity,
+        'unit_price': c.unitPrice.toStringAsFixed(2),
+        'reason': 'Custom item added at billing',
+      }).toList();
+
       final payload = {
         'table_number': tableNumber,
         'discount_amount': state.discountAmount.toStringAsFixed(2),
@@ -170,6 +227,7 @@ class BillingController extends StateNotifier<BillingState> {
         else if (state.discountAmount > 0)
           'discount_reason': 'Discount applied at billing',
         'price_overrides': overrides,
+        'custom_line_items': customLines,
       };
 
       final res = await _apiClient.post(

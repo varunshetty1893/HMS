@@ -165,4 +165,3 @@ __all__ = [
     "WaiterSearchResultItem",
     "WaiterSearchVariant",
 ]
-

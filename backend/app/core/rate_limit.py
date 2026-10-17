@@ -56,6 +56,30 @@ class SlidingWindowRateLimiter:
             self._history.clear()
 
 
+def extract_client_ip(request: Request) -> str:
+    """Extract client IP securely from headers or connection.
+
+    Behind reverse proxies (Render, Caddy, Cloudflare, Nginx), the proxy appends
+    the client IP to X-Forwarded-For (making the last entry the proxy-verified IP)
+    or sets X-Real-IP. Using the first entry is dangerous because an untrusted client
+    can spoof the header.
+    """
+    x_real_ip = request.headers.get("X-Real-IP")
+    if x_real_ip and x_real_ip.strip():
+        return x_real_ip.strip()
+
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+        if ips:
+            # Use the proxy-appended IP (last entry in chain) to prevent spoofing
+            return ips[-1]
+
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown_client"
+
+
 # Global in-memory instance
 rate_limiter = SlidingWindowRateLimiter()
 
@@ -67,13 +91,39 @@ def rate_limit_by_ip(
     """Dependency factory checking rate limits per client IP."""
 
     async def _dependency(request: Request) -> None:
-        client_host = request.client.host if request.client else "unknown_client"
-        # Forwarded IP header support behind reverse proxy
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            client_host = forwarded_for.split(",")[0].strip()
-
+        client_host = extract_client_ip(request)
         key = f"rl:{request.url.path}:{client_host}"
+        await rate_limiter.check_and_record(
+            key=key,
+            max_requests=max_requests,
+            window_seconds=window_seconds,
+        )
+
+    return _dependency
+
+
+def rate_limit_by_session_or_ip(
+    max_requests: int = 3,
+    window_seconds: int = 300,
+) -> Callable[[Request], Any]:
+    """Rate limit keyed on customer session token with fallback to client IP.
+
+    Prevents throttling an entire restaurant of diners sharing one Wi-Fi IP.
+    """
+
+    async def _dependency(request: Request) -> None:
+        auth_header = request.headers.get("Authorization") or ""
+        session_key: str | None = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            if token:
+                session_key = f"session:{token[:32]}"
+
+        if not session_key:
+            client_ip = extract_client_ip(request)
+            session_key = f"ip:{client_ip}"
+
+        key = f"rl:{request.url.path}:{session_key}"
         await rate_limiter.check_and_record(
             key=key,
             max_requests=max_requests,

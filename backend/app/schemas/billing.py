@@ -20,6 +20,7 @@ class ResponseModel(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Bill Line Items & Responses
 # ─────────────────────────────────────────────────────────────────────────────

@@ -191,9 +191,7 @@ class ReportService:
                 )
             ) or 0
 
-            avg_bill = (
-                _two_dp(grand / Decimal(total_bills)) if total_bills > 0 else Decimal("0.00")
-            )
+            avg_bill = _two_dp(grand / Decimal(total_bills)) if total_bills > 0 else Decimal("0.00")
 
             results.append(
                 DailySalesSummary(
@@ -426,9 +424,7 @@ class ReportService:
             # Revenue from paid bills for sessions of this table
             sess_ids = [s.id for s in sessions]
             if sess_ids:
-                rev_stmt = select(
-                    func.coalesce(func.sum(Bill.grand_total), Decimal("0.00"))
-                ).where(
+                rev_stmt = select(func.coalesce(func.sum(Bill.grand_total), Decimal("0.00"))).where(
                     Bill.table_session_id.in_(sess_ids),
                     Bill.status == BillStatus.PAID.value,
                 )

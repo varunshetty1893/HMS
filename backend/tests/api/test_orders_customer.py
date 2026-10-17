@@ -831,4 +831,3 @@ class TestCustomerOrderCancellation:
             await OrderService._resolve_variants(db, payload)
 
         assert exc_info.value.code == "SEASONAL_PRICE_UNAVAILABLE"
-

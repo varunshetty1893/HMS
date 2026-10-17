@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_staff_user
+from app.core.rate_limit import extract_client_ip, rate_limit_by_ip
 from app.models.enums import UserRole
 from app.models.identity import User
 from app.schemas.auth import (
@@ -24,12 +25,7 @@ from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-
-def _extract_client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
+_AUTH_RATE_LIMIT = rate_limit_by_ip(max_requests=10, window_seconds=60)
 
 
 @router.post(
@@ -37,6 +33,7 @@ def _extract_client_ip(request: Request) -> str | None:
     response_model=StaffTokenResponse,
     status_code=status.HTTP_200_OK,
     summary="Staff authentication (login)",
+    dependencies=[Depends(_AUTH_RATE_LIMIT)],
 )
 async def login(
     payload: StaffLoginRequest,
@@ -44,7 +41,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ) -> StaffTokenResponse:
     """Authenticate a staff member and return access + refresh tokens."""
-    client_ip = _extract_client_ip(request)
+    client_ip = extract_client_ip(request)
     return await AuthService.login(db, payload, client_ip=client_ip)
 
 
@@ -53,6 +50,7 @@ async def login(
     response_model=StaffTokenResponse,
     status_code=status.HTTP_200_OK,
     summary="Rotate refresh token and issue new access token",
+    dependencies=[Depends(_AUTH_RATE_LIMIT)],
 )
 async def refresh_tokens(
     payload: StaffRefreshTokenRequest,
@@ -60,7 +58,7 @@ async def refresh_tokens(
     db: AsyncSession = Depends(get_db),
 ) -> StaffTokenResponse:
     """Exchange a valid refresh token for a new access token and rotated refresh token."""
-    client_ip = _extract_client_ip(request)
+    client_ip = extract_client_ip(request)
     return await AuthService.refresh_tokens(db, payload, client_ip=client_ip)
 
 
@@ -77,7 +75,7 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> StatusSuccessResponse:
     """Revoke staff refresh tokens and terminate active sessions."""
-    client_ip = _extract_client_ip(request)
+    client_ip = extract_client_ip(request)
     await AuthService.logout(db, current_user, payload, client_ip=client_ip)
     return StatusSuccessResponse(status="LOGGED_OUT")
 

@@ -8,7 +8,8 @@ Creates:
    - ADMIN_FULL_NAME (default: System Administrator)
 
 Usage:
-    ADMIN_USERNAME=admin ADMIN_PASSWORD='StrongPassword123!' python backend/scripts/init_production.py
+    ADMIN_USERNAME=admin ADMIN_PASSWORD='StrongPassword123!' \
+        python backend/scripts/init_production.py
     # Or interactively:
     python backend/scripts/init_production.py
 """
@@ -27,14 +28,18 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-from app.config import get_settings
-from app.core.security import hash_password
-from app.models.enums import UserRole, UserStatus
-from app.models.identity import User
-from app.models.restaurant import RestaurantSettings
+from app.config import get_settings  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
+from app.models.enums import UserRole, UserStatus  # noqa: E402
+from app.models.identity import User  # noqa: E402
+from app.models.restaurant import RestaurantSettings  # noqa: E402
 
 
 async def init_prod_settings(session: AsyncSession, restaurant_name: str) -> None:
@@ -99,7 +104,10 @@ async def main() -> None:
     settings = get_settings()
     print("=" * 60)
     print("  HMS Production Database Initialization")
-    print(f"  Database target: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'configured DB'}")
+    target = (
+        settings.database_url.split("@")[-1] if "@" in settings.database_url else "configured DB"
+    )
+    print(f"  Database target: {target}")
     print("=" * 60)
 
     username = os.getenv("ADMIN_USERNAME", "admin").strip()
@@ -109,9 +117,15 @@ async def main() -> None:
 
     if not password:
         if sys.stdin.isatty():
-            password = getpass.getpass(f"Enter strong password for admin user '{username}': ").strip()
+            password = getpass.getpass(
+                f"Enter strong password for admin user '{username}': "
+            ).strip()
         else:
-            print("ERROR: ADMIN_PASSWORD environment variable is required in non-interactive environments.", file=sys.stderr)
+            print(
+                "ERROR: ADMIN_PASSWORD environment variable is required in "
+                "non-interactive environments.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
     if len(password) < 8:

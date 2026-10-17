@@ -3,6 +3,7 @@
 Follows `docs/05-api-specification.md` conventions and the same strict-request
 pattern used throughout the codebase.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -12,7 +13,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import StrictRequestModel
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Customer → Server
@@ -90,7 +90,8 @@ class WaiterRequestCompleteRequest(StrictRequestModel):
 class WaiterRequestWsPayload(BaseModel):
     """Shape of the WebSocket broadcast for waiter-request lifecycle events."""
 
-    event: str  # waiter.request.created | waiter.request.claimed | waiter.request.completed | waiter.request.cancelled
+    # Event types: waiter.request.{created,claimed,completed,cancelled}
+    event: str
     request_id: str
     table_session_id: str
     table_id: str

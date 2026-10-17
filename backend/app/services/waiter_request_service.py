@@ -7,6 +7,7 @@ Key design invariants:
 - All state transitions broadcast to the relevant WebSocket rooms.
 - No simulation: every notification is server-confirmed before informing the customer.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -59,9 +60,7 @@ def _to_response(req: WaiterRequest) -> WaiterRequestResponse:
     )
 
 
-async def _get_table_info(
-    db: AsyncSession, table_id: uuid.UUID
-) -> tuple[int | None, str | None]:
+async def _get_table_info(db: AsyncSession, table_id: uuid.UUID) -> tuple[int | None, str | None]:
     """Fetch table_number and display_name for WS broadcast metadata."""
     row = await db.execute(
         select(RestaurantTable.table_number, RestaurantTable.display_name).where(
@@ -121,7 +120,9 @@ async def create_waiter_request(
     if customer_session.status != CustomerSessionStatus.ACTIVE.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": {"code": "SESSION_INVALID", "message": "Customer session is not active."}},
+            detail={
+                "error": {"code": "SESSION_INVALID", "message": "Customer session is not active."}
+            },
         )
 
     # Ensure active table session is linked; if the customer has not ordered yet,
@@ -275,13 +276,10 @@ async def claim_request(
     Uses SELECT FOR UPDATE NOWAIT to guarantee that exactly one waiter wins if
     multiple waiters try to claim simultaneously. The loser gets 409 CONFLICT.
     """
-    from sqlalchemy import update
 
     # Lock the row
     result = await db.execute(
-        select(WaiterRequest)
-        .where(WaiterRequest.id == request_id)
-        .with_for_update(nowait=True)
+        select(WaiterRequest).where(WaiterRequest.id == request_id).with_for_update(nowait=True)
     )
     req = result.scalar_one_or_none()
 
@@ -296,12 +294,19 @@ async def claim_request(
             return _to_response(req)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": {"code": "ALREADY_CLAIMED", "message": "This request was already claimed by another waiter."}},
+            detail={
+                "error": {
+                    "code": "ALREADY_CLAIMED",
+                    "message": "This request was already claimed by another waiter.",
+                }
+            },
         )
     if req.status != WaiterRequestStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": {"code": "CANNOT_CLAIM", "message": f"Request status is {req.status}."}},
+            detail={
+                "error": {"code": "CANNOT_CLAIM", "message": f"Request status is {req.status}."}
+            },
         )
 
     now = utc_now()
@@ -313,9 +318,7 @@ async def claim_request(
 
     table_number, table_display_name = await _get_table_info(db, req.table_id)
     await _broadcast_event(req, "waiter.request.claimed", table_number, table_display_name)
-    logger.info(
-        "WaiterRequest claimed id=%s by user=%s", req.id, staff_user.id
-    )
+    logger.info("WaiterRequest claimed id=%s by user=%s", req.id, staff_user.id)
     return _to_response(req)
 
 
@@ -335,7 +338,9 @@ async def complete_request(
     if req.status not in (WaiterRequestStatus.CLAIMED.value, WaiterRequestStatus.PENDING.value):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": {"code": "CANNOT_COMPLETE", "message": f"Request status is {req.status}."}},
+            detail={
+                "error": {"code": "CANNOT_COMPLETE", "message": f"Request status is {req.status}."}
+            },
         )
 
     now = utc_now()

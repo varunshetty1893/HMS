@@ -483,8 +483,8 @@ class BillingService:
                         )
                         if staff_user.role != UserRole.ADMIN.value:
                             settings = settings or await cls._get_restaurant_settings(db)
-                            max_pct = (
-                                settings.waiter_max_price_override_percentage or Decimal("0.00")
+                            max_pct = settings.waiter_max_price_override_percentage or Decimal(
+                                "0.00"
                             )
                             if max_pct > Decimal("0.00"):
                                 allowed_delta = (unit_price * max_pct / Decimal("100")).quantize(
@@ -503,9 +503,7 @@ class BillingService:
                             qty = override.quantity_billed
 
                     if qty > 0:
-                        line_tot = (unit_price * qty).quantize(
-                            TWO_PLACES, rounding=ROUND_HALF_UP
-                        )
+                        line_tot = (unit_price * qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
                         subtotal += line_tot
                         billable_items.append((order, item, unit_price, qty, line_tot))
 
@@ -516,8 +514,10 @@ class BillingService:
             )
 
         # 6b. Custom (ad-hoc) line items — items not in the menu added by waiter/admin
-        custom_bill_rows: list[tuple[str, Decimal, int, Decimal]] = []  # (name, unit_price, qty, line_tot)
-        for custom in (payload.custom_line_items or []):
+        custom_bill_rows: list[
+            tuple[str, Decimal, int, Decimal]
+        ] = []  # (name, unit_price, qty, line_tot)
+        for custom in payload.custom_line_items or []:
             cp = custom.unit_price.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
             qty = custom.quantity
             lt = (cp * qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
@@ -633,7 +633,8 @@ class BillingService:
                 quantity_billed=qty,
                 unit_price_snapshot=unit_price,
                 line_total=line_tot,
-                base_price_snapshot=getattr(item_obj, "base_price_snapshot", None) or item_obj.unit_price_snapshot,
+                base_price_snapshot=getattr(item_obj, "base_price_snapshot", None)
+                or item_obj.unit_price_snapshot,
                 custom_portion_name=getattr(item_obj, "custom_portion_name", None),
                 extra_pieces_count=getattr(item_obj, "extra_pieces_count", 0) or 0,
                 adjustment_type=getattr(item_obj, "adjustment_type", None),
@@ -1065,9 +1066,9 @@ class BillingService:
             # 0 means uncapped — waiter may apply any discount amount
             max_allowed_pct = settings.waiter_max_price_override_percentage
             if max_allowed_pct > Decimal("0.00"):
-                max_allowed_amount = (bill.subtotal_amount * max_allowed_pct / Decimal("100")).quantize(
-                    TWO_PLACES, rounding=ROUND_HALF_UP
-                )
+                max_allowed_amount = (
+                    bill.subtotal_amount * max_allowed_pct / Decimal("100")
+                ).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
                 if discount_amount > max_allowed_amount:
                     raise StateConflictError(
                         code="DISCOUNT_EXCEEDS_WAITER_LIMIT",

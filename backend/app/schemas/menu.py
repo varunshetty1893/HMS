@@ -52,7 +52,9 @@ class MenuPriceVariantCreate(StrictRequestModel):
     price: Decimal | None = Field(
         default=None,
         ge=0,
-        description="Base unit price in currency. Nullable when pricing_status is SEASONAL_UNPRICED.",
+        description=(
+            "Base unit price in currency. Nullable when pricing_status is SEASONAL_UNPRICED."
+        ),
     )
     pricing_status: PricingStatus = Field(default=PricingStatus.ACTIVE)
     is_default: bool = Field(default=False)

@@ -64,9 +64,7 @@ async def test_staff_create_success(admin_user: User) -> None:
 
     with patch.object(StaffService, "create_user", new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_resp
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/api/v1/admin/users",
                 json={
@@ -93,9 +91,7 @@ async def test_staff_create_duplicate_username_fails(admin_user: User) -> None:
             "USERNAME_ALREADY_EXISTS",
             "A staff account with username 'waiter_rahul' already exists.",
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/api/v1/admin/users",
                 json={
@@ -133,9 +129,7 @@ async def test_staff_reset_password_success(admin_user: User) -> None:
 
     with patch.object(StaffService, "reset_password", new_callable=AsyncMock) as mock_reset:
         mock_reset.return_value = mock_resp
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 f"/api/v1/admin/users/{target_id}/reset-password",
                 json={"new_password": "NewSecretPassword999"},
@@ -180,9 +174,7 @@ async def test_restaurant_settings_get_and_update(admin_user: User) -> None:
     ):
         mock_get.return_value = settings_mock
         mock_update.return_value = settings_mock
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             get_resp = await client.get("/api/v1/admin/settings")
             assert get_resp.status_code == 200
             assert get_resp.json()["restaurant_name"] == "Spice Garden"

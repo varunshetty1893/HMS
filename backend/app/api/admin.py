@@ -98,7 +98,6 @@ AdminUser = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
 AdminOrKitchenUser = Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.KITCHEN))]
 
 
-
 # =============================================================================
 # Menu Category Management (Section 12.1)
 # =============================================================================
@@ -922,7 +921,6 @@ async def export_audit_logs_xlsx(
     )
 
 
-
 # =============================================================================
 # Operational & Financial Reports (Section 22)
 # =============================================================================
@@ -1137,7 +1135,7 @@ async def admin_adjust_order_item(
     admin: AdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> WaiterOrderResponse:
-    """Admin adjustment on an order item (custom portion, price override, extra pieces, discount, surcharge)."""
+    """Admin adjustment on an order item (portion, override, extra pieces, discount)."""
     return await OrderService.adjust_order_item(
         db,
         order_id=order_id,
@@ -1259,4 +1257,3 @@ async def list_admin_payments(
 
     payments = (await db.scalars(stmt)).all()
     return [PaymentResponse.model_validate(p) for p in payments]
-

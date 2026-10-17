@@ -130,10 +130,11 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     ) -> Response:
         try:
             return await call_next(request)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-            from app.core.exceptions import build_error_envelope
             from fastapi.responses import JSONResponse
+
+            from app.core.exceptions import build_error_envelope
 
             req_id = getattr(request.state, "request_id", request_id_ctx_var.get("-"))
             return JSONResponse(
@@ -183,4 +184,3 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
-

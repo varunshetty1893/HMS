@@ -283,7 +283,10 @@ class OrderItemAdjustmentRequest(StrictRequestModel):
     expected_version: int = Field(..., ge=1, description="Order version for concurrency check.")
     adjustment_type: str = Field(
         ...,
-        description="CUSTOM_PRICE, CUSTOM_PORTION, EXTRA_PIECES, DISCOUNT_FIXED, DISCOUNT_PERCENT, SURCHARGE_FIXED, SURCHARGE_PERCENT",
+        description=(
+            "CUSTOM_PRICE, CUSTOM_PORTION, EXTRA_PIECES, DISCOUNT_FIXED, "
+            "DISCOUNT_PERCENT, SURCHARGE_FIXED, SURCHARGE_PERCENT"
+        ),
     )
     custom_unit_price: Decimal | None = Field(default=None, ge=Decimal("0.00"))
     custom_portion_name: str | None = Field(default=None, max_length=80)
@@ -291,8 +294,12 @@ class OrderItemAdjustmentRequest(StrictRequestModel):
     discount_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
     discount_percent: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
     surcharge_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"))
-    surcharge_percent: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
-    reason: str = Field(..., min_length=2, max_length=255, description="Mandatory audit explanation.")
+    surcharge_percent: Decimal | None = Field(
+        default=None, ge=Decimal("0.00"), le=Decimal("100.00")
+    )
+    reason: str = Field(
+        ..., min_length=2, max_length=255, description="Mandatory audit explanation."
+    )
 
 
 class OrderModifyRequest(StrictRequestModel):
@@ -387,7 +394,6 @@ class SessionLimitOverrideRequest(StrictRequestModel):
 
     new_limit: Decimal = Field(..., ge=Decimal("100.00"), le=Decimal("100000.00"))
     reason: str = Field(..., min_length=3, max_length=255)
-
 
 
 class OrderModificationEventResponse(StrictRequestModel):

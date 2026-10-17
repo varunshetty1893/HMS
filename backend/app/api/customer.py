@@ -15,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_customer_session
-from app.core.rate_limit import rate_limit_by_ip
+from app.core.rate_limit import (
+    extract_client_ip,
+    rate_limit_by_session_or_ip,
+)
 from app.models.qr_sessions import CustomerSession, TableSession
 from app.models.restaurant import RestaurantTable
 from app.schemas.menu import (
@@ -30,10 +33,10 @@ from app.schemas.order import (
     OrderResponse,
 )
 from app.schemas.qr import CustomerSessionResponse
+from app.schemas.waiter_request import WaiterRequestCreate, WaiterRequestResponse
+from app.services import waiter_request_service as wr_svc
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService, _build_order_response
-from app.services import waiter_request_service as wr_svc
-from app.schemas.waiter_request import WaiterRequestCreate, WaiterRequestResponse
 
 router = APIRouter(prefix="/customer", tags=["Customer Operations"])
 
@@ -127,8 +130,8 @@ async def search_customer_menu(
 # Rate limits: 3 orders / 5 min per IP + 10 orders / session (enforced in service)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ORDER_RATE_LIMIT = rate_limit_by_ip(max_requests=3, window_seconds=300)
-_ORDER_EDIT_RATE_LIMIT = rate_limit_by_ip(max_requests=30, window_seconds=300)
+_ORDER_RATE_LIMIT = rate_limit_by_session_or_ip(max_requests=3, window_seconds=300)
+_ORDER_EDIT_RATE_LIMIT = rate_limit_by_session_or_ip(max_requests=30, window_seconds=300)
 
 
 @router.post(
@@ -158,9 +161,7 @@ async def place_order(
     - Prices are always resolved server-side; client-supplied prices are ignored.
     - Returns HTTP 201 on success or HTTP 200 if `Idempotency-Key` matches a previous request.
     """
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     response, http_status = await OrderService.create_order(
         db,
         payload=payload,
@@ -201,9 +202,7 @@ async def cancel_order(
     """Allow customer to cancel their order while still in PLACED or ACCEPTED status.
     Once cooking starts (PREPARING, READY, SERVED), orders cannot be cancelled by the customer.
     """
-    return await OrderService.cancel_customer_order(
-        db, order_id=order_id, customer_session=session
-    )
+    return await OrderService.cancel_customer_order(db, order_id=order_id, customer_session=session)
 
 
 @router.post(
@@ -283,6 +282,4 @@ async def cancel_waiter_request(
     db: AsyncSession = Depends(get_db),
 ) -> WaiterRequestResponse:
     """Cancel a PENDING waiter request. Only the originating customer session can cancel."""
-    return await wr_svc.cancel_customer_request(
-        db, request_id=request_id, customer_session=session
-    )
+    return await wr_svc.cancel_customer_request(db, request_id=request_id, customer_session=session)

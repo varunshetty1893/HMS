@@ -124,7 +124,12 @@ def test_documented_status_vocabularies_match_check_constraints() -> None:
         for column, values in re.findall(r"`?(\w+) IN \(([^)]*)\)", check_cell):
             expected = set(re.findall(r"'([A-Z_]+)'", values))
             if (name, column) == ("order_modification_events", "modification_type"):
-                expected |= {"PRICE_ADJUSTED", "PORTION_CHANGED", "EXTRA_PIECES_ADDED", "DISCOUNT_APPLIED"}
+                expected |= {
+                    "PRICE_ADJUSTED",
+                    "PORTION_CHANGED",
+                    "EXTRA_PIECES_ADDED",
+                    "DISCOUNT_APPLIED",
+                }
             match = re.search(rf"{column} IN \(([^)]*)\)", sql)
             assert match, f"{name}: no CHECK for {column}"
             assert set(re.findall(r"'([A-Z_]+)'", match.group(1))) == expected, (name, column)

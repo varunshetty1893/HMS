@@ -34,12 +34,12 @@ from app.schemas.order import (
     WaiterTableSessionDetail,
 )
 from app.schemas.table import TableResponse
+from app.schemas.waiter_request import WaiterRequestResponse
+from app.services import waiter_request_service as wr_svc
 from app.services.billing_service import BillingService
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
 from app.services.table_service import TableService
-from app.services import waiter_request_service as wr_svc
-from app.schemas.waiter_request import WaiterRequestResponse
 
 router = APIRouter(prefix="/waiter", tags=["Waiter Operations"])
 
@@ -351,8 +351,9 @@ async def claim_waiter_request(
     staff: WaiterOrAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> WaiterRequestResponse:
-    """Atomically claim a PENDING request. Concurrent claims result in exactly one winner (409 for the rest).
+    """Atomically claim a PENDING request.
 
+    Concurrent claims result in exactly one winner (409 for the rest).
     Uses SELECT FOR UPDATE NOWAIT to ensure atomicity without long lock waits.
     """
     return await wr_svc.claim_request(db, request_id=request_id, staff_user=staff)

@@ -62,9 +62,7 @@ class StaffService:
         uname = payload.username.strip().lower()
 
         # Check unique username
-        existing = await db.scalar(
-            select(User).where(func.lower(User.username) == uname)
-        )
+        existing = await db.scalar(select(User).where(func.lower(User.username) == uname))
         if existing:
             raise StateConflictError(
                 "USERNAME_ALREADY_EXISTS",

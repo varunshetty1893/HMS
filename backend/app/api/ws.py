@@ -80,9 +80,7 @@ async def _authenticate_ws_customer(
 
     engine = get_engine()
     async with AsyncSession(bind=engine) as db:
-        stmt = select(CustomerSession).where(
-            CustomerSession.session_token_hash == token_hash
-        )
+        stmt = select(CustomerSession).where(CustomerSession.session_token_hash == token_hash)
         result = await db.execute(stmt)
         cs = result.scalar_one_or_none()
 
@@ -193,9 +191,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             # Enforce 4 KB frame size limit (docs/08 Section 4, docs/06 Section 16.4)
             raw = await websocket.receive_text()
             if len(raw.encode("utf-8")) > MAX_CLIENT_FRAME_BYTES:
-                logger.warning(
-                    "WebSocket frame exceeds 4 KB limit (%d bytes), closing", len(raw)
-                )
+                logger.warning("WebSocket frame exceeds 4 KB limit (%d bytes), closing", len(raw))
                 await websocket.close(code=CLOSE_MESSAGE_TOO_BIG, reason="FRAME_TOO_LARGE")
                 break
 

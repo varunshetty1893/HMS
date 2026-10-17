@@ -78,9 +78,7 @@ async def test_admin_dashboard_kpis_success(admin_user: User) -> None:
 
     with patch.object(ReportService, "get_dashboard_kpis", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_kpis
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get("/api/v1/admin/dashboard")
             assert resp.status_code == 200
             data = resp.json()
@@ -113,9 +111,7 @@ async def test_admin_reports_daily_sales_success(admin_user: User) -> None:
 
     with patch.object(ReportService, "get_daily_sales", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_daily
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get(
                 "/api/v1/admin/reports/daily-sales?from=2026-10-10&to=2026-10-10"
             )
@@ -146,9 +142,7 @@ async def test_admin_reports_popular_dishes_success(admin_user: User) -> None:
 
     with patch.object(ReportService, "get_popular_dishes", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_dishes
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get("/api/v1/admin/reports/popular-dishes?limit=10")
             assert resp.status_code == 200
             data = resp.json()
@@ -178,9 +172,7 @@ async def test_admin_reports_payment_methods_success(admin_user: User) -> None:
 
     with patch.object(ReportService, "get_payment_methods", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_payments
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get("/api/v1/admin/reports/payment-methods")
             assert resp.status_code == 200
             data = resp.json()
@@ -199,9 +191,7 @@ async def test_admin_reports_csv_export_success(admin_user: User) -> None:
 
     with patch.object(ReportService, "generate_sales_csv", new_callable=AsyncMock) as mock_gen:
         mock_gen.return_value = sample_csv
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get("/api/v1/admin/reports/export.csv")
             assert resp.status_code == 200
             assert "text/csv" in resp.headers["content-type"]
@@ -215,9 +205,7 @@ async def test_admin_reports_forbidden_for_waiter(waiter_user: User) -> None:
     app = create_app()
     app.dependency_overrides[get_current_staff_user] = lambda: waiter_user
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/api/v1/admin/dashboard")
         assert resp.status_code == 403
         data = resp.json()

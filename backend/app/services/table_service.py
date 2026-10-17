@@ -23,8 +23,8 @@ from app.models.operations import Notification
 from app.models.orders import Order
 from app.models.qr_sessions import CustomerSession, TableQrToken, TableSession
 from app.models.restaurant import RestaurantTable
-from app.realtime.manager import ws_manager
 from app.models.waiter_requests import WaiterRequest
+from app.realtime.manager import ws_manager
 from app.schemas.table import TableCreate, TableResponse, TableUpdate
 from app.services.audit_service import AuditService
 from app.services.qr_service import QrService
@@ -286,13 +286,14 @@ class TableService:
                 raise StateConflictError(
                     code="TABLE_HAS_HISTORY",
                     message=(
-                        "This table has order history and cannot be deleted. "
-                        "Deactivate it instead."
+                        "This table has order history and cannot be deleted. Deactivate it instead."
                     ),
                 )
 
         name = table.display_name
-        await db.execute(update(Notification).where(Notification.table_id == table_id).values(table_id=None))
+        await db.execute(
+            update(Notification).where(Notification.table_id == table_id).values(table_id=None)
+        )
         await db.execute(delete(TableQrToken).where(TableQrToken.table_id == table_id))
         await db.delete(table)
         await db.flush()
@@ -324,10 +325,14 @@ class TableService:
         active_session_id = (await db.execute(session_stmt)).scalar_one_or_none()
 
         # Check for any active unserved or in-progress orders on this table
-        active_order_stmt = select(Order.id).where(
-            Order.table_id == table.id,
-            Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
-        ).limit(1)
+        active_order_stmt = (
+            select(Order.id)
+            .where(
+                Order.table_id == table.id,
+                Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
+            )
+            .limit(1)
+        )
         has_active_order = (await db.execute(active_order_stmt)).scalar_one_or_none() is not None
 
         current_occupancy = "OCCUPIED" if (active_session_id or has_active_order) else "AVAILABLE"

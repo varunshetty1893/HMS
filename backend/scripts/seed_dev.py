@@ -125,22 +125,108 @@ async def seed_menu(session: AsyncSession) -> None:
     # re-run. Existing matching rows are updated in place; only the superseded
     # original demo rows are retired (never deleted, preserving any history).
     sections = [
-        ("South Indian Breakfast", "south-indian", False, "VEG", "Idli (2 pcs)|40;Medu Vada (2 pcs)|45;Idli Vada Combo|55;Plain Dosa|60;Masala Dosa|80;Mysore Masala Dosa|95;Onion Dosa|75;Rava Dosa|85;Set Dosa (3 pcs)|75;Pongal with Chutney|70"),
-        ("Breakfast & Quick Meals", "breakfast", False, "VEG", "Poori Bhaji|80;Chole Bhature|110;Aloo Paratha with Curd|90;Gobi Paratha with Curd|100;Paneer Paratha with Curd|120;Vegetable Upma|55;Avalakki / Poha|50;Bread Butter Toast|45;Vegetable Sandwich|80;Cheese Sandwich|100"),
-        ("Vegetarian Starters & Snacks", "veg-starters", True, "VEG", "French Fries|100;Gobi Manchurian|140;Paneer 65|180;Chilli Paneer|190;Vegetable Pakoda|100;Onion Pakoda|90;Hara Bhara Kebab|160;Veg Spring Roll|140;Crispy Corn|150;Mushroom Pepper Fry|180"),
-        ("Non-Vegetarian Starters", "nonveg-starters", True, "NON_VEG", "Chicken 65|210;Chilli Chicken|220;Chicken Manchurian|220;Chicken Lollipop|240;Tandoori Chicken (Half)|280;Chicken Tikka|250;Pepper Chicken|240;Chicken Kebab|230;Fish Fry|260;Prawn Pepper Fry|320"),
-        ("Vegetarian Curries", "veg-curries", True, "VEG", "Dal Fry|130;Dal Tadka|150;Aloo Gobi|160;Mix Vegetable Curry|170;Chana Masala|160;Rajma Masala|170;Paneer Butter Masala|220;Kadai Paneer|220;Palak Paneer|210;Mushroom Masala|210"),
-        ("Chicken, Mutton & Seafood Curries", "nonveg-curries", True, "NON_VEG", "Chicken Curry|220;Andhra Chicken Curry|240;Chicken Masala|250;Butter Chicken|280;Kadai Chicken|260;Chicken Chettinad|260;Mutton Curry|330;Mutton Rogan Josh|350;Fish Curry|260;Prawn Masala|330"),
-        ("Indian Breads, Rice & Meals", "breads-rice", False, "VEG", "Plain Chapati (2 pcs)|35;Tandoori Roti|30;Butter Roti|40;Plain Naan|45;Butter Naan|55;Garlic Naan|70;Plain Steamed Rice|90;Jeera Rice|130;Curd Rice|90;Veg South Indian Meals|150"),
-        ("Biryani", "biryani", True, "VEG", "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320"),
-        ("Egg Dishes", "egg", False, "EGG", "Boiled Eggs (2 pcs)|40;Egg Omelette|60;Masala Omelette|75;Cheese Omelette|100;Egg Bhurji|90;Egg Curry|140;Egg Masala|150;Egg Fried Rice|150;Egg Noodles|150;Egg Kathi Roll|130"),
-        ("Vegetarian Chinese Dishes", "veg-chinese", False, "VEG", "Veg Fried Rice|140;Schezwan Veg Fried Rice|160;Veg Hakka Noodles|140;Schezwan Veg Noodles|160;Chilli Garlic Noodles|160;Veg Manchurian Gravy|160;Chilli Mushroom|190;American Chopsuey|180;Veg Momos (6 pcs)|120;Paneer Fried Rice|180"),
-        ("Non-Vegetarian Chinese Dishes", "nonveg-chinese", False, "NON_VEG", "Chicken Fried Rice|180;Schezwan Chicken Fried Rice|200;Chicken Hakka Noodles|180;Schezwan Chicken Noodles|200;Chicken Chilli Garlic Noodles|210;Chicken Manchurian Gravy|230;Chicken Momos (6 pcs)|160;Chicken Chowmein|190;Prawn Fried Rice|250;Mixed Non-Veg Fried Rice|250"),
-        ("Beverages, Juices & Desserts", "beverages-desserts", False, "VEG", "Tea|20;Coffee|30;Fresh Lime Soda|50;Sweet Lassi|70;Mango Milkshake|100;Fresh Watermelon Juice|80;Gulab Jamun (2 pcs)|60;Gajar Ka Halwa|90;Vanilla Ice Cream|70;Chocolate Brownie with Ice Cream|150"),
+        (
+            "South Indian Breakfast",
+            "south-indian",
+            False,
+            "VEG",
+            "Idli (2 pcs)|40;Medu Vada (2 pcs)|45;Idli Vada Combo|55;Plain Dosa|60;Masala Dosa|80;Mysore Masala Dosa|95;Onion Dosa|75;Rava Dosa|85;Set Dosa (3 pcs)|75;Pongal with Chutney|70",
+        ),
+        (
+            "Breakfast & Quick Meals",
+            "breakfast",
+            False,
+            "VEG",
+            "Poori Bhaji|80;Chole Bhature|110;Aloo Paratha with Curd|90;Gobi Paratha with Curd|100;Paneer Paratha with Curd|120;Vegetable Upma|55;Avalakki / Poha|50;Bread Butter Toast|45;Vegetable Sandwich|80;Cheese Sandwich|100",
+        ),
+        (
+            "Vegetarian Starters & Snacks",
+            "veg-starters",
+            True,
+            "VEG",
+            "French Fries|100;Gobi Manchurian|140;Paneer 65|180;Chilli Paneer|190;Vegetable Pakoda|100;Onion Pakoda|90;Hara Bhara Kebab|160;Veg Spring Roll|140;Crispy Corn|150;Mushroom Pepper Fry|180",
+        ),
+        (
+            "Non-Vegetarian Starters",
+            "nonveg-starters",
+            True,
+            "NON_VEG",
+            "Chicken 65|210;Chilli Chicken|220;Chicken Manchurian|220;Chicken Lollipop|240;Tandoori Chicken (Half)|280;Chicken Tikka|250;Pepper Chicken|240;Chicken Kebab|230;Fish Fry|260;Prawn Pepper Fry|320",
+        ),
+        (
+            "Vegetarian Curries",
+            "veg-curries",
+            True,
+            "VEG",
+            "Dal Fry|130;Dal Tadka|150;Aloo Gobi|160;Mix Vegetable Curry|170;Chana Masala|160;Rajma Masala|170;Paneer Butter Masala|220;Kadai Paneer|220;Palak Paneer|210;Mushroom Masala|210",
+        ),
+        (
+            "Chicken, Mutton & Seafood Curries",
+            "nonveg-curries",
+            True,
+            "NON_VEG",
+            "Chicken Curry|220;Andhra Chicken Curry|240;Chicken Masala|250;Butter Chicken|280;Kadai Chicken|260;Chicken Chettinad|260;Mutton Curry|330;Mutton Rogan Josh|350;Fish Curry|260;Prawn Masala|330",
+        ),
+        (
+            "Indian Breads, Rice & Meals",
+            "breads-rice",
+            False,
+            "VEG",
+            "Plain Chapati (2 pcs)|35;Tandoori Roti|30;Butter Roti|40;Plain Naan|45;Butter Naan|55;Garlic Naan|70;Plain Steamed Rice|90;Jeera Rice|130;Curd Rice|90;Veg South Indian Meals|150",
+        ),
+        (
+            "Biryani",
+            "biryani",
+            True,
+            "VEG",
+            "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320",
+        ),
+        (
+            "Egg Dishes",
+            "egg",
+            False,
+            "EGG",
+            "Boiled Eggs (2 pcs)|40;Egg Omelette|60;Masala Omelette|75;Cheese Omelette|100;Egg Bhurji|90;Egg Curry|140;Egg Masala|150;Egg Fried Rice|150;Egg Noodles|150;Egg Kathi Roll|130",
+        ),
+        (
+            "Vegetarian Chinese Dishes",
+            "veg-chinese",
+            False,
+            "VEG",
+            "Veg Fried Rice|140;Schezwan Veg Fried Rice|160;Veg Hakka Noodles|140;Schezwan Veg Noodles|160;Chilli Garlic Noodles|160;Veg Manchurian Gravy|160;Chilli Mushroom|190;American Chopsuey|180;Veg Momos (6 pcs)|120;Paneer Fried Rice|180",
+        ),
+        (
+            "Non-Vegetarian Chinese Dishes",
+            "nonveg-chinese",
+            False,
+            "NON_VEG",
+            "Chicken Fried Rice|180;Schezwan Chicken Fried Rice|200;Chicken Hakka Noodles|180;Schezwan Chicken Noodles|200;Chicken Chilli Garlic Noodles|210;Chicken Manchurian Gravy|230;Chicken Momos (6 pcs)|160;Chicken Chowmein|190;Prawn Fried Rice|250;Mixed Non-Veg Fried Rice|250",
+        ),
+        (
+            "Beverages, Juices & Desserts",
+            "beverages-desserts",
+            False,
+            "VEG",
+            "Tea|20;Coffee|30;Fresh Lime Soda|50;Sweet Lassi|70;Mango Milkshake|100;Fresh Watermelon Juice|80;Gulab Jamun (2 pcs)|60;Gajar Ka Halwa|90;Vanilla Ice Cream|70;Chocolate Brownie with Ice Cream|150",
+        ),
     ]
-    dietary_overrides = {76: "EGG", 81: "EGG", 82: "EGG", 83: "EGG", 84: "EGG", 85: "EGG", 86: "EGG", 87: "EGG", 88: "EGG", 89: "EGG", 90: "EGG"}
+    dietary_overrides = {
+        76: "EGG",
+        81: "EGG",
+        82: "EGG",
+        83: "EGG",
+        84: "EGG",
+        85: "EGG",
+        86: "EGG",
+        87: "EGG",
+        88: "EGG",
+        89: "EGG",
+        90: "EGG",
+    }
     legacy_codes = {"CB", "VB", "MB", "CK", "PN", "BN", "RO", "MS", "BL"}
-    for legacy in (await session.execute(select(MenuItem).where(MenuItem.item_code.in_(legacy_codes)))).scalars():
+    for legacy in (
+        await session.execute(select(MenuItem).where(MenuItem.item_code.in_(legacy_codes)))
+    ).scalars():
         legacy.is_active = False
         legacy.is_available = False
 
@@ -148,10 +234,20 @@ async def seed_menu(session: AsyncSession) -> None:
     # its stable M071..M073 codes while placing it in the intended category.
     breakfast_category: MenuCategory | None = None
     number = 1
-    for category_order, (category_name, _image_slug, has_half, default_dietary, rows) in enumerate(sections, 1):
-        category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == category_name.lower()))).scalar_one_or_none()
+    for category_order, (category_name, _image_slug, has_half, default_dietary, rows) in enumerate(
+        sections, 1
+    ):
+        category = (
+            await session.execute(
+                select(MenuCategory).where(func.lower(MenuCategory.name) == category_name.lower())
+            )
+        ).scalar_one_or_none()
         if category is None and category_name == "Biryani":
-            category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == "biryani & pulao"))).scalar_one_or_none()
+            category = (
+                await session.execute(
+                    select(MenuCategory).where(func.lower(MenuCategory.name) == "biryani & pulao")
+                )
+            ).scalar_one_or_none()
             if category:
                 category.name = "Biryani"
         if not category:
@@ -168,7 +264,9 @@ async def seed_menu(session: AsyncSession) -> None:
             name, raw_price = row.rsplit("|", 1)
             code = f"M{number:03d}"
             dietary = dietary_overrides.get(number, default_dietary)
-            item = (await session.execute(select(MenuItem).where(MenuItem.item_code == code))).scalar_one_or_none()
+            item = (
+                await session.execute(select(MenuItem).where(MenuItem.item_code == code))
+            ).scalar_one_or_none()
             if not item:
                 item = MenuItem(item_code=code, category_id=category.id, name=name)
                 session.add(item)
@@ -191,28 +289,78 @@ async def seed_menu(session: AsyncSession) -> None:
             variants = [("Standard", Decimal("1.00"), full_price, True, False)]
             if has_portions:
                 variants[0] = ("Full", Decimal("1.00"), full_price, True, True)
-                variants.insert(0, ("Half", Decimal("0.50"), (full_price * Decimal("0.60")).quantize(Decimal("0.01")), False, True))
-            for variant_order, (variant_name, quantity, price, is_default, is_portion) in enumerate(variants, 1):
+                variants.insert(
+                    0,
+                    (
+                        "Half",
+                        Decimal("0.50"),
+                        (full_price * Decimal("0.60")).quantize(Decimal("0.01")),
+                        False,
+                        True,
+                    ),
+                )
+            for variant_order, (variant_name, quantity, price, is_default, is_portion) in enumerate(
+                variants, 1
+            ):
                 variant_code = f"{code}-{'H' if variant_name == 'Half' else 'F'}"
-                variant = (await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.variant_code == variant_code))).scalar_one_or_none()
+                variant = (
+                    await session.execute(
+                        select(MenuPriceVariant).where(
+                            MenuPriceVariant.variant_code == variant_code
+                        )
+                    )
+                ).scalar_one_or_none()
                 if not variant:
-                    variant = MenuPriceVariant(menu_item_id=item.id, variant_code=variant_code, variant_name=variant_name, quantity_value=quantity, unit=PriceUnit.PORTION.value, price=price)
+                    variant = MenuPriceVariant(
+                        menu_item_id=item.id,
+                        variant_code=variant_code,
+                        variant_name=variant_name,
+                        quantity_value=quantity,
+                        unit=PriceUnit.PORTION.value,
+                        price=price,
+                    )
                     session.add(variant)
-                variant.menu_item_id, variant.variant_name, variant.is_portion = item.id, variant_name, is_portion
-                variant.quantity_value, variant.unit, variant.price = quantity, PriceUnit.PORTION.value, price
+                variant.menu_item_id, variant.variant_name, variant.is_portion = (
+                    item.id,
+                    variant_name,
+                    is_portion,
+                )
+                variant.quantity_value, variant.unit, variant.price = (
+                    quantity,
+                    PriceUnit.PORTION.value,
+                    price,
+                )
                 variant.is_default, variant.is_active, variant.is_available = is_default, True, True
                 variant.display_order = variant_order
             if not has_portions:
-                legacy_half = (await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.variant_code == f"{code}-H"))).scalar_one_or_none()
+                legacy_half = (
+                    await session.execute(
+                        select(MenuPriceVariant).where(MenuPriceVariant.variant_code == f"{code}-H")
+                    )
+                ).scalar_one_or_none()
                 if legacy_half:
                     legacy_half.is_active = legacy_half.is_available = False
             number += 1
     # Retire the old demo category tabs only when they no longer contain active
     # dishes. This keeps existing data/history intact and prevents empty tabs.
-    for legacy_name in ("Biriyani", "Biryani & Pulao", "Starters & Appetizers", "Breads & Accompaniments", "Beverages & Desserts"):
-        legacy_category = (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name) == legacy_name.lower()))).scalar_one_or_none()
+    for legacy_name in (
+        "Biriyani",
+        "Biryani & Pulao",
+        "Starters & Appetizers",
+        "Breads & Accompaniments",
+        "Beverages & Desserts",
+    ):
+        legacy_category = (
+            await session.execute(
+                select(MenuCategory).where(func.lower(MenuCategory.name) == legacy_name.lower())
+            )
+        ).scalar_one_or_none()
         if legacy_category:
-            active_count = await session.scalar(select(func.count(MenuItem.id)).where(MenuItem.category_id == legacy_category.id, MenuItem.is_active.is_(True)))
+            active_count = await session.scalar(
+                select(func.count(MenuItem.id)).where(
+                    MenuItem.category_id == legacy_category.id, MenuItem.is_active.is_(True)
+                )
+            )
             if not active_count:
                 legacy_category.is_active = False
     await session.flush()
@@ -583,7 +731,10 @@ async def run_seed() -> None:
     settings = get_settings()
 
     # Safety guard: Prevent accidental seed data contamination in production
-    if settings.environment == "production" and os.getenv("FORCE_DEV_SEED_IN_PRODUCTION", "").lower() != "true":
+    if (
+        settings.environment == "production"
+        and os.getenv("FORCE_DEV_SEED_IN_PRODUCTION", "").lower() != "true"
+    ):
         print("=" * 65)
         print("FATAL ERROR: seed_dev.py cannot be executed in ENVIRONMENT='production'!")
         print("Development seed data contains synthetic staff accounts, demo tables,")

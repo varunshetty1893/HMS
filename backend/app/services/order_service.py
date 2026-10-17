@@ -36,6 +36,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.core.time_utils import utc_now
+from app.models.billing import Bill
 from app.models.enums import (
     ActorRole,
     BillStatus,
@@ -47,7 +48,6 @@ from app.models.enums import (
     TableSessionStatus,
     UserRole,
 )
-from app.models.billing import Bill
 from app.models.identity import User
 from app.models.menu import MenuItem, MenuPriceVariant
 from app.models.operations import IdempotencyKey
@@ -654,8 +654,8 @@ class OrderService:
                 raise DomainValidationError(
                     code="SEASONAL_PRICE_UNAVAILABLE",
                     message=(
-                        f"'{variant.variant_name}' has seasonal/market pricing and cannot be ordered "
-                        f"until the price is confirmed by restaurant staff."
+                        f"'{variant.variant_name}' has seasonal/market pricing "
+                        "and cannot be ordered until the price is confirmed by restaurant staff."
                     ),
                 )
             menu_item: MenuItem = variant.item
@@ -700,7 +700,9 @@ class OrderService:
                     if adj_amount is None:
                         adj_amount = abs(unit_price - base_price)
                 elif extra_pieces_count > 0:
-                    ep_cost = _two_dp(Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00")))
+                    ep_cost = _two_dp(
+                        Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00"))
+                    )
                     unit_price = base_price + ep_cost
                     if not adj_type:
                         adj_type = "EXTRA_PIECES"
@@ -722,26 +724,36 @@ class OrderService:
                     if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value):
                         adj_approved_by = staff_user.id
                     elif staff_user.role in (UserRole.WAITER, UserRole.WAITER.value):
-                        cfg = await db.scalar(select(RestaurantSettings).where(RestaurantSettings.id == 1))
+                        cfg = await db.scalar(
+                            select(RestaurantSettings).where(RestaurantSettings.id == 1)
+                        )
                         if cfg:
                             if unit_price < base_price:
-                                drop_pct = _two_dp(((base_price - unit_price) / base_price) * Decimal("100"))
+                                drop_pct = _two_dp(
+                                    ((base_price - unit_price) / base_price) * Decimal("100")
+                                )
                                 max_disc = cfg.waiter_max_discount_percentage or Decimal("0.00")
                                 if max_disc > Decimal("0.00") and drop_pct > max_disc:
                                     raise StateConflictError(
                                         "DISCOUNT_EXCEEDS_WAITER_LIMIT",
-                                        f"Waiters are authorized for up to {max_disc}% discount. Requested {drop_pct}% requires Admin approval.",
+                                        f"Waiters are authorized for up to {max_disc}% discount. "
+                                        f"Requested {drop_pct}% requires Admin approval.",
                                     )
                             elif unit_price > base_price:
-                                std_ep = Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00"))
+                                std_ep = Decimal(extra_pieces_count) * (
+                                    extra_piece_price or Decimal("0.00")
+                                )
                                 excess = (unit_price - base_price) - std_ep
                                 if excess > Decimal("0.00"):
                                     jump_pct = _two_dp((excess / base_price) * Decimal("100"))
-                                    max_ovr = cfg.waiter_max_price_override_percentage or Decimal("0.00")
+                                    max_ovr = cfg.waiter_max_price_override_percentage or Decimal(
+                                        "0.00"
+                                    )
                                     if jump_pct > max_ovr and max_ovr > Decimal("0.00"):
                                         raise StateConflictError(
                                             "PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
-                                            f"Waiters can override price up to {max_ovr}%. Requested +{jump_pct}% requires Admin approval.",
+                                            f"Waiters can override price up to {max_ovr}%. "
+                                            f"Requested +{jump_pct}% requires Admin approval.",
                                         )
 
             resolved.append(
@@ -1239,9 +1251,7 @@ class OrderService:
         cancelled_orders = list((await db.execute(cancel_stmt)).scalars().all())
         alerts = [cls._to_cancellation_alert(o) for o in cancelled_orders]
 
-        return KitchenDashboardResponse(
-            counts=counts, orders=tickets, recent_cancellations=alerts
-        )
+        return KitchenDashboardResponse(counts=counts, orders=tickets, recent_cancellations=alerts)
 
     @staticmethod
     def _to_cancellation_alert(order: Order) -> KitchenCancellationAlert:
@@ -1893,9 +1903,6 @@ class OrderService:
         # ── 6. No unpaid-table cap for waiters ────────────────────────────
         # The cap protects the restaurant from anonymous customer phones only. Staff orders are
         # never blocked; they still count towards `current_outstanding_amount`, so a customer who
-        # orders later on the same table is capped against the full running total.
-        new_outstanding = table_session.current_outstanding_amount + order_subtotal
-
         # ── 7. Persist Order ──────────────────────────────────────────────
         order = Order(
             order_number=_generate_order_number(),
@@ -2259,7 +2266,9 @@ class OrderService:
                 if mod.custom_unit_price is not None:
                     unit_price = _two_dp(mod.custom_unit_price)
                 elif extra_pieces_count > 0:
-                    ep_cost = _two_dp(Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00")))
+                    ep_cost = _two_dp(
+                        Decimal(extra_pieces_count) * (extra_piece_price or Decimal("0.00"))
+                    )
                     unit_price = base_price + ep_cost
                 else:
                     unit_price = _two_dp(base_price)
@@ -2284,10 +2293,31 @@ class OrderService:
                     extra_pieces_count=extra_pieces_count,
                     extra_piece_price=extra_piece_price,
                     adjustment_type=mod.adjustment_type,
-                    adjustment_amount=mod.adjustment_amount or abs(unit_price - base_price) if unit_price != base_price else None,
-                    adjustment_reason=payload.reason if (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
-                    adjustment_applied_by_user_id=staff_user.id if (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
-                    adjustment_approved_by_user_id=staff_user.id if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value) and (unit_price != base_price or mod.custom_portion_name or extra_pieces_count > 0) else None,
+                    adjustment_amount=mod.adjustment_amount or abs(unit_price - base_price)
+                    if unit_price != base_price
+                    else None,
+                    adjustment_reason=payload.reason
+                    if (
+                        unit_price != base_price
+                        or mod.custom_portion_name
+                        or extra_pieces_count > 0
+                    )
+                    else None,
+                    adjustment_applied_by_user_id=staff_user.id
+                    if (
+                        unit_price != base_price
+                        or mod.custom_portion_name
+                        or extra_pieces_count > 0
+                    )
+                    else None,
+                    adjustment_approved_by_user_id=staff_user.id
+                    if staff_user.role in (UserRole.ADMIN, UserRole.ADMIN.value)
+                    and (
+                        unit_price != base_price
+                        or mod.custom_portion_name
+                        or extra_pieces_count > 0
+                    )
+                    else None,
                     tax_rate_snapshot=menu_item.tax_rate_override or Decimal("0.00"),
                     original_quantity=mod.new_quantity,
                     active_quantity=mod.new_quantity,
@@ -2520,7 +2550,8 @@ class OrderService:
         if prev_status in (OrderStatus.PLACED.value, OrderStatus.ACCEPTED.value):
             pass
         elif prev_status in (OrderStatus.PREPARING.value, OrderStatus.READY.value):
-            # Waiters and Admins can cancel orders anytime before served (kitchen is alerted to stop cooking / discard food)
+            # Waiters and Admins can cancel orders anytime before served
+            # (kitchen is alerted to stop cooking / discard food)
             forced = True
         else:
             raise StateConflictError(
@@ -2666,7 +2697,9 @@ class OrderService:
             order.customer_session_id != customer_session.id
             and order.table_session_id != customer_session.table_session_id
         ):
-            raise StateConflictError("FORBIDDEN", "This order does not belong to your table session.")
+            raise StateConflictError(
+                "FORBIDDEN", "This order does not belong to your table session."
+            )
 
         # OD-02: admin can switch customer self-cancel off entirely (staff must cancel instead).
         _cfg = await db.get(RestaurantSettings, 1)
@@ -2825,7 +2858,9 @@ class OrderService:
             order.customer_session_id != customer_session.id
             and order.table_session_id != customer_session.table_session_id
         ):
-            raise StateConflictError("FORBIDDEN", "This order does not belong to your table session.")
+            raise StateConflictError(
+                "FORBIDDEN", "This order does not belong to your table session."
+            )
 
         if order.version != payload.expected_version:
             raise StateConflictError(
@@ -3107,9 +3142,9 @@ class OrderService:
                 )
                 # the target line may have a different snapshot price than today's menu;
                 # keep the ledger consistent with what was actually charged
-                net_delta += _two_dp(
-                    Decimal(move_qty) * existing_target.unit_price_snapshot
-                ) - new_delta
+                net_delta += (
+                    _two_dp(Decimal(move_qty) * existing_target.unit_price_snapshot) - new_delta
+                )
             else:
                 new_line = OrderItem(
                     order_id=order.id,
@@ -3228,9 +3263,7 @@ class OrderService:
                     changed_at=now,
                 )
             )
-            table_reset = await _close_session_if_no_active_orders(
-                db, order, table_session, now
-            )
+            table_reset = await _close_session_if_no_active_orders(db, order, table_session, now)
         elif is_post_accept:
             order.has_unacknowledged_mods = True
 
@@ -3526,7 +3559,8 @@ class OrderService:
         if order.version != payload.expected_version:
             raise StateConflictError(
                 "ORDER_VERSION_CONFLICT",
-                f"Order version conflict: current {order.version}, expected {payload.expected_version}",
+                f"Order version conflict: current {order.version}, expected "
+                f"{payload.expected_version}",
             )
 
         if order.status in [OrderStatus.CANCELLED.value, OrderStatus.REJECTED.value]:
@@ -3555,7 +3589,9 @@ class OrderService:
         )
         table_session = await db.scalar(sess_stmt)
         if not table_session:
-            raise ResourceNotFoundError("TABLE_SESSION_NOT_FOUND", "Associated table session not found.")
+            raise ResourceNotFoundError(
+                "TABLE_SESSION_NOT_FOUND", "Associated table session not found."
+            )
 
         settings = await db.scalar(select(RestaurantSettings).where(RestaurantSettings.id == 1))
 
@@ -3575,7 +3611,9 @@ class OrderService:
 
         if adj_type == "CUSTOM_PRICE":
             if payload.custom_unit_price is None:
-                raise DomainValidationError("CUSTOM_PRICE_REQUIRED", "Custom unit price must be specified.")
+                raise DomainValidationError(
+                    "CUSTOM_PRICE_REQUIRED", "Custom unit price must be specified."
+                )
             new_unit_price = _two_dp(payload.custom_unit_price)
             calc_adj_amount = abs(new_unit_price - base_price)
         elif adj_type == "CUSTOM_PORTION":
@@ -3588,7 +3626,9 @@ class OrderService:
                 custom_portion = "Custom Portion"
         elif adj_type == "EXTRA_PIECES":
             extra_cost = _two_dp(Decimal(extra_count) * (ep_price or Decimal("0.00")))
-            new_unit_price = (payload.custom_unit_price if payload.custom_unit_price is not None else base_price) + extra_cost
+            new_unit_price = (
+                payload.custom_unit_price if payload.custom_unit_price is not None else base_price
+            ) + extra_cost
             calc_adj_amount = extra_cost
         elif adj_type == "DISCOUNT_FIXED":
             disc = payload.discount_amount or Decimal("0.00")
@@ -3609,7 +3649,9 @@ class OrderService:
             new_unit_price = _two_dp(base_price + sur)
             calc_adj_amount = sur
         else:
-            raise DomainValidationError("INVALID_ADJUSTMENT_TYPE", f"Adjustment type '{adj_type}' is not supported.")
+            raise DomainValidationError(
+                "INVALID_ADJUSTMENT_TYPE", f"Adjustment type '{adj_type}' is not supported."
+            )
 
         if new_unit_price < Decimal("0.00"):
             raise DomainValidationError("INVALID_PRICE", "Unit price cannot be negative.")
@@ -3618,12 +3660,15 @@ class OrderService:
         if staff_user.role in (UserRole.WAITER, UserRole.WAITER.value):
             if settings:
                 if new_unit_price < base_price:
-                    drop_pct = _two_dp(((base_price - new_unit_price) / base_price) * Decimal("100"))
+                    drop_pct = _two_dp(
+                        ((base_price - new_unit_price) / base_price) * Decimal("100")
+                    )
                     max_disc = settings.waiter_max_discount_percentage or Decimal("0.00")
                     if max_disc > Decimal("0.00") and drop_pct > max_disc:
                         raise StateConflictError(
                             "DISCOUNT_EXCEEDS_WAITER_LIMIT",
-                            f"Waiters are authorized for up to {max_disc}% discount. Requested change ({drop_pct}%) requires Admin approval.",
+                            f"Waiters are authorized for up to {max_disc}% discount. "
+                            f"Requested change ({drop_pct}%) requires Admin approval.",
                         )
                 elif new_unit_price > base_price:
                     std_ep = Decimal(extra_count) * (ep_price or Decimal("0.00"))
@@ -3634,7 +3679,8 @@ class OrderService:
                         if jump_pct > max_ovr and max_ovr > Decimal("0.00"):
                             raise StateConflictError(
                                 "PRICE_OVERRIDE_EXCEEDS_WAITER_LIMIT",
-                                f"Waiters can override price up to {max_ovr}%. Requested change (+{jump_pct}%) requires Admin approval.",
+                                f"Waiters can override price up to {max_ovr}%. "
+                                f"Requested change (+{jump_pct}%) requires Admin approval.",
                             )
 
         # Update order item
@@ -3658,7 +3704,9 @@ class OrderService:
         table_session.current_outstanding_amount = max(
             Decimal("0.00"), _two_dp(table_session.current_outstanding_amount + price_delta)
         )
-        order.order_subtotal = _two_dp(sum(i.line_subtotal for i in order.items if i.active_quantity > 0))
+        order.order_subtotal = _two_dp(
+            sum(i.line_subtotal for i in order.items if i.active_quantity > 0)
+        )
         order.version += 1
 
         is_post_accept = order.status in [OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value]

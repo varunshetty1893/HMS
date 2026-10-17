@@ -174,7 +174,9 @@ async def test_bill_preview_unserved_and_unaccepted_flags() -> None:
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=session)))
             ),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[o1, o2])))
             ),
@@ -214,7 +216,9 @@ async def test_generate_bill_historical_price_snapshot_integrity() -> None:
         side_effect=[
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
             ),
@@ -269,7 +273,9 @@ async def test_gst_calculation_round_half_up() -> None:
         side_effect=[
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
             ),
@@ -311,7 +317,9 @@ async def test_generate_bill_unaccepted_placed_order_raises_409() -> None:
         side_effect=[
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[o_placed])))
             ),
@@ -336,7 +344,9 @@ async def test_generate_bill_unserved_order_raises_409() -> None:
         side_effect=[
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[o_ready])))
             ),
@@ -362,7 +372,9 @@ async def test_generate_bill_duplicate_bill_raises_409() -> None:
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
             MagicMock(
-                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=existing_bill)))
+                scalars=MagicMock(
+                    return_value=MagicMock(first=MagicMock(return_value=existing_bill))
+                )
             ),
         ]
     )
@@ -389,7 +401,9 @@ async def test_generate_bill_discount_exceeds_subtotal_raises_422() -> None:
         side_effect=[
             MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
             MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
-            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
             MagicMock(
                 scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
             ),

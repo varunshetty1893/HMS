@@ -153,7 +153,9 @@ class TestCustomerModify:
                 await OrderService.modify_customer_order(
                     db,
                     order_id=order.id,
-                    payload=_req(order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=1)),
+                    payload=_req(
+                        order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=1)
+                    ),
                     customer_session=cs,
                 )
         assert exc.value.code == "REDUCTION_NOT_ALLOWED_AFTER_COOKING"
@@ -170,7 +172,9 @@ class TestCustomerModify:
                 await OrderService.modify_customer_order(
                     db,
                     order_id=order.id,
-                    payload=_req(order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=0)),
+                    payload=_req(
+                        order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=0)
+                    ),
                     customer_session=cs,
                 )
         assert exc.value.code == "REDUCTION_NOT_ALLOWED_AFTER_COOKING"
@@ -216,7 +220,9 @@ class TestCustomerModify:
                 await OrderService.modify_customer_order(
                     db,
                     order_id=order.id,
-                    payload=_req(order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=2)),
+                    payload=_req(
+                        order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=2)
+                    ),
                     customer_session=cs,
                 )
         assert exc.value.code == "ITEM_NOT_AVAILABLE"
@@ -234,7 +240,9 @@ class TestCustomerModify:
                 await OrderService.modify_customer_order(
                     db,
                     order_id=order.id,
-                    payload=_req(order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=2)),
+                    payload=_req(
+                        order, CustomerOrderItemChange(order_item_id=item.id, new_quantity=2)
+                    ),
                     customer_session=cs,
                 )
         assert exc.value.code == "LIMIT_EXCEEDED"
@@ -408,7 +416,9 @@ class TestPortionSwitch:
                     order_id=order.id,
                     payload=_req(
                         order,
-                        CustomerOrderItemChange(order_item_id=item.id, switch_to_variant_id=other.id),
+                        CustomerOrderItemChange(
+                            order_item_id=item.id, switch_to_variant_id=other.id
+                        ),
                     ),
                     customer_session=cs,
                 )
@@ -421,14 +431,22 @@ class TestPortionSwitch:
         half = _half_variant(item)
         db = _db(order, _table_session(), half)
         p = _patches()
-        with p[0], p[1], p[2], p[3], patch(f"{SVC}._CUSTOMER_PORTION_DOWNGRADE_WHILE_PREPARING", False):
+        with (
+            p[0],
+            p[1],
+            p[2],
+            p[3],
+            patch(f"{SVC}._CUSTOMER_PORTION_DOWNGRADE_WHILE_PREPARING", False),
+        ):
             with pytest.raises(StateConflictError) as exc:
                 await OrderService.modify_customer_order(
                     db,
                     order_id=order.id,
                     payload=_req(
                         order,
-                        CustomerOrderItemChange(order_item_id=item.id, switch_to_variant_id=half.id),
+                        CustomerOrderItemChange(
+                            order_item_id=item.id, switch_to_variant_id=half.id
+                        ),
                     ),
                     customer_session=cs,
                 )
@@ -451,15 +469,26 @@ def _w_order(status: str, *, qty: int = 2) -> tuple[MagicMock, MagicMock]:
 
 class TestWaiterForceCancel:
     @pytest.mark.asyncio
-    async def test_preparing_without_force_is_rejected(self) -> None:
-        order, _ = _w_order(OrderStatus.PREPARING.value)
-        db = _db(order)
-        payload = OrderCancelRequest(expected_version=order.version, cancellation_reason="Guest left")
-        with pytest.raises(StateConflictError) as exc:
+    async def test_preparing_without_force_succeeds_and_alerts_kitchen(self) -> None:
+        order, item = _w_order(OrderStatus.PREPARING.value)
+        ts = _table_session("200.00")
+        db = _db(order, ts)
+        payload = OrderCancelRequest(
+            expected_version=order.version, cancellation_reason="Guest left", force=False
+        )
+        bc = AsyncMock()
+        with (
+            patch(f"{SVC}._ensure_no_issued_bill", AsyncMock()),
+            patch(f"{SVC}._close_session_if_no_active_orders", AsyncMock(return_value=False)),
+            patch(f"{SVC}._build_waiter_order_response", return_value=MagicMock()),
+            patch(f"{SVC}.ws_manager.broadcast_to_room", bc),
+        ):
             await OrderService.cancel_order(
                 db, order_id=order.id, payload=payload, staff_user=_staff(UserRole.WAITER)
             )
-        assert exc.value.code == "FORCE_CANCEL_REQUIRED"
+        assert order.status == OrderStatus.CANCELLED.value
+        assert item.active_quantity == 0
+        assert ts.current_outstanding_amount == Decimal("0.00")
 
     @pytest.mark.asyncio
     async def test_waiter_force_cancel_preparing_notifies_kitchen(self) -> None:
@@ -492,15 +521,6 @@ class TestWaiterForceCancel:
 
     @pytest.mark.asyncio
     async def test_ready_order_needs_force_and_discards(self) -> None:
-        order, _ = _w_order(OrderStatus.READY.value)
-        db = _db(order)
-        no_force = OrderCancelRequest(expected_version=order.version, cancellation_reason="Wrong table")
-        with pytest.raises(StateConflictError) as exc:
-            await OrderService.cancel_order(
-                db, order_id=order.id, payload=no_force, staff_user=_staff(UserRole.WAITER)
-            )
-        assert exc.value.code == "FORCE_CANCEL_REQUIRED"
-
         order2, _ = _w_order(OrderStatus.READY.value)
         db2 = _db(order2, _table_session("200.00"))
         forced = OrderCancelRequest(

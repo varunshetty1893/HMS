@@ -43,9 +43,7 @@ def sanitize_text(value: str | None) -> str | None:
 
     # Reject HTML tag delimiters — these are never valid in plain-text fields
     if _HTML_TAG_RE.search(cleaned):
-        raise ValueError(
-            "Text fields must not contain HTML tag characters (`<` or `>`)."
-        )
+        raise ValueError("Text fields must not contain HTML tag characters (`<` or `>`).")
 
     return cleaned
 

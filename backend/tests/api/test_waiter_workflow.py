@@ -63,9 +63,7 @@ def waiter_user() -> User:
 
 
 @pytest.fixture
-async def waiter_client(
-    async_client: AsyncClient, waiter_user: User
-) -> AsyncIterator[AsyncClient]:
+async def waiter_client(async_client: AsyncClient, waiter_user: User) -> AsyncIterator[AsyncClient]:
     mock_db = AsyncMock()
     app.dependency_overrides[get_db] = lambda: mock_db
     app.dependency_overrides[get_current_staff_user] = lambda: waiter_user

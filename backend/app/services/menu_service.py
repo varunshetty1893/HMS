@@ -351,7 +351,9 @@ class MenuService:
             item_code=clean_item_code,
             name=data.name.strip(),
             description=data.description.strip() if data.description else None,
-            serving_description=data.serving_description.strip() if data.serving_description else None,
+            serving_description=data.serving_description.strip()
+            if data.serving_description
+            else None,
             extra_piece_price=data.extra_piece_price,
             dietary_type=data.dietary_type.value if data.dietary_type else None,
             spice_level=data.spice_level.value if data.spice_level else None,
@@ -368,7 +370,9 @@ class MenuService:
         has_default = any(v.is_default for v in data.variants)
         for idx, v_data in enumerate(data.variants):
             is_def = v_data.is_default or (not has_default and idx == 0)
-            v_status = v_data.pricing_status.value if v_data.pricing_status else PricingStatus.ACTIVE.value
+            v_status = (
+                v_data.pricing_status.value if v_data.pricing_status else PricingStatus.ACTIVE.value
+            )
             variant = MenuPriceVariant(
                 menu_item_id=item.id,
                 variant_code=v_data.variant_code.strip().upper() if v_data.variant_code else None,
@@ -449,7 +453,9 @@ class MenuService:
         if data.description is not None:
             item.description = data.description.strip() if data.description else None
         if "serving_description" in data.model_fields_set:
-            item.serving_description = data.serving_description.strip() if data.serving_description else None
+            item.serving_description = (
+                data.serving_description.strip() if data.serving_description else None
+            )
         if "extra_piece_price" in data.model_fields_set:
             item.extra_piece_price = data.extra_piece_price
         if data.dietary_type is not None:
@@ -473,10 +479,14 @@ class MenuService:
             existing_vars = {v.id: v for v in (await session.execute(stmt)).scalars().all()}
             incoming_ids: set[uuid.UUID] = set()
 
-            for idx, v_data in enumerate(data.variants):
+            for _idx, v_data in enumerate(data.variants):
                 v_code = v_data.variant_code.strip().upper() if v_data.variant_code else None
                 v_name = (v_data.variant_name or FIXED_PRICE_VARIANT_NAME).strip()
-                v_status = v_data.pricing_status.value if v_data.pricing_status else PricingStatus.ACTIVE.value
+                v_status = (
+                    v_data.pricing_status.value
+                    if v_data.pricing_status
+                    else PricingStatus.ACTIVE.value
+                )
 
                 if v_data.id and v_data.id in existing_vars:
                     var = existing_vars[v_data.id]
@@ -971,7 +981,10 @@ class MenuService:
                 )
                 for v in sorted(
                     item.variants,
-                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                    key=lambda x: (
+                        x.display_order,
+                        x.price if x.price is not None else Decimal("9999999"),
+                    ),
                 )
                 if v.is_active
             ]
@@ -1067,7 +1080,10 @@ class MenuService:
                 )
                 for v in sorted(
                     item.variants,
-                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                    key=lambda x: (
+                        x.display_order,
+                        x.price if x.price is not None else Decimal("9999999"),
+                    ),
                 )
                 if v.is_active and (not available_only or v.is_available)
             ]
@@ -1236,7 +1252,10 @@ class MenuService:
             )
             for v in sorted(
                 item.variants,
-                key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                key=lambda x: (
+                    x.display_order,
+                    x.price if x.price is not None else Decimal("9999999"),
+                ),
             )
             if v.is_active
         ]
@@ -1304,7 +1323,10 @@ class MenuService:
                 )
                 for v in sorted(
                     item.variants,
-                    key=lambda x: (x.display_order, x.price if x.price is not None else Decimal("9999999")),
+                    key=lambda x: (
+                        x.display_order,
+                        x.price if x.price is not None else Decimal("9999999"),
+                    ),
                 )
                 if v.is_active
             ]

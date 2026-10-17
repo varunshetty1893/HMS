@@ -1,4 +1,4 @@
-"""Tests for flexible portions, extra items, live price adjustments, and waiter permission limits."""
+"""Tests for portions, extra items, live price adjustments, and waiter limits."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from httpx import AsyncClient
 
 from app.core.exceptions import StateConflictError
 from app.models.enums import OrderItemStatus, OrderStatus, TableSessionStatus, UserRole
@@ -98,7 +97,7 @@ async def test_waiter_create_order_with_custom_portion(waiter_user: User) -> Non
         default_session_outstanding_limit=Decimal("5000.00"),
     )
 
-    payload = OrderCreate = WaiterOrderCreate(
+    payload = WaiterOrderCreate(
         table_id=uuid.uuid4(),
         items=[
             OrderItemCreate(
@@ -374,7 +373,7 @@ async def test_admin_adjust_order_item_large_discount_allowed(admin_user: User) 
         patch("app.services.order_service.AuditService.record_event", new_callable=AsyncMock),
         patch("app.services.order_service.ws_manager.broadcast_to_room", new_callable=AsyncMock),
     ):
-        res = await OrderService.adjust_order_item(
+        await OrderService.adjust_order_item(
             db,
             order_id=order_id,
             order_item_id=item_id,

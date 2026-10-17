@@ -39,8 +39,6 @@ from app.models.operations import AuditLog
 from app.schemas.menu import (
     CategoryReorderItem,
     CategoryReorderRequest,
-    ItemReorderItem,
-    ItemReorderRequest,
     MenuCategoryCreate,
     MenuItemCreate,
     MenuItemUpdate,
@@ -542,4 +540,3 @@ async def test_reorder_categories_and_safe_delete() -> None:
     # Safe delete (deactivate)
     await MenuService.delete_category(session, cat1.id)
     assert cat1.is_active is False
-

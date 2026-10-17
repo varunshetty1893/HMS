@@ -43,6 +43,7 @@ from app.services.order_service import _generate_order_number
 
 def _generate_test_bill_number() -> str:
     from datetime import datetime, timezone
+
     return f"INV-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
 
 
@@ -616,6 +617,7 @@ async def test_conc_t10_daily_sequential_order_bill_number_generation_under_load
     Unique number generation produces gap-free, collision-free numbers
     with zero duplicate collisions.
     """
+
     async def _gen_order() -> str:
         await asyncio.sleep(0.001)
         return _generate_order_number()

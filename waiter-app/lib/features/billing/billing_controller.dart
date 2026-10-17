@@ -5,6 +5,27 @@ import '../../core/network/api_exceptions.dart';
 import '../../models/bill_model.dart';
 import '../auth/auth_controller.dart';
 
+/// Per-item override: waiter can change unit price AND/OR quantity before billing.
+class ItemOverride {
+  final double unitPrice;
+  final int quantity;
+  final String reason;
+
+  const ItemOverride({
+    required this.unitPrice,
+    required this.quantity,
+    required this.reason,
+  });
+
+  ItemOverride copyWith({double? unitPrice, int? quantity, String? reason}) {
+    return ItemOverride(
+      unitPrice: unitPrice ?? this.unitPrice,
+      quantity: quantity ?? this.quantity,
+      reason: reason ?? this.reason,
+    );
+  }
+}
+
 class BillingState {
   final bool isLoading;
   final bool isSubmitting;
@@ -12,10 +33,12 @@ class BillingState {
   final BillModel? bill;
   final PaymentModel? lastPayment;
   final String? error;
+
+  /// keyed by order_item id (UUID string from backend)
+  final Map<String, ItemOverride> itemOverrides;
+
   final double discountAmount;
   final String? discountReason;
-  final Map<String, double> priceOverrides;
-  final Map<String, String> priceOverrideReasons;
 
   const BillingState({
     this.isLoading = false,
@@ -24,10 +47,9 @@ class BillingState {
     this.bill,
     this.lastPayment,
     this.error,
+    this.itemOverrides = const {},
     this.discountAmount = 0.0,
     this.discountReason,
-    this.priceOverrides = const {},
-    this.priceOverrideReasons = const {},
   });
 
   BillingState copyWith({
@@ -38,11 +60,10 @@ class BillingState {
     PaymentModel? lastPayment,
     String? error,
     bool clearError = false,
+    Map<String, ItemOverride>? itemOverrides,
     double? discountAmount,
     String? discountReason,
     bool clearDiscount = false,
-    Map<String, double>? priceOverrides,
-    Map<String, String>? priceOverrideReasons,
   }) {
     return BillingState(
       isLoading: isLoading ?? this.isLoading,
@@ -51,10 +72,11 @@ class BillingState {
       bill: bill ?? this.bill,
       lastPayment: lastPayment ?? this.lastPayment,
       error: clearError ? null : (error ?? this.error),
-      discountAmount: clearDiscount ? 0.0 : (discountAmount ?? this.discountAmount),
-      discountReason: clearDiscount ? null : (discountReason ?? this.discountReason),
-      priceOverrides: priceOverrides ?? this.priceOverrides,
-      priceOverrideReasons: priceOverrideReasons ?? this.priceOverrideReasons,
+      itemOverrides: itemOverrides ?? this.itemOverrides,
+      discountAmount:
+          clearDiscount ? 0.0 : (discountAmount ?? this.discountAmount),
+      discountReason:
+          clearDiscount ? null : (discountReason ?? this.discountReason),
     );
   }
 }
@@ -72,79 +94,78 @@ class BillingController extends StateNotifier<BillingState> {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
+  // ── Item Overrides ──────────────────────────────────────────────────────────
+
+  void setItemOverride(String itemId, ItemOverride ov) {
+    final updated = Map<String, ItemOverride>.from(state.itemOverrides);
+    updated[itemId] = ov;
+    state = state.copyWith(itemOverrides: updated, clearError: true);
+  }
+
+  void removeItemOverride(String itemId) {
+    final updated = Map<String, ItemOverride>.from(state.itemOverrides);
+    updated.remove(itemId);
+    state = state.copyWith(itemOverrides: updated, clearError: true);
+  }
+
+  void clearAllOverrides() {
+    state = state.copyWith(itemOverrides: {}, clearError: true);
+  }
+
+  // ── Discount ────────────────────────────────────────────────────────────────
+
   void setDiscount(double amount, String? reason) {
     state = state.copyWith(
-      discountAmount: amount,
-      discountReason: reason,
-      clearError: true,
-    );
+        discountAmount: amount, discountReason: reason, clearError: true);
   }
 
   void removeDiscount() {
     state = state.copyWith(clearDiscount: true, clearError: true);
   }
 
-  void setPriceOverride(String itemId, double newPrice, String reason) {
-    final newOverrides = Map<String, double>.from(state.priceOverrides);
-    final newReasons = Map<String, String>.from(state.priceOverrideReasons);
-    newOverrides[itemId] = newPrice;
-    newReasons[itemId] = reason;
-    state = state.copyWith(
-      priceOverrides: newOverrides,
-      priceOverrideReasons: newReasons,
-      clearError: true,
-    );
-  }
-
-  void removePriceOverride(String itemId) {
-    final newOverrides = Map<String, double>.from(state.priceOverrides);
-    final newReasons = Map<String, String>.from(state.priceOverrideReasons);
-    newOverrides.remove(itemId);
-    newReasons.remove(itemId);
-    state = state.copyWith(
-      priceOverrides: newOverrides,
-      priceOverrideReasons: newReasons,
-      clearError: true,
-    );
-  }
+  // ── Network ─────────────────────────────────────────────────────────────────
 
   Future<void> loadTableBill(int tableNumber) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final res = await _apiClient.get('/api/v1/waiter/tables/$tableNumber/bill');
+      final res =
+          await _apiClient.get('/api/v1/waiter/tables/$tableNumber/bill');
       final tableBill = TableBillModel.fromJson(res);
       state = state.copyWith(
         isLoading: false,
         tableBill: tableBill,
         bill: tableBill.bill,
         discountAmount: tableBill.bill?.discountAmount ?? state.discountAmount,
-        discountReason: tableBill.bill?.discountReason ?? state.discountReason,
+        discountReason:
+            tableBill.bill?.discountReason ?? state.discountReason,
       );
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Failed to load table bill: $e');
+      state = state.copyWith(
+          isLoading: false, error: 'Failed to load table bill: $e');
     }
   }
 
-  Future<BillModel?> generateBill({
-    required int tableNumber,
-  }) async {
+  Future<BillModel?> generateBill({required int tableNumber}) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     final idempotencyKey = _generateIdempotencyKey();
     try {
-      final overrides = state.priceOverrides.entries.map((e) {
+      final overrides = state.itemOverrides.entries.map((e) {
+        final ov = e.value;
         return {
           'order_item_id': e.key,
-          'unit_price': e.value.toStringAsFixed(2),
-          'reason': state.priceOverrideReasons[e.key] ?? 'Price adjusted at billing',
+          'unit_price': ov.unitPrice.toStringAsFixed(2),
+          'quantity_billed': ov.quantity,
+          'reason': ov.reason,
         };
       }).toList();
 
       final payload = {
         'table_number': tableNumber,
         'discount_amount': state.discountAmount.toStringAsFixed(2),
-        if (state.discountReason != null && state.discountReason!.isNotEmpty)
+        if (state.discountReason != null &&
+            state.discountReason!.trim().isNotEmpty)
           'discount_reason': state.discountReason
         else if (state.discountAmount > 0)
           'discount_reason': 'Discount applied at billing',
@@ -169,7 +190,8 @@ class BillingController extends StateNotifier<BillingState> {
       state = state.copyWith(isSubmitting: false, error: e.message);
       return null;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: 'Failed to generate bill: $e');
+      state = state.copyWith(
+          isSubmitting: false, error: 'Failed to generate bill: $e');
       return null;
     }
   }
@@ -203,7 +225,8 @@ class BillingController extends StateNotifier<BillingState> {
       state = state.copyWith(isSubmitting: false, error: e.message);
       return null;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: 'Failed to apply discount: $e');
+      state = state.copyWith(
+          isSubmitting: false, error: 'Failed to apply discount: $e');
       return null;
     }
   }
@@ -239,7 +262,8 @@ class BillingController extends StateNotifier<BillingState> {
       state = state.copyWith(isSubmitting: false, error: e.message);
       return null;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: 'Failed to record payment: $e');
+      state = state.copyWith(
+          isSubmitting: false, error: 'Failed to record payment: $e');
       return null;
     }
   }

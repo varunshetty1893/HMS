@@ -468,13 +468,14 @@ class BillingService:
                 message="Each order line can be price-overridden only once.",
             )
         settings: RestaurantSettings | None = None
-        billable_items: list[tuple[Order, OrderItem, Decimal, Decimal]] = []
+        billable_items: list[tuple[Order, OrderItem, Decimal, int, Decimal]] = []
         subtotal = Decimal("0.00")
 
         for order in orders:
             for item in order.items:
                 if item.active_quantity > 0:
                     unit_price = item.unit_price_snapshot
+                    qty = item.active_quantity
                     override = overrides.pop(item.id, None)
                     if override:
                         requested_price = override.unit_price.quantize(
@@ -498,11 +499,15 @@ class BillingService:
                                         ),
                                     )
                         unit_price = requested_price
-                    line_tot = (unit_price * item.active_quantity).quantize(
-                        TWO_PLACES, rounding=ROUND_HALF_UP
-                    )
-                    subtotal += line_tot
-                    billable_items.append((order, item, unit_price, line_tot))
+                        if override.quantity_billed is not None:
+                            qty = override.quantity_billed
+
+                    if qty > 0:
+                        line_tot = (unit_price * qty).quantize(
+                            TWO_PLACES, rounding=ROUND_HALF_UP
+                        )
+                        subtotal += line_tot
+                        billable_items.append((order, item, unit_price, qty, line_tot))
 
         if overrides:
             raise DomainValidationError(
@@ -603,7 +608,7 @@ class BillingService:
 
         # 10. Create frozen BillItem rows
         created_bill_items: list[BillItem] = []
-        for ord_obj, item_obj, unit_price, line_tot in billable_items:
+        for ord_obj, item_obj, unit_price, qty, line_tot in billable_items:
             b_item = BillItem(
                 id=uuid.uuid4(),
                 bill_id=bill.id,
@@ -615,7 +620,7 @@ class BillingService:
                 variant_code_snapshot=item_obj.variant_code_snapshot,
                 variant_name_snapshot=item_obj.variant_name_snapshot,
                 unit_snapshot=item_obj.unit_snapshot,
-                quantity_billed=item_obj.active_quantity,
+                quantity_billed=qty,
                 unit_price_snapshot=unit_price,
                 line_total=line_tot,
                 base_price_snapshot=getattr(item_obj, "base_price_snapshot", None) or item_obj.unit_price_snapshot,

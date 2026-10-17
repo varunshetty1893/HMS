@@ -108,10 +108,11 @@ class TableBillResponse(ResponseModel):
 
 
 class BillLinePriceOverride(StrictRequestModel):
-    """One deliberate bill-time override of an ordered line's unit price."""
+    """One deliberate bill-time override of an ordered line's unit price and/or quantity."""
 
     order_item_id: uuid.UUID
     unit_price: Decimal = Field(ge=Decimal("0.00"), max_digits=12, decimal_places=2)
+    quantity_billed: int | None = Field(default=None, ge=0, le=999)
     reason: str = Field(min_length=3, max_length=255)
     custom_portion_name: str | None = Field(default=None, max_length=80)
     extra_pieces_count: int = Field(default=0, ge=0)

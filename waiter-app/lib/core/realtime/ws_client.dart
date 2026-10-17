@@ -87,6 +87,7 @@ class WaiterWebSocketClient {
         onDone: () {
           _onDisconnect();
         },
+        cancelOnError: true,
       );
     } catch (_) {
       _onDisconnect();

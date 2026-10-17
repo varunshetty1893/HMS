@@ -85,13 +85,12 @@ class FloorGridController extends StateNotifier<FloorGridState> {
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
       final type = (msg['event'] ?? msg['type'])?.toString();
-      if (type == 'table.status_changed' ||
-          type == 'table.session_opened' ||
-          type == 'table.session_closed' ||
-          type == 'order.created' ||
-          type == 'order.ready' ||
-          type == 'order.served') {
-        // Silently refresh tables on floor updates
+      // Silently refresh whenever any table, order, or session event is broadcast
+      if (type != null &&
+          (type.startsWith('table.') ||
+           type.startsWith('order.') ||
+           type.startsWith('bill.') ||
+           type.startsWith('waiter.'))) {
         loadTables(silent: true);
       }
     });

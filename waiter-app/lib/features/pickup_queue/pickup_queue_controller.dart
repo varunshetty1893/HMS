@@ -53,7 +53,7 @@ class PickupQueueController extends StateNotifier<PickupQueueState> {
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
       final type = (msg['event'] ?? msg['type'])?.toString();
-      if (type == 'order.ready' || type == 'order.served') {
+      if (type != null && type.startsWith('order.')) {
         loadReadyOrders(silent: true);
       }
     });

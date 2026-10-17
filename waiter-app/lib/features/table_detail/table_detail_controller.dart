@@ -50,14 +50,11 @@ class TableDetailController extends StateNotifier<TableDetailState> {
   void _initWsListener() {
     _wsClient.messages.listen((msg) {
       final type = (msg['event'] ?? msg['type'])?.toString();
-      if (type == 'order.created' ||
-          type == 'order.status_changed' ||
-          type == 'order.modified' ||
-          type == 'order.cancelled' ||
-          type == 'order.ready' ||
-          type == 'order.served' ||
-          type == 'table.session_opened' ||
-          type == 'table.session_closed') {
+      if (type != null &&
+          (type.startsWith('order.') ||
+           type.startsWith('table.') ||
+           type.startsWith('bill.') ||
+           type.startsWith('waiter.'))) {
         loadSessionDetail(silent: true);
       }
     });

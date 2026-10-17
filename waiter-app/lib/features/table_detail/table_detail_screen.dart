@@ -254,6 +254,9 @@ class TableDetailScreen extends ConsumerWidget {
         order.status == 'PREPARING' ||
         order.status == 'READY';
     final canServe = order.status == 'READY';
+    final canChangePrice = order.status != 'CANCELLED' &&
+        order.status != 'REJECTED' &&
+        order.status != 'COMPLETED';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -365,7 +368,7 @@ class TableDetailScreen extends ConsumerWidget {
                                 fontSize: 13,
                               ),
                             ),
-                            if (canEdit) ...[
+                            if (canChangePrice) ...[
                               const SizedBox(width: 4),
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined, size: 16),
@@ -418,10 +421,13 @@ class TableDetailScreen extends ConsumerWidget {
               decoration: const BoxDecoration(
                 border: Border(top: BorderSide(color: AppTheme.borderColor)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  if (canCancel) ...[
+                  if (canCancel)
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.errorColor,
@@ -439,9 +445,7 @@ class TableDetailScreen extends ConsumerWidget {
                       },
                       child: const Text('Cancel Order'),
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (canEdit) ...[
+                  if (canEdit)
                     OutlinedButton(
                       onPressed: () async {
                         final modified = await Navigator.of(context).push<bool>(
@@ -455,9 +459,7 @@ class TableDetailScreen extends ConsumerWidget {
                       },
                       child: Text(order.status == 'READY' ? 'Manage' : 'Edit Items'),
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (canServe) ...[
+                  if (canServe)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text('Mark Served'),
@@ -469,7 +471,6 @@ class TableDetailScreen extends ConsumerWidget {
                         await controller.markOrderServed(order.id);
                       },
                     ),
-                  ],
                 ],
               ),
             ),

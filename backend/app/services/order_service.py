@@ -2115,12 +2115,13 @@ class OrderService:
             OrderStatus.PLACED.value,
             OrderStatus.ACCEPTED.value,
             OrderStatus.PREPARING.value,
+            OrderStatus.READY.value,
         ]
         if order.status not in allowed_statuses:
             raise StateConflictError(
                 "INVALID_STATE_TRANSITION",
                 f"Cannot modify order in status '{order.status}' "
-                "(must be PLACED, ACCEPTED, or PREPARING).",
+                "(must be PLACED, ACCEPTED, PREPARING, or READY).",
             )
 
         if staff_user.role not in (UserRole.WAITER, UserRole.ADMIN):
@@ -2133,7 +2134,7 @@ class OrderService:
 
         existing_items = {it.id: it for it in (order.items or [])}
 
-        # While the kitchen is PREPARING, ADDING more is always fine. REDUCING / REMOVING
+        # While kitchen is PREPARING or READY, ADDING more is fine. REDUCING / REMOVING
         # needs an explicit FORCE (waiter/admin) because food may already be cooked.
         has_reduction = any(
             m.order_item_id is not None
@@ -2142,7 +2143,10 @@ class OrderService:
             for m in payload.items
         )
         forced_reduction = False
-        if order.status == OrderStatus.PREPARING.value and has_reduction:
+        if (
+            order.status in (OrderStatus.PREPARING.value, OrderStatus.READY.value)
+            and has_reduction
+        ):
             settings = await db.scalar(select(RestaurantSettings))
             if not (
                 staff_user.role == UserRole.ADMIN
@@ -2151,8 +2155,8 @@ class OrderService:
             ):
                 raise DomainValidationError(
                     "FORCE_REQUIRED_FOR_REDUCTION",
-                    "Kitchen is already cooking this order. You can add more items, but "
-                    "reducing or removing needs FORCE cancellation (kitchen will be notified).",
+                    "Kitchen is already cooking or has prepared this order. "
+                    "Confirm force reduction to alert the kitchen.",
                 )
             forced_reduction = True
 
@@ -2165,7 +2169,11 @@ class OrderService:
                 "TABLE_SESSION_NOT_FOUND", "Associated table session not found."
             )
 
-        is_post_accept = order.status in [OrderStatus.ACCEPTED.value, OrderStatus.PREPARING.value]
+        is_post_accept = order.status in [
+            OrderStatus.ACCEPTED.value,
+            OrderStatus.PREPARING.value,
+            OrderStatus.READY.value,
+        ]
         events_to_add: list[OrderModificationEvent] = []
         net_price_delta = Decimal("0.00")
 

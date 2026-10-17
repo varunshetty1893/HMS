@@ -129,6 +129,7 @@ class AppTheme {
   // Status colours
   static const Color successColor = WaiterTheme.availableGreen;
   static const Color readyColor = WaiterTheme.readyAmber;
+  static const Color warningColor = WaiterTheme.readyAmber;
   static const Color errorColor = WaiterTheme.errorRed;
 
   // Text

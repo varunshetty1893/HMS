@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import os
 import sys
 from decimal import Decimal
@@ -36,9 +37,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import get_settings
 from app.core.security import hash_password
 from app.models.enums import (
-    DietaryType,
     PriceUnit,
-    SpiceLevel,
+    PricingStatus,
     TableOperationalStatus,
     UserRole,
     UserStatus,
@@ -48,6 +48,16 @@ from app.models.menu import MenuCategory, MenuItem, MenuPriceVariant
 from app.models.restaurant import RestaurantSettings, RestaurantTable
 from app.services.qr_service import QrService
 
+# Load canonical Spice Hub shortlisted menu catalog from migration 0011
+_migration_path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "20261018_1700_0011_spice_hub_shortlisted_menu.py"
+_spec = importlib.util.spec_from_file_location("m0011_catalog", _migration_path)
+if _spec and _spec.loader:
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    MENU_CATALOG = _mod.MENU_CATALOG
+else:
+    raise RuntimeError(f"Could not load MENU_CATALOG from {_migration_path}")
+
 
 async def seed_settings(session: AsyncSession) -> None:
     """Seed or update the singleton restaurant configuration row."""
@@ -55,7 +65,7 @@ async def seed_settings(session: AsyncSession) -> None:
     if not settings_row:
         settings_row = RestaurantSettings(
             id=1,
-            restaurant_name="The Royal Spice Restaurant",
+            restaurant_name="Spice Hub Family Restaurant",
             address="123 Heritage Lane, Bengaluru, Karnataka 560001",
             phone="+91 98765 43210",
             gstin="29ABCDE1234F1Z5",
@@ -78,9 +88,10 @@ async def seed_settings(session: AsyncSession) -> None:
             waiter_max_price_override_percentage=Decimal("10.00"),
         )
         session.add(settings_row)
-        print("  [+] Created restaurant_settings singleton (id=1)")
+        print("  [+] Created restaurant_settings singleton (id=1) for Spice Hub Family Restaurant")
     else:
-        print("  [*] restaurant_settings singleton already present")
+        settings_row.restaurant_name = "Spice Hub Family Restaurant"
+        print("  [*] Updated restaurant_settings singleton: Spice Hub Family Restaurant")
 
 
 async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
@@ -120,553 +131,173 @@ async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
 
 
 async def seed_menu(session: AsyncSession) -> None:
-    """Seed categories, items with unique short codes, and price variants."""
-    # This catalog intentionally uses stable M001..M120 codes so it can be safely
-    # re-run. Existing matching rows are updated in place; only the superseded
-    # original demo rows are retired (never deleted, preserving any history).
-    sections = [
-        (
-            "South Indian Breakfast",
-            "south-indian",
-            False,
-            "VEG",
-            "Idli (2 pcs)|40;Medu Vada (2 pcs)|45;Idli Vada Combo|55;Plain Dosa|60;Masala Dosa|80;Mysore Masala Dosa|95;Onion Dosa|75;Rava Dosa|85;Set Dosa (3 pcs)|75;Pongal with Chutney|70",
-        ),
-        (
-            "Breakfast & Quick Meals",
-            "breakfast",
-            False,
-            "VEG",
-            "Poori Bhaji|80;Chole Bhature|110;Aloo Paratha with Curd|90;Gobi Paratha with Curd|100;Paneer Paratha with Curd|120;Vegetable Upma|55;Avalakki / Poha|50;Bread Butter Toast|45;Vegetable Sandwich|80;Cheese Sandwich|100",
-        ),
-        (
-            "Vegetarian Starters & Snacks",
-            "veg-starters",
-            True,
-            "VEG",
-            "French Fries|100;Gobi Manchurian|140;Paneer 65|180;Chilli Paneer|190;Vegetable Pakoda|100;Onion Pakoda|90;Hara Bhara Kebab|160;Veg Spring Roll|140;Crispy Corn|150;Mushroom Pepper Fry|180",
-        ),
-        (
-            "Non-Vegetarian Starters",
-            "nonveg-starters",
-            True,
-            "NON_VEG",
-            "Chicken 65|210;Chilli Chicken|220;Chicken Manchurian|220;Chicken Lollipop|240;Tandoori Chicken (Half)|280;Chicken Tikka|250;Pepper Chicken|240;Chicken Kebab|230;Fish Fry|260;Prawn Pepper Fry|320",
-        ),
-        (
-            "Vegetarian Curries",
-            "veg-curries",
-            True,
-            "VEG",
-            "Dal Fry|130;Dal Tadka|150;Aloo Gobi|160;Mix Vegetable Curry|170;Chana Masala|160;Rajma Masala|170;Paneer Butter Masala|220;Kadai Paneer|220;Palak Paneer|210;Mushroom Masala|210",
-        ),
-        (
-            "Chicken, Mutton & Seafood Curries",
-            "nonveg-curries",
-            True,
-            "NON_VEG",
-            "Chicken Curry|220;Andhra Chicken Curry|240;Chicken Masala|250;Butter Chicken|280;Kadai Chicken|260;Chicken Chettinad|260;Mutton Curry|330;Mutton Rogan Josh|350;Fish Curry|260;Prawn Masala|330",
-        ),
-        (
-            "Indian Breads, Rice & Meals",
-            "breads-rice",
-            False,
-            "VEG",
-            "Plain Chapati (2 pcs)|35;Tandoori Roti|30;Butter Roti|40;Plain Naan|45;Butter Naan|55;Garlic Naan|70;Plain Steamed Rice|90;Jeera Rice|130;Curd Rice|90;Veg South Indian Meals|150",
-        ),
-        (
-            "Biryani",
-            "biryani",
-            True,
-            "VEG",
-            "Veg Pulao|150;Peas Pulao|140;Paneer Pulao|180;Veg Biryani|170;Paneer Biryani|200;Egg Biryani|180;Chicken Biryani|220;Chicken Dum Biryani|250;Boneless Chicken Biryani|270;Mutton Biryani|320",
-        ),
-        (
-            "Egg Dishes",
-            "egg",
-            False,
-            "EGG",
-            "Boiled Eggs (2 pcs)|40;Egg Omelette|60;Masala Omelette|75;Cheese Omelette|100;Egg Bhurji|90;Egg Curry|140;Egg Masala|150;Egg Fried Rice|150;Egg Noodles|150;Egg Kathi Roll|130",
-        ),
-        (
-            "Vegetarian Chinese Dishes",
-            "veg-chinese",
-            False,
-            "VEG",
-            "Veg Fried Rice|140;Schezwan Veg Fried Rice|160;Veg Hakka Noodles|140;Schezwan Veg Noodles|160;Chilli Garlic Noodles|160;Veg Manchurian Gravy|160;Chilli Mushroom|190;American Chopsuey|180;Veg Momos (6 pcs)|120;Paneer Fried Rice|180",
-        ),
-        (
-            "Non-Vegetarian Chinese Dishes",
-            "nonveg-chinese",
-            False,
-            "NON_VEG",
-            "Chicken Fried Rice|180;Schezwan Chicken Fried Rice|200;Chicken Hakka Noodles|180;Schezwan Chicken Noodles|200;Chicken Chilli Garlic Noodles|210;Chicken Manchurian Gravy|230;Chicken Momos (6 pcs)|160;Chicken Chowmein|190;Prawn Fried Rice|250;Mixed Non-Veg Fried Rice|250",
-        ),
-        (
-            "Beverages, Juices & Desserts",
-            "beverages-desserts",
-            False,
-            "VEG",
-            "Tea|20;Coffee|30;Fresh Lime Soda|50;Sweet Lassi|70;Mango Milkshake|100;Fresh Watermelon Juice|80;Gulab Jamun (2 pcs)|60;Gajar Ka Halwa|90;Vanilla Ice Cream|70;Chocolate Brownie with Ice Cream|150",
-        ),
-    ]
-    dietary_overrides = {
-        76: "EGG",
-        81: "EGG",
-        82: "EGG",
-        83: "EGG",
-        84: "EGG",
-        85: "EGG",
-        86: "EGG",
-        87: "EGG",
-        88: "EGG",
-        89: "EGG",
-        90: "EGG",
+    """Seed official Spice Hub Family Restaurant menu catalog and variants.
+
+    Loads the canonical 18-category catalog from Alembic migration 0011.
+    Items and variants not present in the new catalog are soft-deactivated (is_active=False,
+    is_available=False) to ensure historical orders and bills remain completely intact.
+    """
+    catalog_item_codes = {item[0] for cat in MENU_CATALOG for item in cat["items"]}
+    catalog_variant_codes = {
+        v[1] for cat in MENU_CATALOG for item in cat["items"] for v in item[6]
     }
-    legacy_codes = {"CB", "VB", "MB", "CK", "PN", "BN", "RO", "MS", "BL"}
-    for legacy in (
-        await session.execute(select(MenuItem).where(MenuItem.item_code.in_(legacy_codes)))
-    ).scalars():
+
+    # 1. Soft-deactivate any legacy items and variants not in the new shortlisted catalog
+    legacy_items = (
+        await session.execute(
+            select(MenuItem).where(MenuItem.item_code.not_in(catalog_item_codes))
+        )
+    ).scalars().all()
+    for legacy in legacy_items:
         legacy.is_active = False
         legacy.is_available = False
 
-    # Pulao is served by this restaurant as a breakfast/quick-meal item.  Keep
-    # its stable M071..M073 codes while placing it in the intended category.
-    breakfast_category: MenuCategory | None = None
-    number = 1
-    for category_order, (category_name, _image_slug, has_half, default_dietary, rows) in enumerate(
-        sections, 1
-    ):
-        category = (
-            await session.execute(
-                select(MenuCategory).where(func.lower(MenuCategory.name) == category_name.lower())
+    legacy_variants = (
+        await session.execute(
+            select(MenuPriceVariant).where(
+                MenuPriceVariant.variant_code.not_in(catalog_variant_codes)
             )
-        ).scalar_one_or_none()
-        if category is None and category_name == "Biryani":
-            category = (
-                await session.execute(
-                    select(MenuCategory).where(func.lower(MenuCategory.name) == "biryani & pulao")
-                )
-            ).scalar_one_or_none()
-            if category:
-                category.name = "Biryani"
-        if not category:
-            category = MenuCategory(name=category_name)
-            session.add(category)
-            await session.flush()
-        category.description = f"Freshly prepared {category_name.lower()}."
-        category.display_order = category_order
-        category.is_active = True
-        if category_name == "Breakfast & Quick Meals":
-            breakfast_category = category
+        )
+    ).scalars().all()
+    for legacy_v in legacy_variants:
+        legacy_v.is_active = False
+        legacy_v.is_available = False
 
-        for item_order, row in enumerate(rows.split(";"), 1):
-            name, raw_price = row.rsplit("|", 1)
-            code = f"M{number:03d}"
-            dietary = dietary_overrides.get(number, default_dietary)
-            item = (
-                await session.execute(select(MenuItem).where(MenuItem.item_code == code))
-            ).scalar_one_or_none()
-            if not item:
-                item = MenuItem(item_code=code, category_id=category.id, name=name)
-                session.add(item)
-                await session.flush()
-            item_category = breakfast_category if number in {71, 72, 73} else category
-            if item_category is None:
-                raise RuntimeError("Breakfast category must be initialized before Pulao items.")
-            item.category_id, item.name = item_category.id, name
-            item.description = f"Freshly prepared {name}."
-            item.dietary_type, item.spice_level = dietary, SpiceLevel.MEDIUM.value
-            # `/menu/*.png` was legacy generated artwork, not a restaurant food
-            # photograph. Preserve genuine uploaded URLs and let Admin upload
-            # actual dish photographs through the secure image endpoint.
-            if item.image_url and item.image_url.startswith("/menu/"):
-                item.image_url = None
-            item.is_active = item.is_available = True
-            item.display_order = item_order
-            full_price = Decimal(raw_price).quantize(Decimal("0.01"))
-            has_portions = has_half and not name.endswith("(Half)")
-            variants = [("Standard", Decimal("1.00"), full_price, True, False)]
-            if has_portions:
-                variants[0] = ("Full", Decimal("1.00"), full_price, True, True)
-                variants.insert(
-                    0,
-                    (
-                        "Half",
-                        Decimal("0.50"),
-                        (full_price * Decimal("0.60")).quantize(Decimal("0.01")),
-                        False,
-                        True,
-                    ),
-                )
-            for variant_order, (variant_name, quantity, price, is_default, is_portion) in enumerate(
-                variants, 1
-            ):
-                variant_code = f"{code}-{'H' if variant_name == 'Half' else 'F'}"
-                variant = (
-                    await session.execute(
-                        select(MenuPriceVariant).where(
-                            MenuPriceVariant.variant_code == variant_code
-                        )
-                    )
-                ).scalar_one_or_none()
-                if not variant:
-                    variant = MenuPriceVariant(
-                        menu_item_id=item.id,
-                        variant_code=variant_code,
-                        variant_name=variant_name,
-                        quantity_value=quantity,
-                        unit=PriceUnit.PORTION.value,
-                        price=price,
-                    )
-                    session.add(variant)
-                variant.menu_item_id, variant.variant_name, variant.is_portion = (
-                    item.id,
-                    variant_name,
-                    is_portion,
-                )
-                variant.quantity_value, variant.unit, variant.price = (
-                    quantity,
-                    PriceUnit.PORTION.value,
-                    price,
-                )
-                variant.is_default, variant.is_active, variant.is_available = is_default, True, True
-                variant.display_order = variant_order
-            if not has_portions:
-                legacy_half = (
-                    await session.execute(
-                        select(MenuPriceVariant).where(MenuPriceVariant.variant_code == f"{code}-H")
-                    )
-                ).scalar_one_or_none()
-                if legacy_half:
-                    legacy_half.is_active = legacy_half.is_available = False
-            number += 1
-    # Retire the old demo category tabs only when they no longer contain active
-    # dishes. This keeps existing data/history intact and prevents empty tabs.
-    for legacy_name in (
-        "Biriyani",
-        "Biryani & Pulao",
-        "Starters & Appetizers",
-        "Breads & Accompaniments",
-        "Beverages & Desserts",
-    ):
-        legacy_category = (
-            await session.execute(
-                select(MenuCategory).where(func.lower(MenuCategory.name) == legacy_name.lower())
-            )
-        ).scalar_one_or_none()
-        if legacy_category:
-            active_count = await session.scalar(
-                select(func.count(MenuItem.id)).where(
-                    MenuItem.category_id == legacy_category.id, MenuItem.is_active.is_(True)
-                )
-            )
-            if not active_count:
-                legacy_category.is_active = False
-    await session.flush()
-    return
-
-    menu_data = [
-        {
-            "category": "Biriyani",
-            "desc": "Traditional slow-cooked dum biriyanis with fragrant spices",
-            "order": 1,
-            "items": [
-                {
-                    "item_code": "CB",
-                    "name": "Chicken Biryani",
-                    "desc": "Aromatic basmati rice cooked with tender spiced chicken pieces and saffron",
-                    "dietary": DietaryType.NON_VEG,
-                    "spice": SpiceLevel.MEDIUM,
-                    "order": 1,
-                    "variants": [
-                        (
-                            "CB-H",
-                            "Half",
-                            Decimal("0.50"),
-                            PriceUnit.PORTION,
-                            Decimal("100.00"),
-                            False,
-                            1,
-                        ),
-                        (
-                            "CB-F",
-                            "Full",
-                            Decimal("1.00"),
-                            PriceUnit.PORTION,
-                            Decimal("180.00"),
-                            True,
-                            2,
-                        ),
-                    ],
-                },
-                {
-                    "item_code": "VB",
-                    "name": "Veg Dum Biryani",
-                    "desc": "Rich spiced basmati rice layered with seasonal garden vegetables and mint",
-                    "dietary": DietaryType.VEG,
-                    "spice": SpiceLevel.MILD,
-                    "order": 2,
-                    "variants": [
-                        (
-                            "VB-H",
-                            "Half",
-                            Decimal("0.50"),
-                            PriceUnit.PORTION,
-                            Decimal("80.00"),
-                            False,
-                            1,
-                        ),
-                        (
-                            "VB-F",
-                            "Full",
-                            Decimal("1.00"),
-                            PriceUnit.PORTION,
-                            Decimal("140.00"),
-                            True,
-                            2,
-                        ),
-                    ],
-                },
-                {
-                    "item_code": "MB",
-                    "name": "Mutton Biryani",
-                    "desc": "Special dum biryani prepared with succulent slow-cooked mutton chunks",
-                    "dietary": DietaryType.NON_VEG,
-                    "spice": SpiceLevel.HOT,
-                    "order": 3,
-                    "variants": [
-                        (
-                            "MB-H",
-                            "Half",
-                            Decimal("0.50"),
-                            PriceUnit.PORTION,
-                            Decimal("150.00"),
-                            False,
-                            1,
-                        ),
-                        (
-                            "MB-F",
-                            "Full",
-                            Decimal("1.00"),
-                            PriceUnit.PORTION,
-                            Decimal("260.00"),
-                            True,
-                            2,
-                        ),
-                    ],
-                },
-            ],
-        },
-        {
-            "category": "Starters & Appetizers",
-            "desc": "Crispy starters, tandoori specialties, and spicy bites",
-            "order": 2,
-            "items": [
-                {
-                    "item_code": "CK",
-                    "name": "Chicken Kebab",
-                    "desc": "Crispy deep-fried boneless chicken cubes marinated with fiery spices and curry leaves",
-                    "dietary": DietaryType.NON_VEG,
-                    "spice": SpiceLevel.HOT,
-                    "order": 1,
-                    "variants": [
-                        (
-                            "CK-2",
-                            "2 Pieces",
-                            Decimal("2.00"),
-                            PriceUnit.PIECE,
-                            Decimal("90.00"),
-                            False,
-                            1,
-                        ),
-                        (
-                            "CK-4",
-                            "4 Pieces",
-                            Decimal("4.00"),
-                            PriceUnit.PIECE,
-                            Decimal("160.00"),
-                            True,
-                            2,
-                        ),
-                    ],
-                },
-                {
-                    "item_code": "PN",
-                    "name": "Paneer Tikka",
-                    "desc": "Chargrilled fresh cottage cheese cubes with bell peppers and tandoori glaze",
-                    "dietary": DietaryType.VEG,
-                    "spice": SpiceLevel.MEDIUM,
-                    "order": 2,
-                    "variants": [
-                        (
-                            "PN-F",
-                            "Full Plate",
-                            Decimal("1.00"),
-                            PriceUnit.PORTION,
-                            Decimal("150.00"),
-                            True,
-                            1,
-                        ),
-                    ],
-                },
-            ],
-        },
-        {
-            "category": "Breads & Accompaniments",
-            "desc": "Oven-fresh tandoori breads, rotis, and naans",
-            "order": 3,
-            "items": [
-                {
-                    "item_code": "BN",
-                    "name": "Butter Naan",
-                    "desc": "Soft leavened flatbread brushed with golden clarified butter",
-                    "dietary": DietaryType.VEG,
-                    "spice": None,
-                    "order": 1,
-                    "variants": [
-                        (
-                            "BN-1",
-                            "Single Naan",
-                            Decimal("1.00"),
-                            PriceUnit.PIECE,
-                            Decimal("40.00"),
-                            True,
-                            1,
-                        ),
-                    ],
-                },
-                {
-                    "item_code": "RO",
-                    "name": "Tandoori Roti",
-                    "desc": "Crisp whole-wheat flatbread baked directly in the clay tandoor",
-                    "dietary": DietaryType.VEG,
-                    "spice": None,
-                    "order": 2,
-                    "variants": [
-                        (
-                            "RO-1",
-                            "Single Roti",
-                            Decimal("1.00"),
-                            PriceUnit.PIECE,
-                            Decimal("25.00"),
-                            True,
-                            1,
-                        ),
-                    ],
-                },
-            ],
-        },
-        {
-            "category": "Beverages & Desserts",
-            "desc": "Refreshing sodas, coolers, and traditional Indian drinks",
-            "order": 4,
-            "items": [
-                {
-                    "item_code": "MS",
-                    "name": "Fresh Masala Soda",
-                    "desc": "Zesty lemon soda spiked with cumin, black salt, and crushed mint",
-                    "dietary": DietaryType.VEG,
-                    "spice": None,
-                    "order": 1,
-                    "variants": [
-                        (
-                            "MS-1",
-                            "300 ml Glass",
-                            Decimal("300.00"),
-                            PriceUnit.ML,
-                            Decimal("35.00"),
-                            True,
-                            1,
-                        ),
-                    ],
-                },
-                {
-                    "item_code": "BL",
-                    "name": "Sweet Lassi",
-                    "desc": "Creamy churned curd beverage flavored with rose water and cardamom",
-                    "dietary": DietaryType.VEG,
-                    "spice": None,
-                    "order": 2,
-                    "variants": [
-                        (
-                            "BL-1",
-                            "250 ml Glass",
-                            Decimal("250.00"),
-                            PriceUnit.ML,
-                            Decimal("50.00"),
-                            True,
-                            1,
-                        ),
-                    ],
-                },
-            ],
-        },
-    ]
-
-    for cat_spec in menu_data:
+    # 2. Upsert categories, items, and variants
+    for cat_order, cat_spec in enumerate(MENU_CATALOG, 1):
         cat_name = cat_spec["category"]
-        existing_cat = (
+        cat_desc = cat_spec["desc"]
+
+        category = (
             await session.execute(
                 select(MenuCategory).where(func.lower(MenuCategory.name) == cat_name.lower())
             )
         ).scalar_one_or_none()
 
-        if not existing_cat:
-            cat = MenuCategory(
+        if not category:
+            category = MenuCategory(
                 name=cat_name,
-                description=cat_spec["desc"],
-                display_order=cat_spec["order"],
+                description=cat_desc,
+                display_order=cat_order,
                 is_active=True,
             )
-            session.add(cat)
+            session.add(category)
             await session.flush()
             print(f"  [+] Created category: {cat_name}")
         else:
-            cat = existing_cat
-            print(f"  [*] Category already present: {cat_name}")
+            category.name = cat_name
+            category.description = cat_desc
+            category.display_order = cat_order
+            category.is_active = True
+            print(f"  [*] Category present: {cat_name}")
 
-        for item_spec in cat_spec["items"]:
-            item_code = item_spec["item_code"]
-            existing_item = (
+        for item_order, (code, name, serving, dietary, spice, pricing_type, variants) in enumerate(
+            cat_spec["items"], 1
+        ):
+            item = (
                 await session.execute(
-                    select(MenuItem).where(func.upper(MenuItem.item_code) == item_code.upper())
+                    select(MenuItem).where(MenuItem.item_code == code)
                 )
             ).scalar_one_or_none()
 
-            if not existing_item:
+            desc = f"Freshly prepared {name}."
+            if not item:
                 item = MenuItem(
-                    category_id=cat.id,
-                    item_code=item_code,
-                    name=item_spec["name"],
-                    description=item_spec["desc"],
-                    dietary_type=item_spec["dietary"].value if item_spec["dietary"] else None,
-                    spice_level=item_spec["spice"].value if item_spec["spice"] else None,
+                    category_id=category.id,
+                    item_code=code,
+                    name=name,
+                    description=desc,
+                    serving_description=serving,
+                    dietary_type=dietary,
+                    spice_level=spice,
+                    pricing_type=pricing_type,
                     is_available=True,
                     is_active=True,
-                    display_order=item_spec["order"],
+                    display_order=item_order,
                 )
                 session.add(item)
                 await session.flush()
-                print(f"    [+] Created item: {item.name} ({item_code})")
+                print(f"    [+] Created item: {name} ({code})")
+            else:
+                item.category_id = category.id
+                item.name = name
+                item.description = desc
+                item.serving_description = serving
+                item.dietary_type = dietary
+                item.spice_level = spice
+                item.pricing_type = pricing_type
+                item.is_active = True
+                item.is_available = True
+                item.display_order = item_order
+                if item.image_url and item.image_url.startswith("/menu/"):
+                    item.image_url = None
+                print(f"    [*] Item present: {name} ({code})")
 
-                for v_code, v_name, qty, unit, price, is_def, v_order in item_spec["variants"]:
+            for v_order, (v_name, v_code, price, _portion_name, is_portion) in enumerate(
+                variants, 1
+            ):
+                pricing_status = (
+                    PricingStatus.SEASONAL_UNPRICED.value
+                    if pricing_type == "SEASONAL" or price is None
+                    else PricingStatus.ACTIVE.value
+                )
+                is_default = (v_order == 1)
+
+                variant = (
+                    await session.execute(
+                        select(MenuPriceVariant).where(
+                            (MenuPriceVariant.variant_code == v_code)
+                            | (
+                                (MenuPriceVariant.menu_item_id == item.id)
+                                & (func.lower(MenuPriceVariant.variant_name) == v_name.lower())
+                            )
+                        )
+                    )
+                ).scalar_one_or_none()
+
+                if not variant:
                     variant = MenuPriceVariant(
                         menu_item_id=item.id,
                         variant_code=v_code,
                         variant_name=v_name,
-                        quantity_value=qty,
-                        unit=unit.value,
+                        is_portion=is_portion,
+                        quantity_value=Decimal("1.0"),
+                        unit=PriceUnit.PORTION.value,
                         price=price,
-                        is_default=is_def,
+                        pricing_status=pricing_status,
+                        is_default=is_default,
                         is_available=True,
                         is_active=True,
                         display_order=v_order,
                     )
                     session.add(variant)
-                    print(f"      [+] Variant: {v_code} ({v_name}) @ Rs. {price}")
-            else:
-                print(f"    [*] Item already present: {item_spec['name']} ({item_code})")
+                    price_str = f"Rs. {price}" if price is not None else "Seasonal Price"
+                    print(f"      [+] Variant: {v_code} ({v_name}) @ {price_str}")
+                else:
+                    variant.menu_item_id = item.id
+                    variant.variant_code = v_code
+                    variant.variant_name = v_name
+                    variant.is_portion = is_portion
+                    variant.quantity_value = Decimal("1.0")
+                    variant.unit = PriceUnit.PORTION.value
+                    variant.price = price
+                    variant.pricing_status = pricing_status
+                    variant.is_default = is_default
+                    variant.is_available = True
+                    variant.is_active = True
+                    variant.display_order = v_order
+
+    # 3. Soft-deactivate categories that have no active dishes
+    all_categories = (await session.execute(select(MenuCategory))).scalars().all()
+    for cat in all_categories:
+        active_count = await session.scalar(
+            select(func.count(MenuItem.id)).where(
+                MenuItem.category_id == cat.id,
+                MenuItem.is_active.is_(True),
+            )
+        )
+        if not active_count:
+            cat.is_active = False
 
     await session.flush()
 

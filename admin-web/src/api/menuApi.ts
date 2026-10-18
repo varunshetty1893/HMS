@@ -74,6 +74,15 @@ export const menuApi = {
     });
   },
 
+  /** Soft-delete a menu item: sets is_active=false, is_available=false.
+   *  Historical orders and bills are preserved (no hard delete). */
+  deleteItem: async (itemId: string): Promise<MenuItem> => {
+    return apiClient<MenuItem>(`/admin/menu/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: false, is_available: false }),
+    });
+  },
+
   setItemAvailability: async (
     itemId: string,
     isAvailable: boolean,

@@ -290,12 +290,12 @@ export const BillingAndPaymentsPage: React.FC = () => {
 
       {/* Bill Detail Modal */}
       {selectedBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-xl rounded-2xl p-6 shadow-2xl relative" style={modalInner}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl relative border animate-in zoom-in-95" style={{ ...modalInner, borderColor: border }}>
             <div className="flex items-start justify-between pb-4 border-b" style={{ borderBottomColor: border }}>
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h3 className="text-xl font-black" style={{ color: heading }}>{selectedBill.bill_number}</h3>
+                  <h3 className="text-xl font-black font-mono" style={{ color: heading }}>{selectedBill.bill_number}</h3>
                   <StatusBadge status={selectedBill.status} size="sm" />
                 </div>
                 <p className="text-xs mt-1" style={{ color: sub }}>
@@ -304,111 +304,183 @@ export const BillingAndPaymentsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedBill(null)}
-                className="p-1 rounded-lg cursor-pointer opacity-70 hover:opacity-100"
+                className="p-1.5 rounded-xl cursor-pointer opacity-70 hover:opacity-100 hover:bg-slate-500/10 transition"
                 style={{ color: muted }}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Bill Line Items with Portions & Adjustments */}
-            <div className="mt-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: sub }}>
-                Billed Dishes {selectedBill.line_items?.length ? `(${selectedBill.line_items.length})` : ''}
-              </h4>
+            {/* Bill Line Items Table */}
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: sub }}>
+                  Billed Dishes {selectedBill.line_items?.length ? `(${selectedBill.line_items.length})` : ''}
+                </h4>
+                <span className="text-[11px] font-mono" style={{ color: muted }}>
+                  All amounts in INR (₹)
+                </span>
+              </div>
+
               {isLoadingBillDetail ? (
-                <div className="p-8 text-center text-xs rounded-xl border flex flex-col items-center justify-center gap-2" style={{ borderColor: border, color: muted }}>
-                  <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                  <span>Loading bill line items...</span>
+                <div
+                  className="p-10 text-center text-xs rounded-2xl border flex flex-col items-center justify-center gap-2.5"
+                  style={{ borderColor: border, color: muted }}
+                >
+                  <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="font-medium">Loading dish details...</span>
                 </div>
               ) : selectedBill.line_items && selectedBill.line_items.length > 0 ? (
-                <div className="rounded-xl border divide-y overflow-hidden max-h-56 overflow-y-auto" style={{ borderColor: border }}>
-                  {selectedBill.line_items.map((item, idx) => {
-                    const hasCustomPortion = Boolean(item.custom_portion_name);
-                    const hasExtraPieces = (item.extra_pieces_count || 0) > 0;
-                    const hasAdjustment = Boolean(item.adjustment_type);
-                    const isPriceAltered =
-                      item.base_price_snapshot &&
-                      Number(item.base_price_snapshot) !== Number(item.unit_price_snapshot);
+                <div
+                  className="rounded-2xl border overflow-hidden shadow-xs"
+                  style={{ borderColor: border }}
+                >
+                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 z-10 shadow-xs">
+                        <tr
+                          className="border-b font-bold uppercase tracking-wider text-[11px]"
+                          style={{
+                            backgroundColor: L ? '#f1f5f9' : '#1e293b',
+                            borderColor: border,
+                            color: muted,
+                          }}
+                        >
+                          <th className="py-2.5 px-3.5 w-10 text-center">#</th>
+                          <th className="py-2.5 px-3.5">Item & Details</th>
+                          <th className="py-2.5 px-3 text-center w-16">Qty</th>
+                          <th className="py-2.5 px-3.5 text-right w-24">Unit Rate</th>
+                          <th className="py-2.5 px-4 text-right w-28">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y" style={{ borderColor: border }}>
+                        {selectedBill.line_items.map((item, idx) => {
+                          const hasCustomPortion = Boolean(item.custom_portion_name);
+                          const hasExtraPieces = (item.extra_pieces_count || 0) > 0;
+                          const hasAdjustment = Boolean(item.adjustment_type);
+                          const isCustom =
+                            item.order_number === 'CUSTOM' ||
+                            item.item_code?.startsWith('CUSTOM-') ||
+                            !item.order_id;
+                          const isPriceAltered =
+                            item.base_price_snapshot &&
+                            Number(item.base_price_snapshot) !== Number(item.unit_price_snapshot);
+                          const hasValidVariant = Boolean(
+                            item.variant_name &&
+                            item.variant_name.trim().length > 0 &&
+                            item.variant_name.toUpperCase() !== 'STANDARD'
+                          );
 
-                    return (
-                      <div
-                        key={item.id || `bi-${idx}`}
-                        className="p-2.5 text-xs flex items-center justify-between"
-                        style={{ backgroundColor: L ? '#f8fafc' : 'rgba(30,41,59,0.5)' }}
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold" style={{ color: heading }}>{item.item_name}</span>
-                            <span style={{ color: muted }}>({item.variant_name || item.unit || 'ITEM'})</span>
-                          </div>
-                          {(hasCustomPortion || hasExtraPieces || hasAdjustment) && (
-                            <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                              {hasCustomPortion && (
-                                <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                                  {item.custom_portion_name}
+                          return (
+                            <tr
+                              key={item.id || `bi-${idx}`}
+                              className="transition hover:bg-slate-500/5"
+                              style={{
+                                backgroundColor: idx % 2 === 0
+                                  ? (L ? '#ffffff' : '#0f172a')
+                                  : (L ? '#f8fafc' : 'rgba(30,41,59,0.3)'),
+                              }}
+                            >
+                              <td className="py-3 px-3.5 text-center font-mono text-[11px]" style={{ color: muted }}>
+                                {idx + 1}
+                              </td>
+                              <td className="py-3 px-3.5">
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-xs" style={{ color: heading }}>
+                                      {item.item_name}
+                                    </span>
+                                    {isCustom ? (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                        Custom Item
+                                      </span>
+                                    ) : hasValidVariant ? (
+                                      <span className="text-[11px] font-medium" style={{ color: muted }}>
+                                        ({item.variant_name})
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  {(hasCustomPortion || hasExtraPieces || hasAdjustment) && (
+                                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                      {hasCustomPortion && (
+                                        <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200">
+                                          {item.custom_portion_name}
+                                        </span>
+                                      )}
+                                      {hasExtraPieces && (
+                                        <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                          +{item.extra_pieces_count} extra pc
+                                        </span>
+                                      )}
+                                      {hasAdjustment && (
+                                        <span className="text-[10px] font-semibold text-purple-800 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                          {item.adjustment_type?.replace(/_/g, ' ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-xs" style={{ color: heading }}>
+                                {item.quantity_billed}
+                              </td>
+                              <td className="py-3 px-3.5 text-right font-mono text-xs">
+                                {isPriceAltered && (
+                                  <span className="line-through text-[11px] block text-slate-400">
+                                    {formatInr(item.base_price_snapshot || 0)}
+                                  </span>
+                                )}
+                                <span style={{ color: isPriceAltered ? '#d97706' : heading }}>
+                                  {formatInr(item.unit_price_snapshot)}
                                 </span>
-                              )}
-                              {hasExtraPieces && (
-                                <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                  +{item.extra_pieces_count} extra pc
-                                </span>
-                              )}
-                              {hasAdjustment && (
-                                <span className="text-[10px] font-semibold text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                                  {item.adjustment_type?.replace(/_/g, ' ')}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <div className="text-[11px]" style={{ color: muted }}>
-                            Qty: <strong style={{ color: heading }}>{item.quantity_billed}</strong>
-                            <span className="mx-1">•</span>
-                            {isPriceAltered && (
-                              <span className="line-through mr-1" style={{ color: muted }}>
-                                {formatInr(item.base_price_snapshot || 0)}
-                              </span>
-                            )}
-                            <span style={{ color: heading }}>{formatInr(item.unit_price_snapshot)}</span> each
-                          </div>
-                        </div>
-                        <div className="font-mono font-bold" style={{ color: heading }}>
-                          {formatInr(item.line_total)}
-                        </div>
-                      </div>
-                    );
-                  })}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-black text-xs" style={{ color: heading }}>
+                                {formatInr(item.line_total)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
-                <div className="p-4 text-center rounded-xl border text-xs" style={{ borderColor: border, color: muted }}>
+                <div className="p-6 text-center rounded-2xl border text-xs" style={{ borderColor: border, color: muted }}>
                   No individual line items recorded for this bill.
                 </div>
               )}
             </div>
 
-            {/* Bill Summary */}
-            <div className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between py-1 border-b" style={{ borderBottomColor: border, color: sub }}>
+            {/* Bill Financial Summary Card */}
+            <div
+              className="mt-4 p-4 rounded-2xl border space-y-2 text-xs"
+              style={{
+                backgroundColor: L ? '#f8fafc' : 'rgba(30,41,59,0.3)',
+                borderColor: border,
+              }}
+            >
+              <div className="flex justify-between py-0.5" style={{ color: sub }}>
                 <span>Subtotal (Items)</span>
-                <span className="font-mono font-medium" style={{ color: heading }}>{formatInr(selectedBill.subtotal_amount)}</span>
+                <span className="font-mono font-bold text-xs" style={{ color: heading }}>{formatInr(selectedBill.subtotal_amount)}</span>
               </div>
               {parseFloat(selectedBill.discount_amount) > 0 && (
-                <div className="flex justify-between py-1 border-b text-amber-500" style={{ borderBottomColor: border }}>
+                <div className="flex justify-between py-0.5 text-amber-600 dark:text-amber-400 font-semibold">
                   <span>Discount ({selectedBill.discount_reason || 'Special'})</span>
-                  <span className="font-mono font-semibold">-{formatInr(selectedBill.discount_amount)}</span>
+                  <span className="font-mono font-bold">-{formatInr(selectedBill.discount_amount)}</span>
                 </div>
               )}
-              <div className="flex justify-between py-1 border-b" style={{ borderBottomColor: border, color: sub }}>
+              <div className="flex justify-between py-0.5" style={{ color: sub }}>
                 <span>CGST (2.5%)</span>
                 <span className="font-mono" style={{ color: heading }}>{formatInr(selectedBill.cgst_amount)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b" style={{ borderBottomColor: border, color: sub }}>
+              <div className="flex justify-between py-0.5" style={{ color: sub }}>
                 <span>SGST (2.5%)</span>
                 <span className="font-mono" style={{ color: heading }}>{formatInr(selectedBill.sgst_amount)}</span>
               </div>
-              <div className="flex justify-between py-2 text-base font-bold" style={{ color: heading }}>
-                <span>Grand Total</span>
-                <span className="font-mono font-black text-lg text-brand-600">{formatInr(selectedBill.grand_total)}</span>
+              <div className="pt-2.5 mt-1 border-t flex justify-between items-center text-sm font-bold" style={{ borderTopColor: border, color: heading }}>
+                <span className="font-black text-sm uppercase tracking-wide">Grand Total</span>
+                <span className="font-mono font-black text-xl text-brand-600">{formatInr(selectedBill.grand_total)}</span>
               </div>
             </div>
 

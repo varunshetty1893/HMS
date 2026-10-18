@@ -245,6 +245,7 @@ export interface BillItem {
   id?: string;
   bill_id?: string;
   order_id?: string | null;
+  order_number?: string;
   item_code: string;
   item_name: string;
   variant_name: string;

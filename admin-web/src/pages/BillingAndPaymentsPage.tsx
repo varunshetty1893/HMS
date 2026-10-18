@@ -34,10 +34,26 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+  const [isLoadingBillDetail, setIsLoadingBillDetail] = useState(false);
   const [discountBill, setDiscountBill] = useState<Bill | null>(null);
   const [discountAmount, setDiscountAmount] = useState('50.00');
   const [discountReason, setDiscountReason] = useState('Manager goodwill');
   const [voidBill, setVoidBill] = useState<Bill | null>(null);
+
+  const handleSelectBill = async (b: Bill) => {
+    setSelectedBill(b);
+    if (!b.line_items || b.line_items.length === 0) {
+      setIsLoadingBillDetail(true);
+      try {
+        const full = await ordersBillsApi.getBill(b.id);
+        setSelectedBill(full);
+      } catch (err) {
+        console.error('Failed to load bill items', err);
+      } finally {
+        setIsLoadingBillDetail(false);
+      }
+    }
+  };
 
   const fetchBills = async () => {
     setIsLoading(true);
@@ -232,7 +248,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 {filteredBills.map((b) => (
                   <tr
                     key={b.id}
-                    onClick={() => setSelectedBill(b)}
+                    onClick={() => handleSelectBill(b)}
                     className="transition cursor-pointer border-b"
                     style={{ borderBottomColor: border }}
                     onMouseEnter={(e) => {
@@ -296,12 +312,17 @@ export const BillingAndPaymentsPage: React.FC = () => {
             </div>
 
             {/* Bill Line Items with Portions & Adjustments */}
-            {selectedBill.line_items && selectedBill.line_items.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: sub }}>
-                  Billed Dishes ({selectedBill.line_items.length})
-                </h4>
-                <div className="rounded-xl border divide-y overflow-hidden max-h-52 overflow-y-auto" style={{ borderColor: border }}>
+            <div className="mt-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: sub }}>
+                Billed Dishes {selectedBill.line_items?.length ? `(${selectedBill.line_items.length})` : ''}
+              </h4>
+              {isLoadingBillDetail ? (
+                <div className="p-8 text-center text-xs rounded-xl border flex flex-col items-center justify-center gap-2" style={{ borderColor: border, color: muted }}>
+                  <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Loading bill line items...</span>
+                </div>
+              ) : selectedBill.line_items && selectedBill.line_items.length > 0 ? (
+                <div className="rounded-xl border divide-y overflow-hidden max-h-56 overflow-y-auto" style={{ borderColor: border }}>
                   {selectedBill.line_items.map((item, idx) => {
                     const hasCustomPortion = Boolean(item.custom_portion_name);
                     const hasExtraPieces = (item.extra_pieces_count || 0) > 0;
@@ -319,7 +340,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold" style={{ color: heading }}>{item.item_name}</span>
-                            <span style={{ color: muted }}>({item.variant_name})</span>
+                            <span style={{ color: muted }}>({item.variant_name || item.unit || 'ITEM'})</span>
                           </div>
                           {(hasCustomPortion || hasExtraPieces || hasAdjustment) && (
                             <div className="flex items-center gap-1 flex-wrap pt-0.5">
@@ -358,8 +379,12 @@ export const BillingAndPaymentsPage: React.FC = () => {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="p-4 text-center rounded-xl border text-xs" style={{ borderColor: border, color: muted }}>
+                  No individual line items recorded for this bill.
+                </div>
+              )}
+            </div>
 
             {/* Bill Summary */}
             <div className="mt-4 space-y-2 text-sm">

@@ -242,12 +242,13 @@ export type BillStatus = 'ISSUED' | 'PAID' | 'VOIDED_FOR_REVISION';
 export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'OTHER';
 
 export interface BillItem {
-  id: string;
-  bill_id: string;
-  order_id: string;
+  id?: string;
+  bill_id?: string;
+  order_id?: string | null;
   item_code: string;
   item_name: string;
   variant_name: string;
+  unit?: string;
   quantity_billed: number;
   unit_price_snapshot: string;
   base_price_snapshot?: string;

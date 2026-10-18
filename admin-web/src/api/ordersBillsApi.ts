@@ -98,6 +98,10 @@ export const ordersBillsApi = {
     });
   },
 
+  getBill: async (billId: string): Promise<Bill> => {
+    return apiClient<Bill>(`/bills/${billId}`);
+  },
+
   listPayments: async (filters: {
     status?: string;
     payment_method?: string;

@@ -25,6 +25,7 @@ from app.models.enums import UserRole
 from app.models.identity import User
 from app.models.operations import AuditLog
 from app.models.qr_sessions import TableSession
+from app.models.restaurant import RestaurantTable
 from app.schemas.audit import AuditLogFacets, AuditLogPageResponse, AuditLogResponse
 from app.schemas.billing import BillResponse, PaymentResponse
 from app.schemas.common import PaginationMeta
@@ -84,6 +85,7 @@ from app.schemas.table import (
     TableUpdate,
 )
 from app.services.audit_service import AuditService
+from app.services.billing_service import BillingService
 from app.services.image_service import ImageService
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
@@ -1241,7 +1243,18 @@ async def list_admin_bills(
         stmt = stmt.where(Bill.generated_at <= end_dt)
 
     bills = (await db.scalars(stmt)).all()
-    return [BillResponse.model_validate(b) for b in bills]
+    if not bills:
+        return []
+
+    # Batch load tables to resolve table_number and display_name
+    table_ids = {b.table_id for b in bills if b.table_id}
+    tables_map: dict[uuid.UUID, RestaurantTable] = {}
+    if table_ids:
+        t_stmt = select(RestaurantTable).where(RestaurantTable.id.in_(table_ids))
+        loaded_tables = (await db.scalars(t_stmt)).all()
+        tables_map = {t.id: t for t in loaded_tables}
+
+    return [BillingService._bill_to_response(b, tables_map.get(b.table_id)) for b in bills]
 
 
 @router.get("/payments", response_model=list[PaymentResponse])

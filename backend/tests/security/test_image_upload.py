@@ -130,7 +130,7 @@ def test_sanitize_and_save_valid_jpeg(tmp_path: Path) -> None:
 
     url, filename = ImageService.sanitize_and_save_menu_image(jpeg_bytes, upload_dir=tmp_path)
 
-    assert url.startswith("/static/menu/menu_")
+    assert url.startswith("/media/menu_")
     assert filename.startswith("menu_")
     assert filename.endswith(".webp")
 
@@ -191,7 +191,7 @@ def test_delete_menu_image_safely(tmp_path: Path) -> None:
     test_file.write_bytes(b"dummy")
 
     assert (
-        ImageService.delete_menu_image("/static/menu/menu_test123.webp", upload_dir=tmp_path)
+        ImageService.delete_menu_image("/media/menu_test123.webp", upload_dir=tmp_path)
         is True
     )
     assert not test_file.exists()
@@ -247,7 +247,7 @@ async def test_api_upload_dish_image_success(
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["image_url"].startswith("/static/menu/menu_")
+        assert data["image_url"].startswith("/media/menu_")
         assert "malicious_name" not in data["image_url"]
 
         # Check item was updated and audit log recorded

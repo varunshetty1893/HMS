@@ -69,6 +69,10 @@ class MockQueryResult:
     def scalar_one(self) -> Any:
         return self._single
 
+    def scalar(self) -> Any:
+        """Return the single scalar value (alias for scalar_one_or_none for COUNT queries)."""
+        return self._single
+
     def scalars(self) -> MockQueryResult:
         return self
 
@@ -131,6 +135,10 @@ class FakeQrSession:
             return MockQueryResult(single=None)
 
         if "customer_sessions" in stmt_str:
+            # COUNT queries (session-cap check) must return an integer, not a session row
+            if "count" in stmt_str:
+                sessions = list(self.customer_sessions.values())
+                return MockQueryResult(single=len(sessions))
             sessions = list(self.customer_sessions.values())
             return MockQueryResult(single=sessions[0] if sessions else None, multiple=sessions)
 

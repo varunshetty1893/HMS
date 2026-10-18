@@ -39,9 +39,14 @@ class OrderReportItem(BaseModel):
 
 
 class PopularDishReportItem(BaseModel):
-    """Item-level sales velocity and revenue."""
+    """Item-level sales velocity and revenue.
 
-    menu_item_id: uuid.UUID
+    ``menu_item_id`` is the real database ID from ``menu_items`` if the item still exists
+    in the live menu.  It is ``None`` for custom charges or items that have been deleted
+    since the bill was recorded.  It is **never** a randomly-generated placeholder.
+    """
+
+    menu_item_id: uuid.UUID | None = None
     item_code: str
     item_name: str
     variant_id: uuid.UUID | None = None

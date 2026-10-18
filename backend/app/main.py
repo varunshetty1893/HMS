@@ -85,7 +85,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 "default-src 'self'; "
                 "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: blob:; "
+                "img-src 'self' data: blob: https://ik.imagekit.io; "
                 "font-src 'self'; "
                 "object-src 'none'; "
                 "base-uri 'self'; "
@@ -100,8 +100,12 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         finally:
             request_id_ctx_var.reset(token)
 
-    # 1b. Request body size limit — reject payloads > 256 KB (docs/06 Section 15)
-    _MAX_BODY_BYTES = 256 * 1024  # 256 KB
+    # 1b. Request body size limit — reject payloads > 256 KB on API routes,
+    #     but allow up to IMAGE_UPLOAD_MAX_BODY_BYTES on the image upload endpoint.
+    #     This resolves the conflict between the global 256 KB limit and the
+    #     2 MB image upload limit (docs/06 Section 15).
+    _MAX_BODY_BYTES = 256 * 1024  # 256 KB for general API routes
+    _IMAGE_UPLOAD_PATH_SUFFIX = "/image"  # POST /api/v1/admin/menu/items/{id}/image
 
     @app.middleware("http")
     async def body_size_limit_middleware(
@@ -109,15 +113,28 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > _MAX_BODY_BYTES:
-            return Response(
-                content=(
-                    '{"error": {"code": "PAYLOAD_TOO_LARGE",'
-                    ' "message": "Request body exceeds 256 KB limit."}}'
-                ),
-                status_code=413,
-                media_type="application/json",
+        if content_length:
+            cl_int = int(content_length)
+            # Determine per-route limit
+            is_image_upload = (
+                request.method == "POST"
+                and request.url.path.endswith(_IMAGE_UPLOAD_PATH_SUFFIX)
             )
+            if is_image_upload:
+                max_bytes = settings.image_upload_max_body_bytes
+                label = f"{max_bytes // (1024 * 1024)} MB image upload"
+            else:
+                max_bytes = _MAX_BODY_BYTES
+                label = "256 KB"
+            if cl_int > max_bytes:
+                return Response(
+                    content=(
+                        f'{{"error": {{"code": "PAYLOAD_TOO_LARGE",'
+                        f' "message": "Request body exceeds {label} limit."}}}}'
+                    ),
+                    status_code=413,
+                    media_type="application/json",
+                )
         return await call_next(request)
 
     # 1c. Catch-all: unhandled errors become a JSON 500 *inside* the CORS layer, so the

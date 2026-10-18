@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import require_roles
+from app.core.rate_limit import extract_client_ip
 from app.models.enums import UserRole
 from app.models.identity import User
 from app.schemas.billing import (
@@ -137,9 +138,7 @@ async def create_waiter_order(
     - Server-authoritatively locks prices using menu price snapshots.
     - Enforces ₹5,000 table exposure cap under row lock.
     """
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     response, http_status = await OrderService.create_waiter_order(
         db,
         payload=payload,
@@ -306,9 +305,7 @@ async def generate_waiter_table_bill(
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     """Convenience alias: generate bill for specified table ID."""
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     payload.table_id = table_id
     response_dto, http_status = await BillingService.generate_bill(
         db,

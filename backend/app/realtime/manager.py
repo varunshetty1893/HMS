@@ -290,9 +290,15 @@ class WebSocketManager:
             await self.disconnect(ws)
 
     async def send_personal(self, websocket: WebSocket, message: dict[str, Any]) -> None:
-        """Send a JSON message to a single specific connection."""
+        """Send a JSON message to a single specific connection.
+
+        Injects a globally-unique ``event_id`` so the client can deduplicate
+        reliably across reconnects (sequence numbers reset on each new socket,
+        but event IDs are universally unique).
+        """
+        payload = {"event_id": uuid.uuid4().hex, **message}
         try:
-            await websocket.send_json(message)
+            await websocket.send_json(payload)
         except Exception as exc:
             logger.warning("Failed to send personal WS message: %s", exc)
             await self.disconnect(websocket)
@@ -300,9 +306,24 @@ class WebSocketManager:
     async def broadcast_to_room(self, room: str, message: dict[str, Any]) -> None:
         """Broadcast a JSON message to all active sockets subscribed to a room.
 
-        Injects per-socket monotonically-increasing `sequence` field per docs/08 Section 3.2.
-        Never raises; safely cleans up broken sockets without interrupting other deliveries.
+        Injects:
+        - ``event_id``: a globally-unique UUID hex string, stable per logical
+          event across all recipients.  Clients MUST use this for deduplication
+          because per-socket ``sequence`` counters reset on every reconnect,
+          causing previously-seen sequence numbers to appear as duplicates of
+          legitimate new events.
+        - ``sequence``: per-socket monotonically-increasing counter (docs/08
+          Section 3.2) for ordering and gap detection.  NOT suitable for
+          cross-reconnect deduplication.
+
+        Never raises; safely cleans up broken sockets without interrupting other
+        deliveries.
         """
+        # Generate one event_id shared across all recipients of this broadcast
+        # so clients can correlate the same event if they receive it in multiple
+        # rooms (e.g. admin is in channel:admin AND channel:kitchen).
+        event_id = uuid.uuid4().hex
+
         async with self._lock:
             sockets = list(self._rooms.get(room, set()))
 
@@ -310,9 +331,9 @@ class WebSocketManager:
             meta = self._connections.get(ws)
             if meta:
                 meta.sequence += 1
-                payload = {**message, "sequence": meta.sequence}
+                payload = {"event_id": event_id, **message, "sequence": meta.sequence}
             else:
-                payload = message
+                payload = {"event_id": event_id, **message}
             try:
                 await ws.send_json(payload)
             except Exception:

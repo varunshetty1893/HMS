@@ -31,7 +31,7 @@ def test_alembic_metadata_is_discoverable_and_complete() -> None:
 
 def test_single_linear_head_with_initial_revision() -> None:
     script = ScriptDirectory.from_config(_config())
-    assert script.get_heads() == ["0008"]
+    assert script.get_heads() == ["0010"]
     revision = script.get_revision("0001")
     assert revision is not None
     assert revision.down_revision is None

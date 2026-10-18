@@ -3,12 +3,21 @@
 Follows `docs/04-database-design.md` (Section 22), `docs/06-security-specification.md` (Section 14),
 and `docs/11-project-structure-and-coding-standards.md` (Section 24).
 Protects against credential leakage and respects immutable database triggers.
+
+IP pseudonymisation:
+    Client IP addresses are hashed with HMAC-SHA256 using a daily-rotated key derived from
+    ``AUDIT_IP_HASH_SECRET`` (or ``JWT_SECRET_KEY`` as fallback) combined with the current UTC
+    date string (``YYYY-MM-DD``). This allows correlation of events within the same business day
+    while preventing cross-day linkage and protecting from offline dictionary attacks.
+    Raw IP addresses are **never** stored.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +32,40 @@ class AuditService:
 
     @staticmethod
     def hash_ip(ip_address: str | None) -> str | None:
-        """Hash client IP address for privacy-compliant security correlation."""
+        """Hash client IP using daily-keyed HMAC-SHA256 for privacy-compliant audit logging.
+
+        Key derivation:
+            key = HMAC-SHA256(secret=AUDIT_IP_HASH_SECRET, msg=YYYY-MM-DD)
+            hash = HMAC-SHA256(secret=key, msg=ip_address)
+
+        This means:
+        - Two events on the SAME day with the SAME IP produce the SAME hash (correlation ✓)
+        - Events on DIFFERENT days produce DIFFERENT hashes (prevents long-term tracking ✓)
+        - The raw IP is never stored (privacy ✓)
+        - Without the secret, an attacker cannot reverse the hash (security ✓)
+        """
         if not ip_address:
             return None
-        return hashlib.sha256(ip_address.strip().encode("utf-8")).hexdigest()
+
+        # Lazily import settings to avoid circular imports at module load time.
+        try:
+            from app.config import get_settings  # noqa: PLC0415
+            settings = get_settings()
+            secret = getattr(settings, "audit_ip_hash_secret", "") or settings.jwt_secret_key
+        except Exception:  # noqa: BLE001 — never fail an audit log write
+            secret = "hms-audit-fallback"
+
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        day_key = hmac.new(
+            secret.encode("utf-8"),
+            today_str.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        return hmac.new(
+            day_key,
+            ip_address.strip().encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
 
     @classmethod
     async def record_event(

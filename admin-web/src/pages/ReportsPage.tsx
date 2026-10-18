@@ -11,6 +11,8 @@ import {
   TrendingUp,
   UserCheck,
   Utensils,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   CancelledRejectedReportItem,
@@ -23,6 +25,105 @@ import {
 } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
 
+// ─── Reusable pagination hook ─────────────────────────────────────────────────
+function usePagination<T>(items: T[], pageSize = 15) {
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 whenever the underlying data changes
+  useEffect(() => {
+    setPage(1);
+  }, [items]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const slice = items.slice(start, start + pageSize);
+
+  return {
+    slice,
+    page: safePage,
+    totalPages,
+    totalItems: items.length,
+    pageSize,
+    start,
+    end: Math.min(start + pageSize, items.length),
+    setPage,
+    hasPrev: safePage > 1,
+    hasNext: safePage < totalPages,
+    prev: () => setPage((p) => Math.max(1, p - 1)),
+    next: () => setPage((p) => Math.min(totalPages, p + 1)),
+  };
+}
+
+// ─── Pagination controls component ───────────────────────────────────────────
+interface PaginationBarProps {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  start: number;
+  end: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+  prev: () => void;
+  next: () => void;
+  setPage: (p: number) => void;
+  border: string;
+  muted: string;
+  heading: string;
+}
+
+const PaginationBar: React.FC<PaginationBarProps> = ({
+  page,
+  totalPages,
+  totalItems,
+  start,
+  end,
+  hasPrev,
+  hasNext,
+  prev,
+  next,
+  border,
+  muted,
+  heading,
+}) => {
+  if (totalItems === 0) return null;
+  return (
+    <div
+      className="flex items-center justify-between px-6 py-3 border-t text-xs"
+      style={{ borderTopColor: border, color: muted }}
+    >
+      <span>
+        Showing <strong style={{ color: heading }}>{start + 1}–{end}</strong> of{' '}
+        <strong style={{ color: heading }}>{totalItems}</strong> records
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={prev}
+          disabled={!hasPrev}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          style={{ borderColor: border, color: heading }}
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          Prev
+        </button>
+        <span className="px-2 font-mono" style={{ color: heading }}>
+          {page} / {totalPages}
+        </span>
+        <button
+          onClick={next}
+          disabled={!hasNext}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          style={{ borderColor: border, color: heading }}
+        >
+          Next
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export const ReportsPage: React.FC = () => {
   const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRow, tbodyRowHover } = usePageTheme();
   const todayStr = new Date().toISOString().split('T')[0];
@@ -41,6 +142,12 @@ export const ReportsPage: React.FC = () => {
   const [cancellations, setCancellations] = useState<CancelledRejectedReportItem[]>([]);
   const [waiters, setWaiters] = useState<WaiterActivityReportItem[]>([]);
   const [kitchens, setKitchens] = useState<KitchenActivityReportItem[]>([]);
+
+  // Pagination — one per tab that has a table
+  const salesPag = usePagination(dailySales, 15);
+  const dishesPag = usePagination(popularDishes, 20);
+  const tablesPag = usePagination(tableUsage, 15);
+  const cancelPag = usePagination(cancellations, 15);
 
   const fetchReports = async () => {
     setIsLoading(true);
@@ -96,7 +203,7 @@ export const ReportsPage: React.FC = () => {
       {/* Header & Date Range Filter */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight" style={{ color: heading }}>Business Intelligence & Reports</h1>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: heading }}>Business Intelligence &amp; Reports</h1>
           <p className="text-sm mt-1" style={{ color: sub }}>
             Sales aggregation, tax liabilities, velocity analysis, and staff performance
           </p>
@@ -198,14 +305,14 @@ export const ReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y font-mono" style={{ borderColor: border }}>
-                  {dailySales.length === 0 ? (
+                  {salesPag.slice.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center font-sans" style={{ color: muted }}>
                         No settled sales in this period.
                       </td>
                     </tr>
                   ) : (
-                    dailySales.map((d, i) => (
+                    salesPag.slice.map((d, i) => (
                       <tr
                         key={i}
                         className="transition"
@@ -232,6 +339,7 @@ export const ReportsPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+              <PaginationBar {...salesPag} border={border} muted={muted} heading={heading} />
             </div>
           )}
 
@@ -250,16 +358,16 @@ export const ReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: border }}>
-                  {popularDishes.length === 0 ? (
+                  {dishesPag.slice.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center" style={{ color: muted }}>
                         No dish sales recorded in this date range.
                       </td>
                     </tr>
                   ) : (
-                    popularDishes.map((dish, idx) => (
+                    dishesPag.slice.map((dish, idx) => (
                       <tr key={idx} style={{ ...tbodyRow, borderBottomColor: border }}>
-                        <td className="px-6 py-4 font-bold" style={{ color: muted }}>#{idx + 1}</td>
+                        <td className="px-6 py-4 font-bold" style={{ color: muted }}>#{dishesPag.start + idx + 1}</td>
                         <td className="px-6 py-4 font-mono font-bold text-brand-600">{dish.item_code}</td>
                         <td className="px-6 py-4 font-semibold" style={{ color: heading }}>{dish.item_name}</td>
                         <td className="px-6 py-4 text-xs" style={{ color: sub }}>{dish.variant_name}</td>
@@ -274,6 +382,7 @@ export const ReportsPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+              <PaginationBar {...dishesPag} border={border} muted={muted} heading={heading} />
             </div>
           )}
 
@@ -318,22 +427,31 @@ export const ReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: border }}>
-                  {tableUsage.map((t) => (
-                    <tr key={t.table_id} style={{ ...tbodyRow, borderBottomColor: border }}>
-                      <td className="px-6 py-4 font-semibold" style={{ color: heading }}>
-                        {t.display_name} <span className="text-xs font-mono" style={{ color: muted }}>(#{t.table_number})</span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-bold" style={{ color: heading }}>{t.session_count}</td>
-                      <td className="px-6 py-4 text-right font-mono" style={{ color: sub }}>
-                        {t.average_session_minutes} mins
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-bold text-emerald-600">
-                        {formatInr(t.total_revenue)}
+                  {tablesPag.slice.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center" style={{ color: muted }}>
+                        No table sessions recorded in this period.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    tablesPag.slice.map((t) => (
+                      <tr key={t.table_id} style={{ ...tbodyRow, borderBottomColor: border }}>
+                        <td className="px-6 py-4 font-semibold" style={{ color: heading }}>
+                          {t.display_name} <span className="text-xs font-mono" style={{ color: muted }}>(#{t.table_number})</span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono font-bold" style={{ color: heading }}>{t.session_count}</td>
+                        <td className="px-6 py-4 text-right font-mono" style={{ color: sub }}>
+                          {t.average_session_minutes} mins
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-600">
+                          {formatInr(t.total_revenue)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+              <PaginationBar {...tablesPag} border={border} muted={muted} heading={heading} />
             </div>
           )}
 
@@ -352,14 +470,14 @@ export const ReportsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: border }}>
-                  {cancellations.length === 0 ? (
+                  {cancelPag.slice.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center" style={{ color: muted }}>
                         Zero cancelled or rejected orders in this period.
                       </td>
                     </tr>
                   ) : (
-                    cancellations.map((c) => (
+                    cancelPag.slice.map((c) => (
                       <tr key={c.order_id} style={{ ...tbodyRow, borderBottomColor: border }}>
                         <td className="px-6 py-4 font-mono font-bold" style={{ color: heading }}>{c.order_number}</td>
                         <td className="px-6 py-4 font-semibold" style={{ color: heading }}>Table {c.table_number}</td>
@@ -378,6 +496,7 @@ export const ReportsPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+              <PaginationBar {...cancelPag} border={border} muted={muted} heading={heading} />
             </div>
           )}
 
@@ -388,19 +507,23 @@ export const ReportsPage: React.FC = () => {
               <div className="p-6 rounded-3xl shadow-sm space-y-4" style={card}>
                 <h3 className="text-base font-bold" style={{ color: heading }}>Waiter Operations</h3>
                 <div className="divide-y" style={{ borderColor: border }}>
-                  {waiters.map((w) => (
-                    <div key={w.user_id} className="py-3 flex items-center justify-between text-xs" style={{ borderBottomColor: border }}>
-                      <div>
-                        <div className="font-semibold" style={{ color: heading }}>{w.full_name}</div>
-                        <div className="font-mono" style={{ color: muted }}>@{w.username}</div>
+                  {waiters.length === 0 ? (
+                    <p className="text-xs py-4" style={{ color: muted }}>No waiter activity in this period.</p>
+                  ) : (
+                    waiters.map((w) => (
+                      <div key={w.user_id} className="py-3 flex items-center justify-between text-xs" style={{ borderBottomColor: border }}>
+                        <div>
+                          <div className="font-semibold" style={{ color: heading }}>{w.full_name}</div>
+                          <div className="font-mono" style={{ color: muted }}>@{w.username}</div>
+                        </div>
+                        <div className="text-right space-y-0.5 font-mono" style={{ color: sub }}>
+                          <div>Orders: <strong style={{ color: heading }}>{w.orders_placed}</strong></div>
+                          <div>Delivered: <strong className="text-emerald-600">{w.items_served}</strong></div>
+                          <div>Settled: <strong className="text-brand-600">{w.payments_recorded}</strong></div>
+                        </div>
                       </div>
-                      <div className="text-right space-y-0.5 font-mono" style={{ color: sub }}>
-                        <div>Orders: <strong style={{ color: heading }}>{w.orders_placed}</strong></div>
-                        <div>Delivered: <strong className="text-emerald-600">{w.items_served}</strong></div>
-                        <div>Settled: <strong className="text-brand-600">{w.payments_recorded}</strong></div>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -408,19 +531,23 @@ export const ReportsPage: React.FC = () => {
               <div className="p-6 rounded-3xl shadow-sm space-y-4" style={card}>
                 <h3 className="text-base font-bold" style={{ color: heading }}>Kitchen Turnaround</h3>
                 <div className="divide-y" style={{ borderColor: border }}>
-                  {kitchens.map((k) => (
-                    <div key={k.user_id} className="py-3 flex items-center justify-between text-xs" style={{ borderBottomColor: border }}>
-                      <div>
-                        <div className="font-semibold" style={{ color: heading }}>{k.full_name}</div>
-                        <div className="font-mono" style={{ color: muted }}>@{k.username}</div>
+                  {kitchens.length === 0 ? (
+                    <p className="text-xs py-4" style={{ color: muted }}>No kitchen activity in this period.</p>
+                  ) : (
+                    kitchens.map((k) => (
+                      <div key={k.user_id} className="py-3 flex items-center justify-between text-xs" style={{ borderBottomColor: border }}>
+                        <div>
+                          <div className="font-semibold" style={{ color: heading }}>{k.full_name}</div>
+                          <div className="font-mono" style={{ color: muted }}>@{k.username}</div>
+                        </div>
+                        <div className="text-right space-y-0.5 font-mono" style={{ color: sub }}>
+                          <div>Accepted: <strong style={{ color: heading }}>{k.orders_accepted}</strong></div>
+                          <div>Ready: <strong className="text-emerald-600">{k.orders_ready}</strong></div>
+                          <div>Avg Prep: <strong className="text-brand-600">{k.avg_prep_minutes}m</strong></div>
+                        </div>
                       </div>
-                      <div className="text-right space-y-0.5 font-mono" style={{ color: sub }}>
-                        <div>Accepted: <strong style={{ color: heading }}>{k.orders_accepted}</strong></div>
-                        <div>Ready: <strong className="text-emerald-600">{k.orders_ready}</strong></div>
-                        <div>Avg Prep: <strong className="text-brand-600">{k.avg_prep_minutes}m</strong></div>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

@@ -2,7 +2,13 @@
     # Global Caddy configuration
     admin off
     servers {
-        trusted_proxies static 127.0.0.1
+        # Trust the backend container's peer IP on the Docker internal_net bridge.
+        # In Docker Compose the Caddy container connects to the backend container
+        # via the 'internal_net' bridge network. Caddy itself is the trusted proxy;
+        # listing its own loopback here ensures header_up rewrites are accepted.
+        # For a bare-metal / Render deployment without Docker, set this to the
+        # actual upstream proxy IP or leave as 127.0.0.1.
+        trusted_proxies static 127.0.0.1 172.16.0.0/12 10.0.0.0/8
     }
 }
 
@@ -21,8 +27,11 @@
     }
 
     # Dish Media Serving with sandboxed headers (no execution)
+    # Served from the shared media_uploads Docker volume.
+    # URL path: /media/*  (consistent with image_url stored in PostgreSQL)
     handle /media/* {
         root * /var/lib/restaurant/uploads
+        uri strip_prefix /media
         header Content-Security-Policy "default-src 'none'"
         header X-Content-Type-Options "nosniff"
         header Cache-Control "public, max-age=2592000"
@@ -31,17 +40,26 @@
 
     # Backend REST API and Realtime WebSocket Reverse Proxy
     handle /api/v1/* {
-        @image_upload path /api/v1/admin/menu/items/*/image
-        request_body @image_upload {
-            max_size 2.5MB
+        # Allow larger bodies specifically for the image-upload endpoint.
+        @image_upload {
+            method POST
+            path /api/v1/admin/menu/items/*/image
         }
+        request_body @image_upload {
+            max_size 3MB
+        }
+        # All other API requests are limited to 64 KB.
         request_body {
             max_size 64KB
         }
 
-        reverse_proxy 127.0.0.1:8000 {
-            header_up X-Forwarded-Proto {scheme}
+        # Route to the 'backend' Docker service (not 127.0.0.1 which is Caddy itself).
+        reverse_proxy backend:8000 {
+            # Overwrite / sanitize client-supplied forwarding headers so FastAPI
+            # can safely trust X-Forwarded-For as a single verified entry.
             header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Real-IP {remote_host}
             transport http {
                 read_timeout 90s
                 write_timeout 90s

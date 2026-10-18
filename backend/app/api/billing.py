@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import require_roles
+from app.core.rate_limit import extract_client_ip
 from app.models.enums import UserRole
 from app.models.identity import User
 from app.schemas.billing import (
@@ -64,9 +65,7 @@ async def generate_bill(
     - Strictly freezes historical unit_price_snapshots onto bill_items.
     - Calculates CGST + SGST under ROUND_HALF_UP.
     """
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     response_dto, http_status = await BillingService.generate_bill(
         db,
         payload=payload,
@@ -139,9 +138,7 @@ async def record_payment(
     - Revokes customer session tokens for the visit.
     - Releases table back to AVAILABLE.
     """
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     result, http_status = await BillingService.record_payment(
         db,
         bill_id=bill_id,
@@ -174,9 +171,7 @@ async def apply_staff_bill_discount(
     db: AsyncSession = Depends(get_db),
 ) -> BillResponse:
     """Staff applies or updates a discount on an ISSUED bill, recalculating taxes."""
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     return await BillingService.apply_bill_discount(
         db,
         bill_id=bill_id,
@@ -199,9 +194,7 @@ async def apply_bill_discount(
     db: AsyncSession = Depends(get_db),
 ) -> BillResponse:
     """Admin applies or updates a discount on an ISSUED bill, recalculating taxes."""
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     return await BillingService.apply_admin_discount(
         db,
         bill_id=bill_id,
@@ -224,9 +217,7 @@ async def void_bill_for_revision(
     db: AsyncSession = Depends(get_db),
 ) -> BillResponse:
     """Admin voids an unpaid ISSUED bill so items can be corrected and re-billed."""
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
-        request.client.host if request.client else None
-    )
+    client_ip = extract_client_ip(request)
     return await BillingService.void_bill_for_revision(
         db,
         bill_id=bill_id,

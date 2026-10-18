@@ -88,6 +88,16 @@ class AuthService:
                 retry_after_seconds=max(seconds_remaining, 1),
             )
 
+        # 3b. Lockout window has expired — auto-recover from temporary lockout.
+        #     Only clears status when it was set to LOCKED by the brute-force counter
+        #     (i.e. locked_until is set). Admin-disabled accounts have status=DISABLED
+        #     and locked_until=None so they are never auto-recovered here.
+        if user.status == UserStatus.LOCKED.value and user.locked_until and user.locked_until <= now:
+            user.status = UserStatus.ACTIVE.value
+            user.failed_login_attempts = 0
+            user.locked_until = None
+
+
         # 4. Verify Argon2id password BEFORE any role or client-type checks.
         #    Checking client_type before the password would allow an attacker to distinguish
         #    "unknown user" (401) from "wrong client for this role" (403) without knowing the

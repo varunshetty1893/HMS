@@ -13,7 +13,7 @@ import uuid
 from datetime import timedelta
 
 from cryptography.fernet import Fernet
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -309,6 +309,47 @@ class QrService:
         # Derived table status: AVAILABLE if 0 active sessions, OCCUPIED if 1 active session
         table_status = "OCCUPIED" if active_table_session else "AVAILABLE"
         active_session_id = active_table_session.id if active_table_session else None
+
+        # ── Concurrent-session cap (Issue 1 — QR photograph misuse mitigation) ──
+        # Allow at most one active CustomerSession per seat (seating_capacity).
+        # A photographed QR used remotely or by a bot typically spawns many concurrent
+        # sessions; capping at table capacity stops that while allowing one device per guest.
+        #
+        # INVARIANT: does not restrict the number of orders, only simultaneous bearer
+        # tokens.  A customer whose session expires can re-scan to get a new one.
+        max_concurrent = max(int(table.seating_capacity or 10), 1)
+        concurrent_stmt = (
+            select(func.count(CustomerSession.id))
+            .where(
+                CustomerSession.table_id == table.id,
+                CustomerSession.qr_token_id == qr_token.id,
+                CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
+                CustomerSession.expires_at > utc_now(),
+            )
+        )
+        active_count: int = (await db.execute(concurrent_stmt)).scalar() or 0
+        if active_count >= max_concurrent:
+            await AuditService.record_event(
+                db,
+                action_type="QR_SESSION_CAP_EXCEEDED",
+                entity_type="TABLE",
+                entity_id=str(table.id),
+                reason=(
+                    f"Concurrent session cap ({max_concurrent}) reached for table "
+                    f"{table.display_name} — possible photographed-QR reuse"
+                ),
+                metadata={"active_count": active_count, "cap": max_concurrent},
+                client_ip=client_ip,
+            )
+            # Commit the audit event before raising so it is not rolled back
+            await db.commit()
+            raise StateConflictError(
+                code="TABLE_SESSION_AT_CAPACITY",
+                message=(
+                    "This table already has the maximum number of active sessions. "
+                    "Please ask your waiter for assistance."
+                ),
+            )
 
         # Issue anonymous 256-bit customer bearer session token
         bearer_token = secrets.token_urlsafe(32)

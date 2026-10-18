@@ -90,7 +90,14 @@ class CustomerWebSocketClient {
   }
 
   private _isDuplicate(event: WsEvent): boolean {
-    const id = (event.sequence as string | undefined) ?? (event.event_id as string | undefined);
+    // Prefer event_id (globally unique UUID hex, stable across reconnects) over
+    // sequence (per-connection counter that resets to 0 on every new socket).
+    // Using sequence as the primary key caused legitimate new events arriving
+    // after a reconnect to be silently dropped because their low sequence numbers
+    // matched previously-seen values from the prior connection.
+    const id =
+      (event.event_id as string | undefined) ??
+      (event.sequence !== undefined ? `seq:${event.sequence}` : undefined);
     if (!id) return false;
     if (this.seenEventIds.has(id)) return true;
     this.seenEventIds.add(id);

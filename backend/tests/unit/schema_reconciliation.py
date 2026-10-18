@@ -99,6 +99,13 @@ KEPT_EXTRAS = (
         "KEEP",
     ),
     Reconciliation(
+        "menu_items",
+        "imagekit_file_id",
+        "ImageKit CDN integration (migration 0010)",
+        "ImageKit file ID stored for safe remote CDN deletion when admin replaces or removes a dish photo.",
+        "KEEP",
+    ),
+    Reconciliation(
         "menu_price_variants",
         "is_portion",
         "Menu Management Redesign specification",

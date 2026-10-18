@@ -1,17 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { adminWs } from '@/realtime/adminWs';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
-import { LogOut, Moon, Sun, Wifi, Smartphone } from 'lucide-react';
+import { LogOut, Wifi, Smartphone } from 'lucide-react';
 import { isDevDemoEnabled } from '@/utils/env';
 
 export const TopStatusHeader: React.FC = () => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [wsStatus, setWsStatus] = useState<'CONNECTED' | 'CONNECTING' | 'DISCONNECTED'>('DISCONNECTED');
   const [currentTime, setCurrentTime] = useState<string>('');
-
-  const isLight = theme === 'light';
 
   useEffect(() => {
     const unsub = adminWs.onStatusChange((status) => {
@@ -116,15 +112,6 @@ export const TopStatusHeader: React.FC = () => {
             <span className="hidden sm:inline">Customer QR App</span>
           </button>
         )}
-
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          title="Theme Toggle"
-          className="flex items-center justify-center w-9 h-9 rounded-xl transition-all cursor-pointer bg-white border border-gray-200 text-gray-600 hover:text-brand-600 hover:border-gray-300"
-        >
-          {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-        </button>
 
         <div className="text-right">
           <p className="text-sm font-semibold text-gray-900">

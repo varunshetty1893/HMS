@@ -101,6 +101,9 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(20), nullable=False, default=PricingType.FIXED.value, server_default=text("'FIXED'")
     )
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # ImageKit file ID — stored to enable safe CDN deletion when admin replaces/removes image.
+    # Null for items using local filesystem storage or with no image uploaded.
+    imagekit_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tax_rate_override: Mapped[Decimal | None] = mapped_column(percentage(), nullable=True)
     is_available: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")

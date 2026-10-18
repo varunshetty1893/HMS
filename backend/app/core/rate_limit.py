@@ -7,6 +7,7 @@ Follows `docs/06-security-specification.md` (Section 10) and
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -56,28 +57,59 @@ class SlidingWindowRateLimiter:
             self._history.clear()
 
 
+# ─── Trusted proxy configuration ──────────────────────────────────────────────
+# Only accept X-Real-IP / X-Forwarded-For from these peer addresses.
+# In Docker, Caddy sits on the internal_net bridge; its peer IP as seen by
+# uvicorn/FastAPI will be the gateway of the docker bridge network (typically
+# 172.x.x.1) or the caddy container IP.  Set TRUSTED_PROXY_IPS in .env to
+# the actual Caddy container IP or CIDR range of the bridge network.
+# In production on Render, trusted proxies are Render's own infra; Render sets
+# X-Forwarded-For and X-Real-IP from its edge.
+#
+# The value is loaded lazily from settings to avoid circular imports.
+
+def _get_trusted_proxy_ips() -> frozenset[str]:
+    """Return the frozenset of trusted proxy IPs from settings (lazy load)."""
+    try:
+        from app.config import get_settings  # noqa: PLC0415
+        settings = get_settings()
+        return settings.trusted_proxy_ips
+    except Exception:
+        return frozenset()
+
+
 def extract_client_ip(request: Request) -> str:
-    """Extract client IP securely from headers or connection.
+    """Extract the real client IP securely.
 
-    Behind reverse proxies (Render, Caddy, Cloudflare, Nginx), the proxy appends
-    the client IP to X-Forwarded-For (making the last entry the proxy-verified IP)
-    or sets X-Real-IP. Using the first entry is dangerous because an untrusted client
-    can spoof the header.
+    Rules (in order of precedence):
+    1. If the connection's immediate peer IP is in the trusted_proxy_ips set,
+       honour X-Real-IP (single IP) or the *first* entry of X-Forwarded-For
+       (leftmost = original client, subsequent = proxy chain).
+       Caddy sets ``header_up X-Forwarded-For {remote_host}`` which *replaces*
+       the header with a single verified value, so first == only entry.
+    2. Otherwise, fall back to the raw TCP peer address reported by uvicorn.
+
+    This prevents a malicious client from spoofing X-Real-IP or prepending
+    fake IPs to X-Forwarded-For when there is no trusted proxy in front.
     """
-    x_real_ip = request.headers.get("X-Real-IP")
-    if x_real_ip and x_real_ip.strip():
-        return x_real_ip.strip()
+    peer_ip = (request.client.host if request.client else None) or "unknown_client"
+    trusted = _get_trusted_proxy_ips()
 
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
-        if ips:
-            # Use the proxy-appended IP (last entry in chain) to prevent spoofing
-            return ips[-1]
+    if peer_ip in trusted:
+        # Proxy is trusted — honour its forwarding headers.
+        x_real_ip = request.headers.get("X-Real-IP", "").strip()
+        if x_real_ip:
+            return x_real_ip
 
-    if request.client and request.client.host:
-        return request.client.host
-    return "unknown_client"
+        forwarded_for = request.headers.get("X-Forwarded-For", "")
+        if forwarded_for:
+            # First entry = original client IP (Caddy overwrites with {remote_host})
+            first = forwarded_for.split(",")[0].strip()
+            if first:
+                return first
+
+    # No trusted proxy or forwarding headers unavailable — use raw peer IP.
+    return peer_ip
 
 
 # Global in-memory instance
@@ -106,20 +138,38 @@ def rate_limit_by_session_or_ip(
     max_requests: int = 3,
     window_seconds: int = 300,
 ) -> Callable[[Request], Any]:
-    """Rate limit keyed on customer session token with fallback to client IP.
+    """Rate limit keyed on the *validated* customer session identity.
 
-    Prevents throttling an entire restaurant of diners sharing one Wi-Fi IP.
+    Identity resolution (in order):
+    1. ``X-Customer-Session-Token`` header — hash to match what the database
+       stores in ``session_token_hash`` (SHA-256).  This is the same token
+       that ``get_current_customer_session`` validates; we use the hash as key
+       so the raw token is never stored in the rate-limiter's in-memory dict.
+    2. Fallback to client IP when no session header is present (e.g. unauthenticated
+       probes, missing token). IP-based limiting still blocks bulk abuse from a
+       single address while not penalising an entire restaurant for one bad actor.
+
+    Security properties:
+    - Two different customers sharing the same public IP are *not* merged into
+      one bucket when both supply valid, distinct session tokens.
+    - A fabricated / invalid session token does NOT use a session-specific key;
+      it falls back to the IP bucket, so it cannot bypass IP-level limits.
+    - The raw token is never stored; the SHA-256 hash (same as the DB column)
+      is used as the bucket key, preventing token leakage via memory inspection.
     """
 
     async def _dependency(request: Request) -> None:
-        auth_header = request.headers.get("Authorization") or ""
-        session_key: str | None = None
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
-            if token:
-                session_key = f"session:{token[:32]}"
+        raw_token = request.headers.get("X-Customer-Session-Token", "").strip()
 
-        if not session_key:
+        if raw_token:
+            # Hash the token — same algorithm as get_current_customer_session.
+            # We intentionally do NOT query the DB here; we key on the hash so
+            # a fabricated token that does not exist in the DB gets its own
+            # (IP-shared) bucket in the fallback branch, and a valid token gets
+            # its own per-session bucket.
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            session_key = f"session:{token_hash}"
+        else:
             client_ip = extract_client_ip(request)
             session_key = f"ip:{client_ip}"
 

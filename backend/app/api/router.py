@@ -8,6 +8,7 @@ from app.api.billing import router as billing_router
 from app.api.customer import router as customer_router
 from app.api.health import router as health_router
 from app.api.kitchen import router as kitchen_router
+from app.api.notifications import router as notifications_router
 from app.api.public_qr import router as public_qr_router
 from app.api.waiter import router as waiter_router
 from app.api.ws import router as ws_router
@@ -21,4 +22,5 @@ api_v1_router.include_router(customer_router)
 api_v1_router.include_router(kitchen_router)
 api_v1_router.include_router(waiter_router)
 api_v1_router.include_router(billing_router)
+api_v1_router.include_router(notifications_router)
 api_v1_router.include_router(ws_router)

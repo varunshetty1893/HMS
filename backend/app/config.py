@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         default="dev_only_csrf_secret_key_do_not_use_in_production_0123456789abcdef"
     )
     qr_token_encryption_key: str | None = Field(default=None)
+    # Secret used for daily-keyed HMAC-SHA256 IP pseudonymisation in audit logs.
+    # Falls back to jwt_secret_key if not set.  Set a dedicated long random value in production.
+    audit_ip_hash_secret: str = Field(
+        default="dev_only_audit_ip_hash_secret_do_not_use_in_production_abcdef012345"
+    )
     access_token_expire_minutes: int = Field(default=15, ge=1, le=1440)
     refresh_token_expire_days: int = Field(default=7, ge=1, le=90)
 
@@ -81,9 +86,47 @@ class Settings(BaseSettings):
     ws_max_connections: int = Field(default=200, ge=10, le=5000)
     ws_heartbeat_interval_seconds: int = Field(default=30, ge=5, le=300)
 
+    # --- Proxy Trust (Issue 2) ---
+    # Comma-separated or JSON list of peer IPs of trusted reverse proxies
+    # (Caddy container IP on Docker bridge, or Render's proxy range).
+    # When empty, forwarding headers are NEVER trusted (safe default).
+    trusted_proxy_ips: frozenset[str] = Field(default_factory=frozenset)
+
     # --- Local File Storage ---
     upload_dir: Path = Field(default=Path("./uploads/menu"))
     max_upload_size_bytes: int = Field(default=2_097_152, ge=1024, le=10_485_760)
+    # Max body bytes allowed for the image upload endpoint specifically.
+    # Must be larger than max_upload_size_bytes to accommodate multipart framing overhead.
+    image_upload_max_body_bytes: int = Field(default=3_145_728, ge=1024, le=26_214_400)  # 3 MB
+
+    # --- ImageKit CDN (optional; set IMAGEKIT_PRIVATE_KEY to enable) ---
+    # imagekitio v5 SDK: only needs private_key. The CDN delivery URL is returned
+    # by the upload API and stored directly in menu_items.image_url.
+    imagekit_private_key: str = Field(default="")
+    imagekit_upload_folder: str = Field(default="/menu")
+
+    @field_validator("trusted_proxy_ips", mode="before")
+    @classmethod
+    def parse_trusted_proxy_ips(cls, value: str | list[str] | frozenset[str]) -> frozenset[str]:
+        if isinstance(value, frozenset):
+            return value
+        if isinstance(value, (list, set)):
+            return frozenset(ip.strip() for ip in value if ip.strip())
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return frozenset()
+            if raw.startswith("["):
+                import json  # noqa: PLC0415
+                parsed = json.loads(raw)
+                return frozenset(str(ip).strip() for ip in parsed if str(ip).strip())
+            return frozenset(ip.strip() for ip in raw.split(",") if ip.strip())
+        return frozenset()
+
+    @property
+    def imagekit_enabled(self) -> bool:
+        """True only when the ImageKit private key is configured (imagekitio v5)."""
+        return bool(self.imagekit_private_key.strip())
 
     @field_validator("api_v1_prefix")
     @classmethod

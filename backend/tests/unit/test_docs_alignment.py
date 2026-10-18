@@ -94,6 +94,10 @@ def test_nullability_matches_required_vs_optional_columns() -> None:
             if name == "order_modification_events" and column == "modified_by_user_id":
                 # Nullable when modified by customer session
                 continue
+            if name == "bill_items" and column in ("order_id", "order_item_id"):
+                # Intentionally nullable (migration 0009): bill items can represent
+                # ad-hoc custom charges that are not linked to a specific order row.
+                continue
             assert not table.columns[column].nullable, f"{name}.{column} must be NOT NULL"
         for column in doc.optional & set(table.columns.keys()):
             assert table.columns[column].nullable, f"{name}.{column} must be nullable"

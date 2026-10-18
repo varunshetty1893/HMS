@@ -69,6 +69,10 @@ class AdminWebSocketClient {
   private currentStatus: ConnectionStatus = 'DISCONNECTED';
   private shouldReconnect = true;
   private isRefreshing = false;
+  // Deduplication ring — prefer event_id (UUID) over sequence (per-connection counter)
+  private seenEventIds = new Set<string>();
+  private seenRing: string[] = [];
+  private static readonly MAX_DEDUPE_RING = 250;
 
   constructor() {
     // Listen for online/offline events
@@ -158,6 +162,20 @@ class AdminWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          // Deduplicate using event_id (globally unique UUID, stable across reconnects).
+          // Fall back to namespaced sequence so reconnects don't match old seq numbers.
+          const dedupeId: string | undefined =
+            payload.event_id ??
+            (payload.sequence !== undefined ? `seq:${payload.sequence}` : undefined);
+          if (dedupeId) {
+            if (this.seenEventIds.has(dedupeId)) return;
+            this.seenEventIds.add(dedupeId);
+            this.seenRing.push(dedupeId);
+            if (this.seenRing.length > AdminWebSocketClient.MAX_DEDUPE_RING) {
+              const evicted = this.seenRing.shift()!;
+              this.seenEventIds.delete(evicted);
+            }
+          }
           const eventName = payload.event || payload.type;
           if (eventName) {
             this.dispatch(eventName, payload.data || payload);

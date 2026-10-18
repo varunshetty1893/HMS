@@ -352,7 +352,7 @@ async def upload_menu_item_image(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> MenuItemResponse:
-    """Upload dish photo. Sanitized via Pillow, EXIF stripped, converted to WebP."""
+    """Upload dish photo via ImageKit CDN (or local fallback). EXIF stripped, converted to WebP."""
     item = await MenuService.get_item(db, item_id)
 
     raw_bytes = await file.read()
@@ -362,14 +362,20 @@ async def upload_menu_item_image(
             message="Uploaded file has no content.",
         )
 
-    # Sanitize, strip EXIF, convert to WebP, and save under random UUID filename
-    image_url, _filename = ImageService.sanitize_and_save_menu_image(raw_bytes)
+    # Sanitize, strip EXIF, convert to WebP, and upload to ImageKit or local disk
+    upload_result = await run_in_threadpool(ImageService.upload_menu_image, raw_bytes)
 
-    # Clean up prior image if replacing
-    if item.image_url and item.image_url != image_url:
-        ImageService.delete_menu_image(item.image_url)
+    # Clean up prior image if replacing (pass file_id for ImageKit CDN deletion)
+    if item.image_url and item.image_url != upload_result.image_url:
+        old_file_id = getattr(item, "imagekit_file_id", None)
+        await run_in_threadpool(
+            ImageService.delete_menu_image,
+            item.image_url,
+            imagekit_file_id=old_file_id,
+        )
 
-    item.image_url = image_url
+    item.image_url = upload_result.image_url
+    item.imagekit_file_id = upload_result.imagekit_file_id
     await db.flush()
 
     await AuditService.record_event(
@@ -379,7 +385,10 @@ async def upload_menu_item_image(
         entity_id=str(item.id),
         actor_role=admin.role,
         actor_user_id=admin.id,
-        new_value={"image_url": image_url},
+        new_value={
+            "image_url": upload_result.image_url,
+            "imagekit_file_id": upload_result.imagekit_file_id,
+        },
     )
 
     await db.commit()
@@ -396,12 +405,18 @@ async def delete_menu_item_image(
     admin: AdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Remove image from a dish and delete file from disk."""
+    """Remove image from a dish and delete from ImageKit or local disk."""
     item = await MenuService.get_item(db, item_id)
     if item.image_url:
         old_url = item.image_url
-        ImageService.delete_menu_image(old_url)
+        old_file_id = getattr(item, "imagekit_file_id", None)
+        await run_in_threadpool(
+            ImageService.delete_menu_image,
+            old_url,
+            imagekit_file_id=old_file_id,
+        )
         item.image_url = None
+        item.imagekit_file_id = None
         await db.flush()
 
         await AuditService.record_event(
@@ -411,7 +426,7 @@ async def delete_menu_item_image(
             entity_id=str(item.id),
             actor_role=admin.role,
             actor_user_id=admin.id,
-            old_value={"image_url": old_url},
+            old_value={"image_url": old_url, "imagekit_file_id": old_file_id},
         )
         await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

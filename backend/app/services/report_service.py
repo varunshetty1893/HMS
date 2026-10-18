@@ -9,7 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -38,15 +38,12 @@ from app.schemas.reports import (
     UnavailableDishReportItem,
     WaiterActivityReportItem,
 )
+from app.core.time_utils import REPORTING_TZ, ist_day_to_utc_range
 
 
-def _to_utc_range(from_date: date | None, to_date: date | None) -> tuple[datetime, datetime]:
-    """Convert date bounds to UTC datetimes covering full days."""
-    f = from_date or date.today()
-    t = to_date or f
-    start = datetime.combine(f, time.min, tzinfo=timezone.utc)
-    end = datetime.combine(t, time.max, tzinfo=timezone.utc)
-    return start, end
+# _to_utc_range kept as a backwards-compatible alias so existing call-sites work unchanged.
+# All new code and the KPI dashboard use ist_day_to_utc_range directly.
+_to_utc_range = ist_day_to_utc_range
 
 
 def _two_dp(val: Any) -> Decimal:
@@ -62,7 +59,8 @@ class ReportService:
     @classmethod
     async def get_dashboard_kpis(cls, db: AsyncSession) -> AdminDashboardKPIs:
         """Overview screen real-time KPIs."""
-        today_start, today_end = _to_utc_range(date.today(), date.today())
+        today_ist = datetime.now(REPORTING_TZ).date()
+        today_start, today_end = ist_day_to_utc_range(today_ist, today_ist)
 
         # 1. Today's collected revenue from paid bills
         rev_stmt = select(func.coalesce(func.sum(Bill.grand_total), Decimal("0.00"))).where(
@@ -255,7 +253,12 @@ class ReportService:
         to_date: date | None = None,
         limit: int = 50,
     ) -> list[PopularDishReportItem]:
-        """Top-selling menu items and price variants ranked by quantity billed."""
+        """Top-selling menu items and price variants ranked by quantity billed.
+
+        ``menu_item_id`` is resolved from the live ``menu_items`` table where an exact
+        ``item_code`` match exists.  For custom/deleted items the field is ``None`` — it is
+        never fabricated, so the value is stable across repeated report requests.
+        """
         start_utc, end_utc = _to_utc_range(from_date, to_date)
 
         stmt = (
@@ -265,8 +268,15 @@ class ReportService:
                 BillItem.variant_name_snapshot,
                 func.sum(BillItem.quantity_billed).label("total_qty"),
                 func.sum(BillItem.line_total).label("total_revenue"),
+                # Resolve the real menu item ID from the live menu (LEFT JOIN: may be None
+                # for custom charges or soft-deleted items).
+                MenuItem.id.label("real_menu_item_id"),
             )
             .join(Bill, Bill.id == BillItem.bill_id)
+            .outerjoin(
+                MenuItem,
+                MenuItem.item_code == BillItem.item_code_snapshot,
+            )
             .where(
                 Bill.status == BillStatus.PAID.value,
                 Bill.generated_at >= start_utc,
@@ -276,6 +286,7 @@ class ReportService:
                 BillItem.item_code_snapshot,
                 BillItem.item_name_snapshot,
                 BillItem.variant_name_snapshot,
+                MenuItem.id,
             )
             .order_by(desc("total_qty"))
             .limit(limit)
@@ -286,7 +297,8 @@ class ReportService:
         for r in rows:
             results.append(
                 PopularDishReportItem(
-                    menu_item_id=uuid.uuid4(),  # Representative synthetic ID for grouping
+                    # Use the real FK from the live menu table.  None for custom/deleted items.
+                    menu_item_id=r[5],  # real_menu_item_id — may be None
                     item_code=r[0],
                     item_name=r[1],
                     variant_name=r[2],

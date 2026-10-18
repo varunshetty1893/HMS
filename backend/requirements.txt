@@ -26,6 +26,11 @@ cryptography==50.0.2
 pillow==12.3.0
 python-multipart==0.0.32
 
+# ImageKit CDN integration (optional; only used when IMAGEKIT_PRIVATE_KEY is set)
+# Free plan: 3 GB storage, 20 GB/month bandwidth, 25 MB max file — well within menu-photo needs.
+# Uses imagekitio v5 SDK (v5 API: private_key only; public delivery via CDN URL returned on upload).
+imagekitio==5.10.0
+
 # Excel export (audit log viewer)
 openpyxl==3.1.5
 

@@ -294,6 +294,7 @@ class MenuItemResponse(BaseModel):
     spice_level: str | None
     pricing_type: str = PricingType.FIXED.value
     image_url: str | None
+    imagekit_file_id: str | None = None
     tax_rate_override: Decimal | None
     is_available: bool
     is_active: bool

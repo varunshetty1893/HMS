@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import csv
 import io
-import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -17,6 +16,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.time_utils import REPORTING_TZ, ist_day_to_utc_range
 from app.models.billing import Bill, BillItem, Payment
 from app.models.enums import BillStatus, OrderStatus, PaymentStatus, TableSessionStatus, UserRole
 from app.models.identity import User
@@ -38,8 +38,6 @@ from app.schemas.reports import (
     UnavailableDishReportItem,
     WaiterActivityReportItem,
 )
-from app.core.time_utils import REPORTING_TZ, ist_day_to_utc_range
-
 
 # _to_utc_range kept as a backwards-compatible alias so existing call-sites work unchanged.
 # All new code and the KPI dashboard use ist_day_to_utc_range directly.
@@ -165,9 +163,8 @@ class ReportService:
             grand = _two_dp(r[5])
             total_bills = r[6]
 
-            # Count completed orders on this day
-            d_start = datetime.combine(d, time.min, tzinfo=timezone.utc)
-            d_end = datetime.combine(d, time.max, tzinfo=timezone.utc)
+            # Count completed orders on this day (IST timezone boundary)
+            d_start, d_end = ist_day_to_utc_range(d, d)
 
             ord_count = (
                 await db.scalar(
@@ -342,8 +339,7 @@ class ReportService:
             bill_count = r[2]
 
             d_val = r[0] if isinstance(r[0], date) else date.fromisoformat(label)
-            d_start = datetime.combine(d_val, time.min, tzinfo=timezone.utc)
-            d_end = datetime.combine(d_val, time.max, tzinfo=timezone.utc)
+            d_start, d_end = ist_day_to_utc_range(d_val, d_val)
             ord_cnt = (
                 await db.scalar(
                     select(func.count(Order.id)).where(

@@ -29,7 +29,9 @@ from app.models.restaurant import RestaurantSettings, RestaurantTable
 from app.schemas.billing import (
     BillDiscountRequest,
     BillGenerateRequest,
+    BillLinePriceOverride,
     BillVoidRequest,
+    CustomBillLineItem,
     PaymentCreateRequest,
 )
 from app.services.billing_service import BillingService
@@ -623,3 +625,100 @@ async def test_admin_void_bill_for_revision() -> None:
                 "timestamp": ANY,
             },
         )
+
+
+@pytest.mark.asyncio
+async def test_generate_bill_with_custom_items_and_price_overrides() -> None:
+    """Ad-hoc custom items (not in menu) and line price overrides are successfully billed."""
+    table, session = _make_table_and_session()
+    order = _make_order(
+        status=OrderStatus.SERVED.value,
+        session_id=session.id,
+        items=[
+            ("BN", "Butter Naan", 2, Decimal("55.00")),
+            ("BC", "Butter Chicken", 1, Decimal("280.00")),
+        ],
+    )
+    butter_chicken_item = order.items[1]
+    staff = _make_staff_user(role=UserRole.WAITER.value)
+
+    db = AsyncMock()
+    added_items: list = []
+    db.add = MagicMock(side_effect=lambda obj: added_items.append(obj))
+    db.execute = AsyncMock(
+        side_effect=[
+            MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
+            ),
+        ]
+    )
+    db.scalar = AsyncMock(return_value=0)
+
+    with (
+        patch.object(
+            BillingService, "_get_restaurant_settings", new_callable=AsyncMock
+        ) as mock_set,
+        patch("app.services.billing_service.AuditService.record_event", new_callable=AsyncMock),
+        patch("app.services.billing_service.ws_manager.broadcast_to_room", new_callable=AsyncMock),
+    ):
+        mock_set.return_value = RestaurantSettings(
+            cgst_percentage=Decimal("2.50"),
+            sgst_percentage=Decimal("2.50"),
+            waiter_max_discount_percentage=Decimal("10.00"),
+            waiter_max_price_override_percentage=Decimal("15.00"),
+        )
+
+        payload = BillGenerateRequest(
+            table_number=table.table_number,
+            price_overrides=[
+                BillLinePriceOverride(
+                    order_item_id=butter_chicken_item.id,
+                    unit_price=Decimal("260.00"),
+                    quantity_billed=1,
+                    reason="Price adjusted at billing",
+                )
+            ],
+            custom_line_items=[
+                CustomBillLineItem(
+                    item_name="btr mlk",
+                    quantity=5,
+                    unit_price=Decimal("10.00"),
+                    reason="Not in menu",
+                )
+            ],
+        )
+
+        bill_dto, status_code = await BillingService.generate_bill(
+            db, payload=payload, staff_user=staff
+        )
+
+        assert status_code == 201
+        # Butter Naan: 2 x 55 = 110.00
+        # Butter Chicken (overridden): 1 x 260 = 260.00
+        # Custom btr mlk: 5 x 10 = 50.00
+        # Total subtotal: 110 + 260 + 50 = 420.00
+        assert bill_dto.subtotal_amount == Decimal("420.00")
+        assert bill_dto.taxable_amount == Decimal("420.00")
+        # CGST (2.5% of 420) = 10.50
+        assert bill_dto.cgst_amount == Decimal("10.50")
+        # SGST (2.5% of 420) = 10.50
+        assert bill_dto.sgst_amount == Decimal("10.50")
+        # Grand total = 420 + 10.50 + 10.50 = 441.00
+        assert bill_dto.grand_total == Decimal("441.00")
+
+        # 2 ordered items + 1 custom item = 3 line items
+        assert len(bill_dto.line_items) == 3
+        custom_item = next(it for it in bill_dto.line_items if it.item_name == "btr mlk")
+        assert custom_item.order_id is None
+        assert custom_item.quantity_billed == 5
+        assert custom_item.unit_price_snapshot == Decimal("10.00")
+        assert custom_item.line_total == Decimal("50.00")
+        assert custom_item.order_number == "CUSTOM"
+
+        db.commit.assert_awaited_once()
+

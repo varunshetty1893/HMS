@@ -106,8 +106,8 @@ class BillItem(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
 
     bill_id: Mapped[uuid.UUID] = uuid_fk("bills.id", nullable=False)
-    order_id: Mapped[uuid.UUID] = uuid_fk("orders.id", nullable=False)
-    order_item_id: Mapped[uuid.UUID] = uuid_fk("order_items.id", nullable=False)
+    order_id: Mapped[uuid.UUID | None] = uuid_fk("orders.id", nullable=True)
+    order_item_id: Mapped[uuid.UUID | None] = uuid_fk("order_items.id", nullable=True)
     order_number_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
     item_code_snapshot: Mapped[str] = mapped_column(String(16), nullable=False)
     item_name_snapshot: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -127,7 +127,7 @@ class BillItem(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     adjustment_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     bill: Mapped[Bill] = relationship(back_populates="items")
-    order_item: Mapped[OrderItem] = relationship(back_populates="bill_items")
+    order_item: Mapped[OrderItem | None] = relationship(back_populates="bill_items")
 
 
 class Payment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):

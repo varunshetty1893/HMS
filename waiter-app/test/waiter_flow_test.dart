@@ -268,7 +268,7 @@ void main() {
       expect(tableBill.isBillIssued, isFalse);
     });
 
-    test('TableBillModel canGenerateBill returns false when unserved orders remain', () {
+    test('TableBillModel canGenerateBill allows early billing when unserved orders remain', () {
       final json = {
         'table_number': 5,
         'table_id': 'tbl-001',
@@ -276,6 +276,23 @@ void main() {
         'session_code': 'TS-001',
         'has_unaccepted_placed_orders': false,
         'has_unserved_orders': true,
+        'bill_status': 'NOT_GENERATED',
+        'preview_line_items': [],
+      };
+
+      final tableBill = TableBillModel.fromJson(json);
+
+      expect(tableBill.canGenerateBill, isTrue);
+    });
+
+    test('TableBillModel canGenerateBill blocks billing when unaccepted placed orders exist', () {
+      final json = {
+        'table_number': 5,
+        'table_id': 'tbl-001',
+        'table_session_id': 'sess-001',
+        'session_code': 'TS-001',
+        'has_unaccepted_placed_orders': true,
+        'has_unserved_orders': false,
         'bill_status': 'NOT_GENERATED',
         'preview_line_items': [],
       };

@@ -13,6 +13,7 @@ import { StaffManagementPage } from '@/pages/StaffManagementPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { AuditLogsPage } from '@/pages/AuditLogsPage';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 const AdminDashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -64,7 +65,9 @@ export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AdminDashboard />
+        <ErrorBoundary fallbackTitle="An unexpected admin interface error occurred">
+          <AdminDashboard />
+        </ErrorBoundary>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -68,8 +68,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     const refreshToken = localStorage.getItem('hms_admin_refresh_token');
-    await authApi.logout(refreshToken || undefined);
 
+    // Immediately clear credentials and state so logout is instantaneous
     localStorage.removeItem('hms_admin_access_token');
     localStorage.removeItem('hms_admin_refresh_token');
     localStorage.removeItem('hms_admin_user');
@@ -77,6 +77,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     setUser(null);
     adminWs.disconnect();
+
+    // Revoke token in background without blocking UI
+    if (refreshToken) {
+      authApi.logout(refreshToken).catch(() => {});
+    }
   };
 
   return (

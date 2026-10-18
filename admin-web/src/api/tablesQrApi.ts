@@ -59,4 +59,8 @@ export const tablesQrApi = {
   getPrintableQrCard: async (tableId: string): Promise<QrPrintCardResponse> => {
     return apiClient<QrPrintCardResponse>(`/admin/tables/${tableId}/qr-print`);
   },
+
+  getTableSession: async (tableId: string): Promise<any> => {
+    return apiClient<any>(`/admin/tables/${tableId}/session`);
+  },
 };

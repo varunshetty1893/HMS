@@ -58,13 +58,15 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     activeOrder.status !== 'CANCELLED' &&
     activeOrder.status !== 'REJECTED';
 
-  const formatSourceLabel = (src: string) => {
+  const formatSourceLabel = (src?: string) => {
+    if (!src) return 'Direct Order';
     if (src === 'CUSTOMER_QR') return 'Customer QR';
     if (src === 'WAITER') return 'Waiter App';
     return src;
   };
 
-  const formatModType = (mod: string) => {
+  const formatModType = (mod?: string) => {
+    if (!mod) return 'Order Changed';
     switch (mod) {
       case 'ITEM_QUANTITY_INCREASED':
         return 'Quantity Increased';
@@ -83,7 +85,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
       case 'DISCOUNT_APPLIED':
         return 'Discount Applied';
       default:
-        return mod.replace(/_/g, ' ');
+        return typeof mod === 'string' ? mod.replace(/_/g, ' ') : 'Order Changed';
     }
   };
 
@@ -294,19 +296,30 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     item.base_price_snapshot &&
                     Number(item.base_price_snapshot) !== Number(item.unit_price_snapshot);
 
+                  const raw = item as any;
+                  const itemName = item.item_name || raw.item_name_snapshot || 'Dish';
+                  const itemCode = item.item_code || raw.item_code_snapshot || `D-${idx + 1}`;
+                  const variantName = item.variant_name || raw.variant_name_snapshot || '';
+                  const unitPrice = item.unit_price_snapshot || raw.unit_price || '0.00';
+                  const lineSubtotal = item.line_subtotal || '0.00';
+                  const activeQty = item.active_quantity ?? raw.quantity ?? 1;
+                  const cancelledQty = item.cancelled_quantity ?? 0;
+
                   return (
                     <div
-                      key={item.id || item.item_code || `item-${idx}`}
+                      key={item.id || itemCode || `item-${idx}`}
                       className="p-3.5 flex flex-col gap-2 bg-white hover:bg-slate-50/50 transition"
                     >
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-mono font-bold text-brand-700 bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200">
-                              {item.item_code}
+                              {itemCode}
                             </span>
-                            <span className="text-sm font-semibold text-gray-900">{item.item_name}</span>
-                            <span className="text-xs text-gray-500">({item.variant_name})</span>
+                            <span className="text-sm font-semibold text-gray-900">{itemName}</span>
+                            {variantName && (
+                              <span className="text-xs text-gray-500">({variantName})</span>
+                            )}
                           </div>
 
                           {/* Adjustment Tags */}
@@ -342,10 +355,10 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
                           <div className="text-xs text-gray-500 flex items-center gap-2 pt-0.5">
                             <span>
-                              Qty: <strong className="text-gray-900">{item.active_quantity}</strong>
-                              {item.cancelled_quantity > 0 && (
+                              Qty: <strong className="text-gray-900">{activeQty}</strong>
+                              {cancelledQty > 0 && (
                                 <span className="text-rose-600 ml-1.5 font-medium">
-                                  ({item.cancelled_quantity} cancelled)
+                                  ({cancelledQty} cancelled)
                                 </span>
                               )}
                             </span>
@@ -357,7 +370,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                                 </span>
                               )}
                               <span className="font-semibold text-gray-900 font-mono">
-                                {formatInr(item.unit_price_snapshot)}
+                                {formatInr(unitPrice)}
                               </span>{' '}
                               each
                             </span>
@@ -366,9 +379,9 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
                         <div className="text-right flex flex-col items-end gap-1.5">
                           <span className="font-mono font-bold text-sm text-gray-900">
-                            {formatInr(item.line_subtotal)}
+                            {formatInr(lineSubtotal)}
                           </span>
-                          {canAdjust && item.active_quantity > 0 && (
+                          {canAdjust && activeQty > 0 && (
                             <button
                               type="button"
                               onClick={() => openAdjustmentModal(item)}

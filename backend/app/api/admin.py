@@ -47,6 +47,7 @@ from app.schemas.order import (
     OrderItemAdjustmentRequest,
     SessionLimitOverrideRequest,
     WaiterOrderResponse,
+    WaiterTableSessionDetail,
 )
 from app.schemas.qr import (
     QrPrintCardResponse,
@@ -1143,6 +1144,16 @@ async def admin_adjust_order_item(
         payload=payload,
         staff_user=admin,
     )
+
+
+@router.get("/tables/{table_id}/session", response_model=WaiterTableSessionDetail)
+async def get_admin_table_session(
+    table_id: uuid.UUID,
+    _admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterTableSessionDetail:
+    """Retrieve detailed table session information and all active orders for a table."""
+    return await OrderService.get_table_session_details(db, table_id=table_id)
 
 
 @router.post("/table-sessions/{session_id}/override-limit")

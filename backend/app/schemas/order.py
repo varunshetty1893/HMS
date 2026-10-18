@@ -14,7 +14,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from app.schemas.common import StrictRequestModel
 
@@ -139,6 +139,21 @@ class OrderItemResponse(StrictRequestModel):
     adjustment_reason: str | None = None
     adjustment_applied_by_user_id: uuid.UUID | None = None
     adjustment_approved_by_user_id: uuid.UUID | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def item_name(self) -> str:
+        return self.item_name_snapshot
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def item_code(self) -> str:
+        return self.item_code_snapshot
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def variant_name(self) -> str:
+        return self.variant_name_snapshot
 
 
 class OrderResponse(StrictRequestModel):

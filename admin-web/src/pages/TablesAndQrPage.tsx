@@ -13,11 +13,13 @@ import {
   RefreshCw,
   Trash2,
   Users,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import { QrPrintCardResponse, RestaurantTable } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
 import { adminWs } from '@/realtime/adminWs';
+import { TableOrdersModal } from '@/components/tables/TableOrdersModal';
 
 export const TablesAndQrPage: React.FC = () => {
   const { L, heading, sub, muted, border, card, cardInner } = usePageTheme();
@@ -48,6 +50,9 @@ export const TablesAndQrPage: React.FC = () => {
 
   // Delete Confirmation Modal
   const [tableToDelete, setTableToDelete] = useState<RestaurantTable | null>(null);
+
+  // Table Orders & Bill Pricing Modal
+  const [selectedTableForOrders, setSelectedTableForOrders] = useState<RestaurantTable | null>(null);
 
   const fetchTables = async () => {
     setIsLoading(true);
@@ -202,48 +207,73 @@ export const TablesAndQrPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {tables.map((table) => (
-            <div
-              key={table.id}
-              className="p-6 rounded-3xl shadow-sm flex flex-col justify-between transition hover:shadow-md"
-              style={{ ...card, opacity: table.is_active ? 1 : 0.6 }}
-            >
-              <div>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-black" style={{ color: heading }}>{table.display_name}</span>
-                    <span className="text-xs font-mono" style={{ color: muted }}>#{table.table_number}</span>
+          {tables.map((table) => {
+            const isOccupied =
+              (table.current_occupancy || table.occupancy_status) === 'OCCUPIED';
+
+            return (
+              <div
+                key={table.id}
+                onClick={() => {
+                  if (isOccupied) setSelectedTableForOrders(table);
+                }}
+                className={`p-6 rounded-3xl shadow-sm flex flex-col justify-between transition ${
+                  isOccupied
+                    ? 'ring-2 ring-amber-400 hover:ring-amber-500 hover:shadow-lg cursor-pointer'
+                    : 'hover:shadow-md'
+                }`}
+                style={{ ...card, opacity: table.is_active ? 1 : 0.6 }}
+              >
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-black" style={{ color: heading }}>{table.display_name}</span>
+                      <span className="text-xs font-mono" style={{ color: muted }}>#{table.table_number}</span>
+                    </div>
+                    <StatusBadge
+                      status={table.is_active ? table.current_occupancy || table.occupancy_status || 'AVAILABLE' : 'DISABLED'}
+                      size="sm"
+                    />
                   </div>
-                  <StatusBadge
-                    status={table.is_active ? table.current_occupancy || table.occupancy_status || 'AVAILABLE' : 'DISABLED'}
-                    size="sm"
-                  />
-                </div>
 
-                <div className="mt-3 flex items-center gap-3 text-xs" style={{ color: sub }}>
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" style={{ color: muted }} />
-                    <span>{table.seating_capacity || 4} seats</span>
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Layers className="w-3.5 h-3.5" style={{ color: muted }} />
-                    <span>{table.floor_or_zone || 'Floor'}</span>
-                  </span>
-                </div>
-
-                {/* QR Metadata */}
-                <div className="mt-4 p-3 rounded-2xl flex items-center justify-between text-xs font-mono" style={cardInner}>
-                  <div className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-brand-600" />
-                    <span style={{ color: heading }}>v{table.active_qr_version || 1}</span>
+                  <div className="mt-3 flex items-center gap-3 text-xs" style={{ color: sub }}>
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" style={{ color: muted }} />
+                      <span>{table.seating_capacity || 4} seats</span>
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5" style={{ color: muted }} />
+                      <span>{table.floor_or_zone || 'Floor'}</span>
+                    </span>
                   </div>
-                  <span className="text-[11px]" style={{ color: muted }}>{table.active_qr_prefix || 'prefix-**'}</span>
-                </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="mt-6 pt-4 border-t flex items-center justify-between gap-2" style={{ borderTopColor: border }}>
+                  {isOccupied && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTableForOrders(table);
+                      }}
+                      className="mt-3.5 w-full py-2 px-3 rounded-2xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <UtensilsCrossed className="w-3.5 h-3.5 text-amber-700" />
+                      <span>View Orders & Edit Prices</span>
+                    </button>
+                  )}
+
+                  {/* QR Metadata */}
+                  <div className="mt-4 p-3 rounded-2xl flex items-center justify-between text-xs font-mono" style={cardInner}>
+                    <div className="flex items-center gap-2">
+                      <QrCode className="w-4 h-4 text-brand-600" />
+                      <span style={{ color: heading }}>v{table.active_qr_version || 1}</span>
+                    </div>
+                    <span className="text-[11px]" style={{ color: muted }}>{table.active_qr_prefix || 'prefix-**'}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-6 pt-4 border-t flex items-center justify-between gap-2" style={{ borderTopColor: border }}>
                 <button
                   onClick={() => handleOpenPrintCard(table)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
@@ -283,7 +313,8 @@ export const TablesAndQrPage: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 
@@ -532,6 +563,13 @@ export const TablesAndQrPage: React.FC = () => {
         variant="warning"
         onConfirm={handleConfirmRegenerate}
         onCancel={() => setTableToRegenerate(null)}
+      />
+
+      {/* Table Active Orders & Price Adjustment Modal */}
+      <TableOrdersModal
+        table={selectedTableForOrders}
+        onClose={() => setSelectedTableForOrders(null)}
+        onTableUpdated={fetchTables}
       />
     </div>
   );

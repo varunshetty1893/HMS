@@ -54,7 +54,7 @@ function toneFor(status: string): Tone {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
-  const normalized = status.toUpperCase();
+  const normalized = (status || '').toUpperCase() || 'UNKNOWN';
   const tone = toneFor(normalized);
   const sizeClasses = size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-xs';
 

@@ -30,11 +30,13 @@ async def resolve_qr_by_path(
     """Resolve physical table QR code from URL path token and issue customer session."""
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
+    existing_session_token = request.headers.get("x-customer-session-token")
     return await QrService.resolve_qr_token(
         db,
         raw_token_input=qr_token,
         client_ip=client_ip,
         user_agent=user_agent,
+        existing_session_token=existing_session_token,
     )
 
 
@@ -51,9 +53,11 @@ async def resolve_qr_by_body(
     """Resolve physical table QR code from JSON payload and issue customer session."""
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
+    existing_session_token = request.headers.get("x-customer-session-token")
     return await QrService.resolve_qr_token(
         db,
         raw_token_input=payload.qr_token,
         client_ip=client_ip,
         user_agent=user_agent,
+        existing_session_token=existing_session_token,
     )

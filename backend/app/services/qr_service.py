@@ -15,6 +15,7 @@ from datetime import timedelta
 from cryptography.fernet import Fernet
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.core.exceptions import (
@@ -235,6 +236,7 @@ class QrService:
         raw_token_input: str,
         client_ip: str | None = None,
         user_agent: str | None = None,
+        existing_session_token: str | None = None,
     ) -> QrResolutionResponse:
         """Resolve physical QR token, verifying table state and creating CustomerSession.
 
@@ -298,6 +300,32 @@ class QrService:
                 code="TABLE_NOT_AVAILABLE",
                 message="This table is currently disabled or under maintenance.",
             )
+
+        # ── Anti-Table-Hopping Security Check ──────────────────────────────
+        if existing_session_token:
+            existing_hash = hashlib.sha256(existing_session_token.strip().encode("utf-8")).hexdigest()
+            existing_cs = (
+                await db.execute(
+                    select(CustomerSession)
+                    .options(selectinload(CustomerSession.table), selectinload(CustomerSession.table_session))
+                    .where(
+                        CustomerSession.session_token_hash == existing_hash,
+                        CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
+                        CustomerSession.expires_at > utc_now(),
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if existing_cs and existing_cs.table_id != qr_token.table_id:
+                if existing_cs.table_session and existing_cs.table_session.status == "ACTIVE":
+                    t_num = existing_cs.table.table_number if existing_cs.table else "another table"
+                    raise StateConflictError(
+                        code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
+                        message=(
+                            f"You already have an active dining session at Table {t_num}. "
+                            "Please settle your bill or ask a waiter before switching tables."
+                        ),
+                    )
 
         # Check whether an active dining TableSession exists on this table
         session_stmt = select(TableSession).where(

@@ -18,6 +18,9 @@ class PickupQueueScreen extends ConsumerWidget {
 
     ref.listen<OrderConfirmationState>(orderConfirmationControllerProvider,
         (previous, next) {
+      if (next.count < (previous?.count ?? 0) || next.count == 0) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
       if (next.count > (previous?.count ?? 0)) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -30,6 +33,7 @@ class PickupQueueScreen extends ConsumerWidget {
               action: SnackBarAction(
                 label: 'REVIEW',
                 onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const OrderConfirmationScreen(),

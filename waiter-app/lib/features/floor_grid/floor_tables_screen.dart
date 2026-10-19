@@ -23,6 +23,9 @@ class FloorTablesScreen extends ConsumerWidget {
     // New QR order request: alert the waiter even when this screen is in front.
     ref.listen<OrderConfirmationState>(orderConfirmationControllerProvider,
         (previous, next) {
+      if (next.count < (previous?.count ?? 0) || next.count == 0) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
       if (next.count > (previous?.count ?? 0)) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -35,6 +38,7 @@ class FloorTablesScreen extends ConsumerWidget {
               action: SnackBarAction(
                 label: 'REVIEW',
                 onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const OrderConfirmationScreen(),

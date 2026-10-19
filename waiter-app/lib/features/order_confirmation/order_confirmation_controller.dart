@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/realtime/ws_client.dart';
 import '../../models/order_model.dart';
+import '../auth/auth_controller.dart';
 
 /// QR orders waiting for a waiter to confirm that guests are really seated (threat T-01).
 final orderConfirmationControllerProvider = StateNotifierProvider<

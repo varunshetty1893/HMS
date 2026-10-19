@@ -24,7 +24,7 @@ from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -450,6 +450,11 @@ class OrderService:
                 message="Your session has expired. Please rescan the table QR code.",
             )
 
+        # ── 2b. Enforce no cross-table active unpaid sessions ──────────────
+        await cls._enforce_no_cross_table_unpaid_session(
+            db, customer_session=customer_session
+        )
+
         # ── 3. Resolve variant prices (server-authoritative) ──────────────
         resolved_lines = await cls._resolve_variants(db, payload)
 
@@ -808,6 +813,61 @@ class OrderService:
                 }
             )
         return resolved
+
+    @classmethod
+    async def _enforce_no_cross_table_unpaid_session(
+        cls,
+        db: AsyncSession,
+        *,
+        customer_session: CustomerSession,
+    ) -> None:
+        """Enforce that a customer/device with an active unpaid session at Table A
+        cannot place orders at Table B without settling Table A's bill first.
+        """
+        current_table_id = customer_session.table_id
+        fp_hash = customer_session.client_fingerprint_hash
+
+        stmt = (
+            select(TableSession)
+            .options(selectinload(TableSession.table))
+            .join(CustomerSession, CustomerSession.table_session_id == TableSession.id)
+            .where(
+                TableSession.table_id != current_table_id,
+                TableSession.status.in_(
+                    [TableSessionStatus.ACTIVE.value, TableSessionStatus.PENDING_CONFIRMATION.value]
+                ),
+            )
+        )
+        if fp_hash:
+            stmt = stmt.where(
+                or_(
+                    CustomerSession.id == customer_session.id,
+                    CustomerSession.client_fingerprint_hash == fp_hash,
+                    TableSession.opened_by_customer_session_id == customer_session.id,
+                )
+            )
+        else:
+            stmt = stmt.where(
+                or_(
+                    CustomerSession.id == customer_session.id,
+                    TableSession.opened_by_customer_session_id == customer_session.id,
+                )
+            )
+
+        other_active_session = (await db.execute(stmt)).scalars().first()
+        if other_active_session:
+            table_label = (
+                f"Table {other_active_session.table.table_number}"
+                if other_active_session.table and other_active_session.table.table_number
+                else "another table"
+            )
+            raise StateConflictError(
+                code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
+                message=(
+                    f"You already have an active session at {table_label} with an unsettled bill. "
+                    f"Please complete payment for {table_label} before ordering at a new table."
+                ),
+            )
 
     @classmethod
     async def _get_or_create_table_session(

@@ -31,6 +31,10 @@ async def resolve_qr_by_path(
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     existing_session_token = request.headers.get("x-customer-session-token")
+    if not existing_session_token:
+        auth_hdr = request.headers.get("authorization", "")
+        if auth_hdr.lower().startswith("bearer "):
+            existing_session_token = auth_hdr[7:].strip()
     return await QrService.resolve_qr_token(
         db,
         raw_token_input=qr_token,
@@ -54,6 +58,10 @@ async def resolve_qr_by_body(
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     existing_session_token = request.headers.get("x-customer-session-token")
+    if not existing_session_token:
+        auth_hdr = request.headers.get("authorization", "")
+        if auth_hdr.lower().startswith("bearer "):
+            existing_session_token = auth_hdr[7:].strip()
     return await QrService.resolve_qr_token(
         db,
         raw_token_input=payload.qr_token,

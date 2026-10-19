@@ -301,7 +301,16 @@ class QrService:
                 message="This table is currently disabled or under maintenance.",
             )
 
+        # ── Compute Client Fingerprint ─────────────────────────────────────
+        fingerprint = None
+        if client_ip or user_agent:
+            fp_raw = f"{client_ip or ''}:{user_agent or ''}"
+            fingerprint = hashlib.sha256(fp_raw.encode("utf-8")).hexdigest()
+
         # ── Anti-Table-Hopping Security Check ──────────────────────────────
+        active_statuses = ("ACTIVE", "PENDING_CONFIRMATION")
+
+        # 1. Check via existing session token header (if provided)
         if existing_session_token:
             existing_hash = hashlib.sha256(existing_session_token.strip().encode("utf-8")).hexdigest()
             existing_cs = (
@@ -317,8 +326,32 @@ class QrService:
             ).scalar_one_or_none()
 
             if existing_cs and existing_cs.table_id != qr_token.table_id:
-                if existing_cs.table_session and existing_cs.table_session.status == "ACTIVE":
+                if existing_cs.table_session and existing_cs.table_session.status in active_statuses:
                     t_num = existing_cs.table.table_number if existing_cs.table else "another table"
+                    raise StateConflictError(
+                        code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
+                        message=(
+                            f"You already have an active dining session at Table {t_num}. "
+                            "Please settle your bill or ask a waiter before switching tables."
+                        ),
+                    )
+
+        # 2. Check via client device/browser fingerprint (if token header was missing/cleared)
+        if fingerprint:
+            fp_cs_stmt = (
+                select(CustomerSession)
+                .options(selectinload(CustomerSession.table), selectinload(CustomerSession.table_session))
+                .where(
+                    CustomerSession.client_fingerprint_hash == fingerprint,
+                    CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
+                    CustomerSession.expires_at > utc_now(),
+                    CustomerSession.table_id != qr_token.table_id,
+                )
+            )
+            fp_sessions = (await db.execute(fp_cs_stmt)).scalars().all()
+            for cs in fp_sessions:
+                if cs.table_session and cs.table_session.status in active_statuses:
+                    t_num = cs.table.table_number if cs.table else "another table"
                     raise StateConflictError(
                         code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
                         message=(
@@ -383,11 +416,6 @@ class QrService:
         bearer_token = secrets.token_urlsafe(32)
         session_hash = hashlib.sha256(bearer_token.encode("utf-8")).hexdigest()
         expires_at = utc_now() + timedelta(hours=2)
-
-        fingerprint = None
-        if client_ip or user_agent:
-            fp_raw = f"{client_ip or ''}:{user_agent or ''}"
-            fingerprint = hashlib.sha256(fp_raw.encode("utf-8")).hexdigest()
 
         customer_session = CustomerSession(
             table_id=table.id,

@@ -5,11 +5,20 @@ Follows `docs/05-api-specification.md` (Section 3) and `docs/06-security-specifi
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth_cookies import (
+    clear_refresh_cookie,
+    enforce_cookie_csrf,
+    read_refresh_cookie,
+    require_refresh_cookie,
+    set_refresh_cookie,
+    wants_cookie_transport,
+)
 from app.core.database import get_db
 from app.core.dependencies import get_current_staff_user
+from app.core.exceptions import AuthenticationError
 from app.core.rate_limit import extract_client_ip, rate_limit_by_ip
 from app.models.enums import UserRole
 from app.models.identity import User
@@ -38,11 +47,22 @@ _AUTH_RATE_LIMIT = rate_limit_by_ip(max_requests=10, window_seconds=60)
 async def login(
     payload: StaffLoginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> StaffTokenResponse:
-    """Authenticate a staff member and return access + refresh tokens."""
+    """Authenticate a staff member and return access + refresh tokens.
+
+    With `X-Auth-Transport: cookie` the refresh token is set as an httpOnly cookie instead.
+    """
+    cookie_mode = wants_cookie_transport(request)
+    if cookie_mode:
+        enforce_cookie_csrf(request)
     client_ip = extract_client_ip(request)
-    return await AuthService.login(db, payload, client_ip=client_ip)
+    tokens = await AuthService.login(db, payload, client_ip=client_ip)
+    if cookie_mode:
+        set_refresh_cookie(response, tokens.refresh_token)
+        return tokens.model_copy(update={"refresh_token": ""})
+    return tokens
 
 
 @router.post(
@@ -53,12 +73,28 @@ async def login(
     dependencies=[Depends(_AUTH_RATE_LIMIT)],
 )
 async def refresh_tokens(
-    payload: StaffRefreshTokenRequest,
     request: Request,
+    response: Response,
+    payload: StaffRefreshTokenRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> StaffTokenResponse:
-    """Exchange a valid refresh token for a new access token and rotated refresh token."""
+    """Exchange a valid refresh token for a new access token and rotated refresh token.
+
+    Cookie mode (`X-Auth-Transport: cookie`) reads the token from the httpOnly cookie and sets the
+    rotated one the same way; the JSON body then carries `refresh_token: ""`.
+    """
     client_ip = extract_client_ip(request)
+    if wants_cookie_transport(request):
+        enforce_cookie_csrf(request)
+        cookie_payload = StaffRefreshTokenRequest(refresh_token=require_refresh_cookie(request))
+        tokens = await AuthService.refresh_tokens(db, cookie_payload, client_ip=client_ip)
+        set_refresh_cookie(response, tokens.refresh_token)
+        return tokens.model_copy(update={"refresh_token": ""})
+    if payload is None:
+        raise AuthenticationError(
+            code="REFRESH_TOKEN_MISSING",
+            message="No refresh token provided. Please log in again.",
+        )
     return await AuthService.refresh_tokens(db, payload, client_ip=client_ip)
 
 
@@ -70,13 +106,22 @@ async def refresh_tokens(
 )
 async def logout(
     request: Request,
+    response: Response,
     payload: StaffLogoutRequest | None = None,
     current_user: User = Depends(get_current_staff_user),
     db: AsyncSession = Depends(get_db),
 ) -> StatusSuccessResponse:
-    """Revoke staff refresh tokens and terminate active sessions."""
+    """Revoke staff refresh tokens and terminate active sessions (and clear the cookie)."""
+    cookie_mode = wants_cookie_transport(request)
+    if cookie_mode:
+        enforce_cookie_csrf(request)
+        cookie_token = read_refresh_cookie(request)
+        if cookie_token and not (payload and payload.refresh_token):
+            payload = StaffLogoutRequest(refresh_token=cookie_token)
     client_ip = extract_client_ip(request)
     await AuthService.logout(db, current_user, payload, client_ip=client_ip)
+    if cookie_mode:
+        clear_refresh_cookie(response)
     return StatusSuccessResponse(status="LOGGED_OUT")
 
 

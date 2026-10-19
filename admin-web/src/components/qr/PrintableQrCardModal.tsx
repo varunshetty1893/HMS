@@ -34,7 +34,7 @@ export const PrintableQrCardModal: React.FC<PrintableQrCardModalProps> = ({
             <p className="text-xs text-gray-500">Token v{cardData.token_version} • Prefix {cardData.token_prefix}</p>
           </div>
           <div className="flex items-center gap-2">
-            {isDevDemoEnabled() && (
+            {import.meta.env.DEV && isDevDemoEnabled() && (
               <button
                 onClick={() => {
                   sessionStorage.setItem('hms_table_number', cardData.table_number.toString());

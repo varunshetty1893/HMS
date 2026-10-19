@@ -42,6 +42,9 @@ class SettingsService:
                 apply_outstanding_limit_to_waiter_orders=False,
                 waiter_max_discount_percentage=Decimal("0.00"),
                 waiter_max_price_override_percentage=Decimal("0.00"),
+                require_waiter_confirmation_for_first_qr_order=True,
+                qr_confirmation_timeout_seconds=180,
+                max_pending_qr_confirmations=15,
             )
             db.add(settings)
             await db.flush()

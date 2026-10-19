@@ -21,7 +21,7 @@ A complete, single-restaurant **QR Ordering, Waiter Floor Operations, Kitchen Di
 ```text
 .
 ├── docs/                                  # 13 Canonical Specification Documents (01 through 13)
-├── backend/                               # FastAPI Modular Monolith Backend (Phase 0 Foundation Ready)
+├── backend/                               # FastAPI Modular Monolith Backend (13 Alembic migrations, 21 tables)
 │   ├── alembic/                           # Async SQLAlchemy / Alembic migration environment
 │   ├── app/                               # FastAPI application package (config, core, models, schemas, api)
 │   ├── tests/                             # Automated pytest suite
@@ -29,10 +29,10 @@ A complete, single-restaurant **QR Ordering, Waiter Floor Operations, Kitchen Di
 │   ├── pyproject.toml
 │   ├── requirements.txt
 │   └── .env.example
-├── customer-web/                          # Customer Mobile Web SPA (Scheduled for Phase 6)
-├── admin-web/                             # Admin Web Dashboard SPA (Scheduled for Phase 10)
-├── waiter-app/                            # Waiter Flutter Mobile App (Scheduled for Phase 8)
-├── kitchen-app/                           # Kitchen KDS Flutter App (Scheduled for Phase 7)
+├── customer-web/                          # Customer Mobile Web SPA (React + Vite)
+├── admin-web/                             # Admin Web Dashboard SPA (React + Vite)
+├── waiter-app/                            # Staff Flutter App: Waiter + Kitchen KDS (role-based login)
+├── kitchen-app/                           # LEGACY standalone KDS app, superseded by waiter-app (not built in CI)
 ├── SPECIFICATION.md                       # Master index of all 13 specification volumes
 └── .gitignore                             # Hardened monorepo ignore rules
 ```
@@ -61,5 +61,10 @@ All implementation phases strictly follow these 13 locked specification document
 
 ## 4. Implementation Status
 
-- **[x] Phase 0 — Repository & Backend Foundation:** Complete (`backend/` package, Pydantic `Settings` with production safety guards, structured secret-redacting logger, canonical error envelope handlers, async SQLAlchemy 2.0 engine/session, Alembic initialization, `/api/v1/health*` endpoints, and passing `ruff` + `pytest` suite).
-- **[ ] Phase 2 — Database Schema & Initial Alembic Migration:** Next phase (`docs/13-final-implementation-blueprint.md`).
+- **Backend (`backend/`):** auth (Argon2id, refresh-token rotation), menu, tables + QR tokens, customer sessions, orders (customer / waiter / kitchen), billing and payments, waiter requests, notifications, reports, settings, audit logs, WebSockets. Schema managed by Alembic (migrations `0001`–`0013`, 21 tables). Checked in CI with `ruff`, a migration up/down/up cycle on PostgreSQL 16 and `pytest`.
+- **QR abuse defence (threat T-01):** the first QR order on an empty table is held until a waiter confirms guests are seated (setting `require_waiter_confirmation_for_first_qr_order`, default on), plus rate limits and the unpaid-table cap.
+- **Web apps:** `customer-web/` and `admin-web/` build in CI. In `admin-web/` the dev-only mock API and demo shortcuts are compiled out of production builds.
+- **Staff app:** `waiter-app/` contains both the waiter flows and the kitchen KDS. `kitchen-app/` is legacy and kept only until its removal is approved.
+- **Not covered by automated checks yet:** browser end-to-end tests and Flutter widget tests for the newest screens.
+
+Specifications live in [`docs/`](./docs/); the implementation roadmap is in `docs/13-final-implementation-blueprint.md`.

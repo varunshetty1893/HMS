@@ -92,7 +92,11 @@ class AuthService:
         #     Only clears status when it was set to LOCKED by the brute-force counter
         #     (i.e. locked_until is set). Admin-disabled accounts have status=DISABLED
         #     and locked_until=None so they are never auto-recovered here.
-        if user.status == UserStatus.LOCKED.value and user.locked_until and user.locked_until <= now:
+        if (
+            user.status == UserStatus.LOCKED.value
+            and user.locked_until
+            and user.locked_until <= now
+        ):
             user.status = UserStatus.ACTIVE.value
             user.failed_login_attempts = 0
             user.locked_until = None

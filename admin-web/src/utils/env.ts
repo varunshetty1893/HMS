@@ -8,6 +8,12 @@
  */
 
 export const isDev: boolean = import.meta.env.DEV;
+
+/**
+ * Keep the refresh token in an httpOnly cookie instead of localStorage (see `auth/session.ts`).
+ * Needs the web app and the API on the same site (e.g. a Vercel rewrite of `/api/*`).
+ */
+export const AUTH_COOKIE_MODE: boolean = import.meta.env.VITE_AUTH_COOKIE === 'true';
 export const isProd: boolean = import.meta.env.PROD || import.meta.env.MODE === 'production';
 
 /**

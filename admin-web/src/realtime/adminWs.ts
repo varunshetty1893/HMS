@@ -7,10 +7,9 @@
  * stored refresh_token so that WebSocket connections are never rejected with 403.
  */
 
-import { resolveAdminBaseUrl } from '../utils/env';
+import { dropAccessToken, getAccessToken, refreshSession } from '../auth/session';
 
 // In dev, go through the Vite proxy (/api -> backend) so CORS / port mismatches can't break requests.
-const BASE_URL = import.meta.env.DEV ? '/api/v1' : resolveAdminBaseUrl();
 
 type EventHandler = (data: any) => void;
 type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED';
@@ -38,27 +37,8 @@ function isTokenExpiredOrSoon(token: string | null): boolean {
 
 /** Attempt silent token refresh. Returns the new access token or null on failure. */
 async function silentRefresh(): Promise<string | null> {
-  const refreshToken = localStorage.getItem('hms_admin_refresh_token');
-  if (!refreshToken) return null;
-  try {
-    const resp = await fetch(`${BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    if (data.access_token) {
-      localStorage.setItem('hms_admin_access_token', data.access_token);
-      if (data.refresh_token) {
-        localStorage.setItem('hms_admin_refresh_token', data.refresh_token);
-      }
-      return data.access_token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const refreshed = await refreshSession();
+  return refreshed?.access_token ?? null;
 }
 
 class AdminWebSocketClient {
@@ -100,7 +80,7 @@ class AdminWebSocketClient {
     this.shouldReconnect = true;
 
     // ── Token refresh guard ───────────────────────────────────────────────────
-    let token = localStorage.getItem('hms_admin_access_token');
+    let token = getAccessToken();
 
     if (isTokenExpiredOrSoon(token) && !this.isRefreshing) {
       this.isRefreshing = true;
@@ -191,7 +171,7 @@ class AdminWebSocketClient {
         // In this case force a refresh on next reconnect attempt.
         if (ev.code === 4001 || ev.code === 4008) {
           // Clear the stored token so next connect() triggers a refresh
-          localStorage.removeItem('hms_admin_access_token');
+          dropAccessToken();
         }
         this.scheduleReconnect();
       };

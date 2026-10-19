@@ -186,6 +186,12 @@ class OrderResponse(StrictRequestModel):
     cancelled_by_role: str | None = None
     cancellation_reason: str | None = None
 
+    # Only set while status == PENDING_CONFIRMATION: when the request auto-cancels.
+    confirmation_expires_at: Any | None = None
+    # True when a QR request was rejected/expired/withdrawn before any waiter confirmed it,
+    # i.e. the kitchen never saw this order.
+    never_confirmed: bool = False
+
 
 class CustomerOrderListResponse(StrictRequestModel):
     """Paginated order history for the current customer session."""
@@ -217,6 +223,9 @@ class OrderCreateResponse(StrictRequestModel):
     order: OrderResponse
     table_session: TableSessionInfo
     is_replay: bool = False
+    # True when the order is parked until a waiter confirms guests are seated (threat T-01).
+    requires_confirmation: bool = False
+    confirmation_expires_at: Any | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -456,3 +465,25 @@ class WaiterTableSessionDetail(StrictRequestModel):
     current_outstanding_amount: Decimal = Decimal("0.00")
     custom_outstanding_limit: Decimal = Decimal("5000.00")
     orders: list[WaiterOrderResponse] = []
+
+
+class PendingConfirmationItem(StrictRequestModel):
+    """A QR order waiting for a waiter to confirm that guests are seated."""
+
+    order: WaiterOrderResponse
+    expires_at: Any
+    seconds_remaining: int
+
+
+class PendingConfirmationList(StrictRequestModel):
+    """Waiter inbox of unconfirmed QR orders (oldest first)."""
+
+    items: list[PendingConfirmationItem] = []
+    total: int = 0
+    timeout_seconds: int = 180
+
+
+class PendingOrderRejectRequest(StrictRequestModel):
+    """Optional note when a waiter rejects an unconfirmed QR order."""
+
+    reason: str | None = Field(default=None, max_length=200)

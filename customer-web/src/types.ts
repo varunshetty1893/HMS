@@ -111,6 +111,10 @@ export interface OrderResponse {
   cancelled_at?: string | null;
   cancelled_by_role?: string | null;
   cancellation_reason?: string | null;
+  /** Only while status === 'PENDING_CONFIRMATION': when the request auto-cancels. */
+  confirmation_expires_at?: string | null;
+  /** Rejected/expired/withdrawn before a waiter confirmed it (the kitchen never saw it). */
+  never_confirmed?: boolean;
   items: OrderItemResponse[];
 }
 
@@ -139,6 +143,9 @@ export interface OrderCreateResponse {
   order: OrderResponse;
   table_session: TableSessionInfo;
   is_replay: boolean;
+  /** True when a waiter must confirm that guests are seated before the kitchen sees the order. */
+  requires_confirmation?: boolean;
+  confirmation_expires_at?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

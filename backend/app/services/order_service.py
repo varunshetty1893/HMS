@@ -463,6 +463,27 @@ class OrderService:
                 message=f"A single order may not exceed ₹{_MAX_ORDER_SUBTOTAL}.",
             )
 
+        # ── 4b. T-01: hold the first QR order of an empty table for a waiter ─
+        from app.services.order_confirmation_service import (
+            OrderConfirmationService,
+            is_required,
+        )
+
+        _early_cfg = await db.get(RestaurantSettings, 1)
+        if is_required(_early_cfg):
+            held = await OrderConfirmationService.hold_first_order(
+                db,
+                customer_session=customer_session,
+                resolved_lines=resolved_lines,
+                order_subtotal=order_subtotal,
+                payload=payload,
+                cfg=_early_cfg,
+                idempotency_key=idempotency_key,
+                client_ip=client_ip,
+            )
+            if held is not None:
+                return held, 201
+
         # ── 5. Lock / create TableSession ────────────────────────────────
         table_session, is_first_order = await cls._get_or_create_table_session(
             db,
@@ -592,6 +613,14 @@ class OrderService:
                     TableSession.status == TableSessionStatus.ACTIVE.value,
                 )
             )
+            if table_session_id is None:
+                # A request held for waiter confirmation is visible to every phone at the table.
+                table_session_id = await db.scalar(
+                    select(TableSession.id).where(
+                        TableSession.table_id == customer_session.table_id,
+                        TableSession.status == TableSessionStatus.PENDING_CONFIRMATION.value,
+                    )
+                )
 
         stmt = (
             select(Order)
@@ -911,6 +940,7 @@ class OrderService:
         order_subtotal: Decimal,
         payload: OrderCreate,
         is_first_order: bool,
+        initial_status: OrderStatus = OrderStatus.PLACED,
     ) -> Order:
         """Create and flush `Order`, `OrderItem[]`, and the initial `OrderStatusHistory`."""
         now = utc_now()
@@ -921,7 +951,7 @@ class OrderService:
             table_id=table_session.table_id,
             source=OrderSource.CUSTOMER_QR.value,
             customer_session_id=customer_session.id,
-            status=OrderStatus.PLACED.value,
+            status=initial_status.value,
             order_subtotal=order_subtotal,
             special_instructions=payload.special_instructions,
             is_first_qr_order_of_session=is_first_order,
@@ -973,7 +1003,7 @@ class OrderService:
         status_entry = OrderStatusHistory(
             order_id=order.id,
             previous_status=None,
-            new_status=OrderStatus.PLACED.value,
+            new_status=initial_status.value,
             changed_by_role=ActorRole.CUSTOMER.value,
             changed_by_customer_session_id=customer_session.id,
             changed_at=now,
@@ -2707,6 +2737,14 @@ class OrderService:
         ):
             raise StateConflictError(
                 "FORBIDDEN", "This order does not belong to your table session."
+            )
+
+        # A request still waiting for a waiter can always be withdrawn: nothing was cooked.
+        if order.status == OrderStatus.PENDING_CONFIRMATION.value:
+            from app.services.order_confirmation_service import OrderConfirmationService
+
+            return await OrderConfirmationService.withdraw(
+                db, order=order, customer_session=customer_session
             )
 
         # OD-02: admin can switch customer self-cancel off entirely (staff must cancel instead).

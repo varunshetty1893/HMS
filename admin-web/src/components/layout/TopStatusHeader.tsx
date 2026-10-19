@@ -93,7 +93,7 @@ export const TopStatusHeader: React.FC = () => {
       {/* Right: Theme toggle, Staff profile & Logout */}
       <div className="flex items-center gap-3">
         {/* Customer Web Preview Link (Omitted in Production) */}
-        {isDevDemoEnabled() && (
+        {import.meta.env.DEV && isDevDemoEnabled() && (
           <button
             onClick={() => {
               sessionStorage.setItem('hms_table_number', '4');

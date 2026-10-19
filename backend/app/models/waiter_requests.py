@@ -62,7 +62,10 @@ class WaiterRequest(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=WaiterRequestStatus.PENDING.value
+        String(20),
+        nullable=False,
+        default=WaiterRequestStatus.PENDING.value,
+        server_default=text("'PENDING'"),
     )
     claimed_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

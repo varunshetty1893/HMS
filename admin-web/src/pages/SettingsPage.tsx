@@ -36,6 +36,9 @@ export const SettingsPage: React.FC = () => {
   const [allowCustomerCancel, setAllowCustomerCancel] = useState(false);
   const [allowKitchenToggle, setAllowKitchenToggle] = useState(true);
   const [limitIncludesTax, setLimitIncludesTax] = useState(false);
+  const [requireConfirmation, setRequireConfirmation] = useState(true);
+  const [confirmTimeout, setConfirmTimeout] = useState('180');
+  const [maxPendingConfirmations, setMaxPendingConfirmations] = useState('15');
 
   const applySettings = (data: RestaurantSettings) => {
       setSettings(data);
@@ -53,6 +56,9 @@ export const SettingsPage: React.FC = () => {
       setAllowCustomerCancel(data.allow_customer_cancel_placed);
       setAllowKitchenToggle(data.kitchen_can_toggle_availability);
       setLimitIncludesTax(data.limit_includes_estimated_tax);
+      setRequireConfirmation(data.require_waiter_confirmation_for_first_qr_order ?? true);
+      setConfirmTimeout(String(data.qr_confirmation_timeout_seconds ?? 180));
+      setMaxPendingConfirmations(String(data.max_pending_qr_confirmations ?? 15));
   };
 
   const fetchSettings = async () => {
@@ -92,6 +98,9 @@ export const SettingsPage: React.FC = () => {
       allow_customer_cancel_placed: allowCustomerCancel,
       kitchen_can_toggle_availability: allowKitchenToggle,
       limit_includes_estimated_tax: limitIncludesTax,
+      require_waiter_confirmation_for_first_qr_order: requireConfirmation,
+      qr_confirmation_timeout_seconds: Number(confirmTimeout),
+      max_pending_qr_confirmations: Number(maxPendingConfirmations),
     };
 
     try {
@@ -334,6 +343,51 @@ export const SettingsPage: React.FC = () => {
                 className="w-4 h-4 accent-brand-600 rounded cursor-pointer"
               />
             </label>
+
+            <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
+              <div>
+                <span className="text-sm font-semibold block" style={{ color: heading }}>Waiter Confirms First QR Order (T-01)</span>
+                <span className="text-xs" style={{ color: sub }}>A QR order on an empty table waits until a waiter confirms guests are seated, so a photographed QR cannot send fake orders to the kitchen. Turn off only for a quiet venue.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={requireConfirmation}
+                onChange={(e) => setRequireConfirmation(e.target.checked)}
+                className="w-4 h-4 accent-brand-600 rounded cursor-pointer"
+              />
+            </label>
+
+            {requireConfirmation && (
+              <div className="p-3.5 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-4" style={cardInner}>
+                <div>
+                  <span className="text-sm font-semibold block mb-1" style={{ color: heading }}>Auto-cancel after (seconds)</span>
+                  <input
+                    type="number"
+                    min={30}
+                    max={1800}
+                    step={10}
+                    value={confirmTimeout}
+                    onChange={(e) => setConfirmTimeout(e.target.value)}
+                    className="w-32 px-3 py-2 rounded-xl text-sm font-mono focus:outline-none"
+                    style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+                  />
+                  <span className="text-xs block mt-1" style={{ color: sub }}>30 to 1800. Unanswered requests are cancelled and the guest is told to ask a waiter.</span>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold block mb-1" style={{ color: heading }}>Max waiting requests</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={maxPendingConfirmations}
+                    onChange={(e) => setMaxPendingConfirmations(e.target.value)}
+                    className="w-32 px-3 py-2 rounded-xl text-sm font-mono focus:outline-none"
+                    style={{ backgroundColor: L ? '#faf7f2' : '#0f172a', border: `1.5px solid ${border}`, color: heading }}
+                  />
+                  <span className="text-xs block mt-1" style={{ color: sub }}>Across the whole restaurant. Beyond this, guests are asked to call a waiter.</span>
+                </div>
+              </div>
+            )}
 
             <label className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition hover:opacity-90" style={cardInner}>
               <div>

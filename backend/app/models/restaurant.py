@@ -55,6 +55,14 @@ class RestaurantSettings(Base):
             "AND waiter_max_price_override_percentage <= 100",
             name="waiter_max_price_override_range",
         ),
+        CheckConstraint(
+            "qr_confirmation_timeout_seconds BETWEEN 30 AND 1800",
+            name="qr_confirmation_timeout_range",
+        ),
+        CheckConstraint(
+            "max_pending_qr_confirmations BETWEEN 1 AND 100",
+            name="max_pending_qr_confirmations_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -112,6 +120,19 @@ class RestaurantSettings(Base):
     # Administrators are intentionally not capped by this operational setting.
     waiter_max_price_override_percentage: Mapped[Decimal] = mapped_column(
         percentage(), nullable=False, default=Decimal("0.00"), server_default=text("0.00")
+    )
+
+    # QR anti-abuse (threat T-01): a QR order on an empty table waits for a waiter to confirm
+    # that guests are really seated before it reaches the kitchen. Quiet venues may turn it off.
+    require_waiter_confirmation_for_first_qr_order: Mapped[bool] = mapped_column(
+        **_bool_default(True)
+    )
+    qr_confirmation_timeout_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=180, server_default=text("180")
+    )
+    # Restaurant-wide ceiling on unconfirmed requests so the confirmation queue cannot be flooded.
+    max_pending_qr_confirmations: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=15, server_default=text("15")
     )
 
     updated_at: Mapped[datetime] = mapped_column(

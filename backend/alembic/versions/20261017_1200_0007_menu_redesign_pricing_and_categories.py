@@ -72,6 +72,8 @@ def downgrade() -> None:
     op.drop_column("menu_price_variants", "pricing_status")
     op.drop_constraint("price_non_negative", "menu_price_variants", type_="check")
     op.create_check_constraint("price_non_negative", "menu_price_variants", "price >= 0")
+    # Seasonal / unpriced variants have NULL price; the old schema requires a value.
+    op.execute("UPDATE menu_price_variants SET price = 0 WHERE price IS NULL")
     op.alter_column(
         "menu_price_variants",
         "price",

@@ -1156,7 +1156,7 @@ class MenuService:
             select(OrderItem.menu_item_id.label("menu_item_id"), total_qty)
             .join(Order, Order.id == OrderItem.order_id)
             .where(
-                Order.status.notin_(["REJECTED", "CANCELLED"]),
+                Order.status.notin_(["PENDING_CONFIRMATION", "REJECTED", "CANCELLED"]),
                 Order.placed_at >= since,
                 OrderItem.active_quantity > 0,
             )

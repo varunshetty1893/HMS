@@ -14,14 +14,13 @@ Role-based access:
 
 from __future__ import annotations
 
-import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import require_roles, get_current_customer_session
+from app.core.dependencies import get_current_customer_session, require_roles
 from app.models.enums import NotificationChannel, UserRole
 from app.models.identity import User
 from app.models.qr_sessions import CustomerSession
@@ -34,7 +33,9 @@ from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["Notification Recovery"])
 
-StaffUser = Annotated[User, Depends(require_roles(UserRole.WAITER, UserRole.ADMIN, UserRole.KITCHEN))]
+StaffUser = Annotated[
+    User, Depends(require_roles(UserRole.WAITER, UserRole.ADMIN, UserRole.KITCHEN))
+]
 AdminOrWaiter = Annotated[User, Depends(require_roles(UserRole.WAITER, UserRole.ADMIN))]
 
 
@@ -42,7 +43,11 @@ AdminOrWaiter = Annotated[User, Depends(require_roles(UserRole.WAITER, UserRole.
 # Staff recovery (kitchen, waiters, admin)
 # ---------------------------------------------------------------------------
 
-@router.get("/unread", response_model=list[NotificationItem], summary="Fetch unread notifications (staff)")
+@router.get(
+    "/unread",
+    response_model=list[NotificationItem],
+    summary="Fetch unread notifications (staff)",
+)
 async def get_unread_staff(
     staff: StaffUser,
     db: AsyncSession = Depends(get_db),
@@ -53,8 +58,15 @@ async def get_unread_staff(
     # Enforce role-channel binding
     allowed: dict[str, list[str]] = {
         UserRole.KITCHEN.value: [NotificationChannel.KITCHEN_ALL.value],
-        UserRole.WAITER.value: [NotificationChannel.WAITERS_ALL.value, NotificationChannel.ADMIN_ALL.value],
-        UserRole.ADMIN.value: [NotificationChannel.KITCHEN_ALL.value, NotificationChannel.WAITERS_ALL.value, NotificationChannel.ADMIN_ALL.value],
+        UserRole.WAITER.value: [
+            NotificationChannel.WAITERS_ALL.value,
+            NotificationChannel.ADMIN_ALL.value,
+        ],
+        UserRole.ADMIN.value: [
+            NotificationChannel.KITCHEN_ALL.value,
+            NotificationChannel.WAITERS_ALL.value,
+            NotificationChannel.ADMIN_ALL.value,
+        ],
     }
     if channel not in allowed.get(staff.role, []):
         return []
@@ -63,7 +75,11 @@ async def get_unread_staff(
     return [NotificationItem.from_orm(r) for r in rows]
 
 
-@router.post("/ack", response_model=NotificationAckResponse, summary="Acknowledge notifications (staff)")
+@router.post(
+    "/ack",
+    response_model=NotificationAckResponse,
+    summary="Acknowledge notifications (staff)",
+)
 async def ack_notifications_staff(
     payload: NotificationAckRequest,
     staff: AdminOrWaiter,
@@ -83,7 +99,11 @@ async def ack_notifications_staff(
 # Customer recovery (table_session scoped)
 # ---------------------------------------------------------------------------
 
-@router.get("/customer/unread", response_model=list[NotificationItem], summary="Fetch unread notifications (customer)")
+@router.get(
+    "/customer/unread",
+    response_model=list[NotificationItem],
+    summary="Fetch unread notifications (customer)",
+)
 async def get_unread_customer(
     session: CustomerSession = Depends(get_current_customer_session),
     db: AsyncSession = Depends(get_db),

@@ -36,6 +36,7 @@ from app.schemas.qr import CustomerSessionResponse
 from app.schemas.waiter_request import WaiterRequestCreate, WaiterRequestResponse
 from app.services import waiter_request_service as wr_svc
 from app.services.menu_service import MenuService
+from app.services.order_confirmation_service import OrderConfirmationService
 from app.services.order_service import OrderService, _build_order_response
 
 router = APIRouter(prefix="/customer", tags=["Customer Operations"])
@@ -185,8 +186,11 @@ async def list_orders(
     db: AsyncSession = Depends(get_db),
 ) -> list[OrderResponse]:
     """Return all orders for this active table session, newest first."""
+    cfg = await OrderConfirmationService.prepare_customer_view(db, table_id=session.table_id)
     orders = await OrderService.list_customer_orders(db, customer_session=session)
-    return [_build_order_response(o) for o in orders]
+    return await OrderConfirmationService.annotate_orders(
+        db, orders, [_build_order_response(o) for o in orders], cfg
+    )
 
 
 @router.post(

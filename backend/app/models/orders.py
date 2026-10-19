@@ -77,6 +77,11 @@ class Order(UUIDPrimaryKeyMixin, UpdatedAtMixin, Base):
         Index(
             "ix_orders_created_by_user_id_placed_at", "created_by_user_id", text("placed_at DESC")
         ),
+        Index(
+            "ix_orders_pending_confirmation",
+            "placed_at",
+            postgresql_where=text("status = 'PENDING_CONFIRMATION'"),
+        ),
         CheckConstraint(in_check("source", OrderSource), name="source_valid"),
         CheckConstraint(in_check("status", OrderStatus), name="status_valid"),
         CheckConstraint("order_subtotal >= 0", name="subtotal_non_negative"),
@@ -192,8 +197,13 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     adjustment_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     adjustment_amount: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
     adjustment_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    adjustment_applied_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
-    adjustment_approved_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True)
+    # Names match migration 0008 (already applied in deployed databases).
+    adjustment_applied_by_user_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "users.id", nullable=True, name="fk_order_items_adjustment_applied_by_user_id"
+    )
+    adjustment_approved_by_user_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "users.id", nullable=True, name="fk_order_items_adjustment_approved_by_user_id"
+    )
 
     order: Mapped[Order] = relationship(back_populates="items")
     menu_item: Mapped[MenuItem] = relationship(back_populates="order_items")

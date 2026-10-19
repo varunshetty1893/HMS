@@ -78,6 +78,27 @@ KEPT_EXTRAS = (
         "KEEP",
     ),
     Reconciliation(
+        "restaurant_settings",
+        "require_waiter_confirmation_for_first_qr_order",
+        "Waiter confirmation of first QR order specification (threat T-01)",
+        "Policy switch: hold the first QR order on an empty table until a waiter confirms.",
+        "KEEP",
+    ),
+    Reconciliation(
+        "restaurant_settings",
+        "qr_confirmation_timeout_seconds",
+        "Waiter confirmation of first QR order specification (threat T-01)",
+        "Policy value: seconds before an unconfirmed QR order is auto-cancelled.",
+        "KEEP",
+    ),
+    Reconciliation(
+        "restaurant_settings",
+        "max_pending_qr_confirmations",
+        "Waiter confirmation of first QR order specification (threat T-01)",
+        "Policy value: restaurant-wide ceiling on unconfirmed QR orders (flood protection).",
+        "KEEP",
+    ),
+    Reconciliation(
         "menu_items",
         "extra_piece_price",
         "Flexible Portions & Extra Items specification",
@@ -102,7 +123,7 @@ KEPT_EXTRAS = (
         "menu_items",
         "imagekit_file_id",
         "ImageKit CDN integration (migration 0010)",
-        "ImageKit file ID stored for safe remote CDN deletion when admin replaces or removes a dish photo.",
+        "ImageKit file ID stored for safe remote CDN deletion when a dish photo is replaced.",
         "KEEP",
     ),
     Reconciliation(

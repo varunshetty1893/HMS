@@ -7,6 +7,8 @@ Reloaded for CORS origin update.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -21,6 +23,29 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger, request_id_ctx_var
 
 logger = get_logger(__name__)
+
+
+_CONFIRMATION_SWEEP_SECONDS = 15
+
+
+async def _confirmation_expiry_loop() -> None:
+    """Auto-cancel QR orders that no waiter confirmed in time (threat T-01).
+
+    Best effort: expiry is ALSO enforced lazily (on retry, on the waiter inbox and when a
+    waiter taps Confirm), so a stopped or failing sweeper never lets a stale order through.
+    """
+    from app.core.database import get_session_factory
+    from app.services.order_confirmation_service import OrderConfirmationService
+
+    while True:
+        try:
+            await asyncio.sleep(_CONFIRMATION_SWEEP_SECONDS)
+            async with get_session_factory()() as db:
+                await OrderConfirmationService.expire_stale(db)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # never let the sweeper die on a transient DB error
+            logger.warning("Confirmation expiry sweep failed: %s", exc)
 
 
 @asynccontextmanager
@@ -38,7 +63,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.app_version,
         settings.environment,
     )
+    sweeper = asyncio.create_task(_confirmation_expiry_loop())
     yield
+    sweeper.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await sweeper
     logger.info("Shutting down %s and disposing DB pool", settings.app_name)
     await dispose_engine()
 
@@ -181,6 +210,8 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 "Idempotency-Key",
                 "X-Request-Id",
                 "X-Client-Version",
+                "X-Auth-Transport",
+                "X-Requested-With",
             ],
             expose_headers=["X-Request-Id", "X-Idempotent-Replay"],
         )

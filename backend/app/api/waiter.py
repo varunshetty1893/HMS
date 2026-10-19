@@ -30,6 +30,8 @@ from app.schemas.order import (
     OrderItemAdjustmentRequest,
     OrderModifyRequest,
     OrderServeRequest,
+    PendingConfirmationList,
+    PendingOrderRejectRequest,
     WaiterOrderCreate,
     WaiterOrderResponse,
     WaiterTableSessionDetail,
@@ -39,6 +41,7 @@ from app.schemas.waiter_request import WaiterRequestResponse
 from app.services import waiter_request_service as wr_svc
 from app.services.billing_service import BillingService
 from app.services.menu_service import MenuService
+from app.services.order_confirmation_service import OrderConfirmationService
 from app.services.order_service import OrderService
 from app.services.table_service import TableService
 
@@ -149,6 +152,64 @@ async def create_waiter_order(
     return JSONResponse(
         content=response.model_dump(mode="json"),
         status_code=http_status,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR order confirmation (threat T-01): the first QR order on an empty table waits here
+# until a waiter confirms that guests are really seated.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/order-confirmations",
+    response_model=PendingConfirmationList,
+    summary="QR orders waiting for waiter confirmation",
+)
+async def list_pending_confirmations(
+    _staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> PendingConfirmationList:
+    """Unconfirmed first QR orders, oldest first, with the seconds left before auto-cancel."""
+    return await OrderConfirmationService.list_pending(db)
+
+
+@router.post(
+    "/orders/{order_id}/confirm",
+    response_model=WaiterOrderResponse,
+    summary="Confirm guests are seated and release the QR order to the kitchen",
+)
+async def confirm_pending_order(
+    request: Request,
+    order_id: uuid.UUID,
+    staff: WaiterOrAdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """PENDING_CONFIRMATION -> PLACED. Opens the table session and notifies the kitchen."""
+    return await OrderConfirmationService.confirm(
+        db, order_id=order_id, staff_user=staff, client_ip=extract_client_ip(request)
+    )
+
+
+@router.post(
+    "/orders/{order_id}/reject",
+    response_model=WaiterOrderResponse,
+    summary="Reject an unconfirmed QR order (nobody is at the table)",
+)
+async def reject_pending_order(
+    request: Request,
+    order_id: uuid.UUID,
+    staff: WaiterOrAdminUser,
+    payload: PendingOrderRejectRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> WaiterOrderResponse:
+    """PENDING_CONFIRMATION -> REJECTED. The guest is told to ask a waiter for help."""
+    return await OrderConfirmationService.reject(
+        db,
+        order_id=order_id,
+        staff_user=staff,
+        reason=payload.reason if payload else None,
+        client_ip=extract_client_ip(request),
     )
 
 

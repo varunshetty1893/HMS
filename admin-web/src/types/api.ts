@@ -322,6 +322,9 @@ export interface RestaurantSettings {
   allow_waiter_discount: boolean;
   waiter_max_discount_percentage: string;
   waiter_max_price_override_percentage: string;
+  require_waiter_confirmation_for_first_qr_order: boolean;
+  qr_confirmation_timeout_seconds: number;
+  max_pending_qr_confirmations: number;
   created_at: string;
   updated_at: string;
 }

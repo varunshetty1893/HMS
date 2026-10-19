@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AdminModule, AdminSidebar } from '@/components/layout/AdminSidebar';
 import { TopStatusHeader } from '@/components/layout/TopStatusHeader';
 import { LoginPage } from '@/pages/LoginPage';
-import { OverviewPage } from '@/pages/OverviewPage';
-import { MenuManagementPage } from '@/pages/MenuManagementPage';
-import { TablesAndQrPage } from '@/pages/TablesAndQrPage';
-import { LiveOrdersPage } from '@/pages/LiveOrdersPage';
-import { BillingAndPaymentsPage } from '@/pages/BillingAndPaymentsPage';
-import { StaffManagementPage } from '@/pages/StaffManagementPage';
-import { ReportsPage } from '@/pages/ReportsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { AuditLogsPage } from '@/pages/AuditLogsPage';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+
+// Route-level code splitting: each module is downloaded when first opened.
+const OverviewPage = lazy(() => import('@/pages/OverviewPage').then((m) => ({ default: m.OverviewPage })));
+const MenuManagementPage = lazy(() => import('@/pages/MenuManagementPage').then((m) => ({ default: m.MenuManagementPage })));
+const TablesAndQrPage = lazy(() => import('@/pages/TablesAndQrPage').then((m) => ({ default: m.TablesAndQrPage })));
+const LiveOrdersPage = lazy(() => import('@/pages/LiveOrdersPage').then((m) => ({ default: m.LiveOrdersPage })));
+const BillingAndPaymentsPage = lazy(() => import('@/pages/BillingAndPaymentsPage').then((m) => ({ default: m.BillingAndPaymentsPage })));
+const StaffManagementPage = lazy(() => import('@/pages/StaffManagementPage').then((m) => ({ default: m.StaffManagementPage })));
+const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
+
+const ModuleFallback: React.FC = () => (
+  <div className="h-full w-full flex items-center justify-center" style={{ color: 'var(--text-secondary)' }}>
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--spice-orange)', borderTopColor: 'transparent' }} />
+      <span className="text-sm font-medium">Loading...</span>
+    </div>
+  </div>
+);
 
 const AdminDashboard: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -46,6 +57,7 @@ const AdminDashboard: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <TopStatusHeader />
         <main className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-base)' }}>
+          <Suspense fallback={<ModuleFallback />}>
           {currentModule === 'overview' && <OverviewPage onNavigate={(mod) => setCurrentModule(mod)} />}
           {currentModule === 'menu' && <MenuManagementPage />}
           {currentModule === 'tables-qr' && <TablesAndQrPage />}
@@ -55,6 +67,7 @@ const AdminDashboard: React.FC = () => {
           {currentModule === 'reports' && <ReportsPage />}
           {currentModule === 'settings' && <SettingsPage />}
           {currentModule === 'audit-logs' && <AuditLogsPage />}
+          </Suspense>
         </main>
       </div>
     </div>

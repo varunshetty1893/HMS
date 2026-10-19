@@ -1,4 +1,4 @@
-"""Tests for Issues 2-6: lockout auto-expiry, IP trust, audit IP hashing, IST timezone, popular dishes.
+"""Tests for Issues 2-6: lockout auto-expiry, IP trust, audit IP hashing, IST time, popular dishes.
 
 Issue 1 (QR photographing) and Issue 7 (notifications) have their own test files.
 """
@@ -10,14 +10,11 @@ import hmac
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.core.time_utils import IST, ist_day_to_utc_range, utc_now
+from app.core.time_utils import ist_day_to_utc_range
 from app.models.enums import UserStatus
 from app.services.audit_service import AuditService
-
 
 # =============================================================================
 # Issue 2 -- Account lockout auto-expiry
@@ -36,14 +33,17 @@ class TestAccountLockoutAutoExpiry:
 
     def test_expired_lock_clears_status(self) -> None:
         """After locked_until passes, status must be reset to ACTIVE in the login flow."""
-        from app.services import auth_service
 
         past = datetime.now(timezone.utc) - timedelta(minutes=1)
         user = self._make_user(status=UserStatus.LOCKED.value, locked_until=past)
 
         # Simulate what the login code does after step 3 passes (locked_until <= now)
         now = datetime.now(timezone.utc)
-        if user.status == UserStatus.LOCKED.value and user.locked_until and user.locked_until <= now:
+        if (
+            user.status == UserStatus.LOCKED.value
+            and user.locked_until
+            and user.locked_until <= now
+        ):
             user.status = UserStatus.ACTIVE.value
             user.failed_login_attempts = 0
             user.locked_until = None
@@ -58,7 +58,11 @@ class TestAccountLockoutAutoExpiry:
         user = self._make_user(status=UserStatus.LOCKED.value, locked_until=future)
 
         now = datetime.now(timezone.utc)
-        if user.status == UserStatus.LOCKED.value and user.locked_until and user.locked_until <= now:
+        if (
+            user.status == UserStatus.LOCKED.value
+            and user.locked_until
+            and user.locked_until <= now
+        ):
             user.status = UserStatus.ACTIVE.value  # Must NOT happen
 
         assert user.status == UserStatus.LOCKED.value
@@ -69,7 +73,11 @@ class TestAccountLockoutAutoExpiry:
 
         now = datetime.now(timezone.utc)
         # Condition guards: locked_until must be set for auto-recovery to trigger
-        if user.status == UserStatus.LOCKED.value and user.locked_until and user.locked_until <= now:
+        if (
+            user.status == UserStatus.LOCKED.value
+            and user.locked_until
+            and user.locked_until <= now
+        ):
             user.status = UserStatus.ACTIVE.value  # Must NOT happen
 
         assert user.status == UserStatus.DISABLED.value
@@ -113,7 +121,9 @@ class TestTrustedProxyIPExtraction:
         assert ip == "5.6.7.8"
 
     def test_no_xff_header_falls_back_to_peer(self) -> None:
-        ip = self._make_request(xff=None, peer_ip="192.168.1.5", trusted_ips=frozenset({"192.168.1.1"}))
+        ip = self._make_request(
+            xff=None, peer_ip="192.168.1.5", trusted_ips=frozenset({"192.168.1.1"})
+        )
         assert ip == "192.168.1.5"
 
 

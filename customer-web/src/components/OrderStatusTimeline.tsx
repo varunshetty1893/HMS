@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { CustomerItemChange, MenuItem, OrderResponse } from '../types';
 import { OrderEditPanel } from './OrderEditPanel';
 import { formatInr } from '../utils/currency';
@@ -13,6 +13,7 @@ import {
   Loader2,
   AlertTriangle,
   Pencil,
+  HandHelping,
 } from 'lucide-react';
 
 interface OrderStatusTimelineProps {
@@ -26,6 +27,27 @@ interface OrderStatusTimelineProps {
   ) => Promise<void>;
   /** menu_item_id -> menu item, used to offer cheaper portions (Full -> Half) */
   menuItems?: Record<string, MenuItem>;
+}
+
+/** Seconds until `iso`, ticking every second; null when there is nothing to count down. */
+function useCountdown(iso: string | null | undefined): number | null {
+  const target = iso ? new Date(iso).getTime() : NaN;
+  const calc = () => (Number.isNaN(target) ? null : Math.max(0, Math.ceil((target - Date.now()) / 1000)));
+  const [left, setLeft] = useState<number | null>(calc);
+  useEffect(() => {
+    setLeft(calc());
+    if (Number.isNaN(target)) return;
+    const timer = setInterval(() => setLeft(calc()), 1000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+  return left;
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 const STEPS = [
@@ -43,8 +65,13 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
   menuItems = {},
 }) => {
   const currentStatus = order.status;
+  // T-01: a QR order on an empty table waits for a waiter to confirm guests are seated.
+  const isPendingConfirmation = currentStatus === 'PENDING_CONFIRMATION';
+  const secondsLeft = useCountdown(isPendingConfirmation ? order.confirmation_expires_at : null);
   const isTerminalCancelled = currentStatus === 'CANCELLED';
   const isTerminalRejected = currentStatus === 'REJECTED';
+  // Rejected/expired/withdrawn before any waiter confirmed it: the kitchen never saw this order.
+  const neverConfirmed = order.never_confirmed === true && order.cancelled_by_role !== 'CUSTOMER';
 
   // Can cancel only before cooking starts (while status is PLACED, SUBMITTED, or ACCEPTED)
   const isCancellable =
@@ -164,7 +191,32 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
       </div>
 
       {/* Stepper / Timeline */}
-      {isTerminalRejected || isTerminalCancelled ? (
+      {isPendingConfirmation ? (
+        <div
+          className="flex items-start gap-3 p-3.5 rounded-2xl text-xs"
+          style={{
+            background: '#FFFBEB',
+            border: '1px solid #FCD34D',
+            color: '#92400E',
+          }}
+        >
+          <HandHelping size={20} className="shrink-0 mt-0.5" style={{ color: '#D97706' }} />
+          <div className="space-y-1">
+            <span className="font-bold block">Waiting for a waiter to confirm</span>
+            <span className="block leading-relaxed">
+              A waiter will come to your table to confirm your order. It reaches the kitchen
+              right after that. Please wait a moment.
+            </span>
+            {secondsLeft !== null && (
+              <span className="block font-mono font-semibold">
+                {secondsLeft > 0
+                  ? `Request expires in ${formatCountdown(secondsLeft)}`
+                  : 'Request expired. Please ask a waiter for help.'}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : isTerminalRejected || isTerminalCancelled ? (
         <div
           className="flex items-center gap-3 p-3.5 rounded-2xl text-xs"
           style={{
@@ -176,10 +228,14 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
           <XCircle size={20} className="shrink-0 text-red-500" />
           <div>
             <span className="font-bold block">
-              Order {isTerminalRejected ? 'Rejected by Kitchen' : 'Cancelled'}
+              {neverConfirmed
+                ? 'Order not confirmed'
+                : `Order ${isTerminalRejected ? 'Rejected by Kitchen' : 'Cancelled'}`}
             </span>
             <span className="text-red-700/80">
-              {isTerminalCancelled
+              {neverConfirmed
+                ? 'No waiter confirmed this order, so it was not sent to the kitchen. Please ask a waiter for help.'
+                : isTerminalCancelled
                 ? order.cancelled_by_role && order.cancelled_by_role !== 'CUSTOMER'
                   ? `Cancelled by the restaurant${order.cancellation_reason ? `: ${order.cancellation_reason}` : '.'}`
                   : 'This order has been cancelled and will not be prepared.'
@@ -349,6 +405,22 @@ export const OrderStatusTimeline: React.FC<OrderStatusTimelineProps> = ({
       {/* ── Cancellation Control Section ── */}
       {!isTerminalCancelled && !isTerminalRejected && (
         <div className="pt-2">
+          {isPendingConfirmation && (
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-stone-500">Not sent to the kitchen yet</span>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/80 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isCancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                <span>Withdraw Request</span>
+              </button>
+            </div>
+          )}
+          {isPendingConfirmation && cancelError && (
+            <p className="text-[11px] text-red-600 font-semibold pt-1">{cancelError}</p>
+          )}
           {/* If cooking has started, show that it cannot be cancelled */}
           {isCookingOrPast ? (
             <div className="flex items-center gap-2 p-2.5 rounded-xl text-[11px] bg-amber-50/80 border border-amber-200/80 text-amber-900">

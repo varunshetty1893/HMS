@@ -56,7 +56,7 @@
    - `JWT_SECRET_KEY`: High-entropy 64-character hex key (generate with `openssl rand -hex 32`).
    - `CSRF_SECRET_KEY`: High-entropy 64-character hex key.
 5. Deploy the service. Verify the build log runs `alembic upgrade head` successfully and Uvicorn starts.
-6. Verify healthcheck: `GET https://hms-yyoq.onrender.com/api/v1/health` returns `{"status":"ok"}`.
+6. Verify healthcheck: `GET https://<your-render-app>.onrender.com/api/v1/health` returns `{"status":"ok"}`.
 
 ### Step 3: Initialize Production Admin User
 Run the idempotent production bootstrapping script from your local machine targeting the remote Neon database:
@@ -72,8 +72,8 @@ This initializes the `restaurant_settings` singleton (id=1) with GST rates and â
 3. Set **Framework Preset** to `Vite`.
 4. Build command: `npm run build` | Build output directory: `dist`.
 5. Configure Environment Variables (under **Settings** > **Environment variables**):
-   - `VITE_API_BASE_URL`: `https://hms-yyoq.onrender.com/api/v1`
-   - `VITE_WS_URL`: `wss://hms-yyoq.onrender.com/api/v1/ws`
+   - `VITE_API_BASE_URL`: `https://<your-render-app>.onrender.com/api/v1`
+   - `VITE_WS_URL`: `wss://<your-render-app>.onrender.com/api/v1/ws`
    - `VITE_APP_ENV`: `production`
 6. Deploy. Note that `customer-web/public/_redirects` contains `/* /index.html 200` to support SPA routing.
 
@@ -83,8 +83,8 @@ This initializes the `restaurant_settings` singleton (id=1) with GST rates and â
 3. Set **Framework Preset** to `Vite`.
 4. Build command: `npm run build` | Build output directory: `dist`.
 5. Configure Environment Variables (under **Settings** > **Environment variables**):
-   - `VITE_API_BASE_URL`: `https://hms-yyoq.onrender.com/api/v1`
-   - `VITE_WS_URL`: `wss://hms-yyoq.onrender.com/api/v1/ws`
+   - `VITE_API_BASE_URL`: `https://<your-render-app>.onrender.com/api/v1`
+   - `VITE_WS_URL`: `wss://<your-render-app>.onrender.com/api/v1/ws`
    - `VITE_APP_ENV`: `production`
 6. Deploy. Note that `admin-web/public/_redirects` contains `/* /index.html 200` to support SPA routing.
 

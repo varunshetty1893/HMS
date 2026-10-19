@@ -106,6 +106,12 @@ class TableSession(UUIDPrimaryKeyMixin, UpdatedAtMixin, Base):
             unique=True,
             postgresql_where=text("status = 'ACTIVE'"),
         ),
+        Index(
+            "uq_table_sessions_one_pending_per_table",
+            "table_id",
+            unique=True,
+            postgresql_where=text("status = 'PENDING_CONFIRMATION'"),
+        ),
         Index("ix_table_sessions_status_started_at", "status", text("started_at DESC")),
         CheckConstraint(in_check("status", TableSessionStatus), name="status_valid"),
         CheckConstraint(in_check("opened_by_source", OrderSource), name="opened_by_source_valid"),

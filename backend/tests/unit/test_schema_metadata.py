@@ -324,6 +324,7 @@ def test_payment_methods_and_statuses_match_canonical_spec() -> None:
 
 def test_order_lifecycle_states_match_canonical_spec() -> None:
     assert enum_values(OrderStatus) == (
+        "PENDING_CONFIRMATION",
         "PLACED",
         "ACCEPTED",
         "PREPARING",

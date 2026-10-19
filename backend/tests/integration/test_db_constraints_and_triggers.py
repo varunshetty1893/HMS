@@ -19,6 +19,9 @@ from tests.integration.conftest import TEST_DB_URL, count_app_tables, run_alembi
 
 pytestmark = pytest.mark.asyncio
 
+# docs/04 specifies 20 tables; migration 0002 added `waiter_requests` (a documented extension).
+EXPECTED_APP_TABLES = 21
+
 
 def _u() -> str:
     return uuid.uuid4().hex[:10]
@@ -141,7 +144,7 @@ def _order_item_values(order_id, item_id, variant_id, **extra: Any) -> dict[str,
 
 
 async def test_migration_upgrade_downgrade_upgrade_cycle(migrated_database: str) -> None:
-    assert await count_app_tables() == 20
+    assert await count_app_tables() == EXPECTED_APP_TABLES
 
     down = run_alembic("downgrade", "base")
     assert down.returncode == 0, down.stderr
@@ -149,7 +152,7 @@ async def test_migration_upgrade_downgrade_upgrade_cycle(migrated_database: str)
 
     up = run_alembic("upgrade", "head")
     assert up.returncode == 0, up.stderr
-    assert await count_app_tables() == 20
+    assert await count_app_tables() == EXPECTED_APP_TABLES
 
 
 # Alembic cannot compare the operator class inside the functional trigram index; it skips just
@@ -425,8 +428,12 @@ async def test_case_insensitive_uniqueness_and_singleton_settings(conn: AsyncCon
     await _expect_failure(conn, "restaurant_settings", id=2, restaurant_name="Nope")
     category = await _insert(conn, "menu_categories", name="Biriyani")
     await _expect_failure(conn, "menu_categories", name="BIRIYANI")
-    await _insert(conn, "menu_items", category_id=category, item_code="cb", name="A")
-    await _expect_failure(conn, "menu_items", category_id=category, item_code="CB", name="B")
+    # Migration 0011 seeds the real menu (e.g. code "CB"), so use a code that cannot clash.
+    code = f"z{_u()}"
+    await _insert(conn, "menu_items", category_id=category, item_code=code, name="A")
+    await _expect_failure(
+        conn, "menu_items", category_id=category, item_code=code.upper(), name="B"
+    )
 
 
 async def test_trigram_extension_and_index_available(conn: AsyncConnection) -> None:

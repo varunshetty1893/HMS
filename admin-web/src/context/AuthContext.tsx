@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authApi } from '@/api/authApi';
+import {
+  authCookieMode,
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  refreshSession,
+  saveSession,
+} from '@/auth/session';
 import { adminWs } from '@/realtime/adminWs';
 import { User } from '@/types/api';
 
@@ -14,18 +23,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('hms_admin_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('hms_admin_access_token');
-  });
+  const [user, setUser] = useState<User | null>(() => getStoredUser<User>());
+  const [token, setToken] = useState<string | null>(() => getAccessToken());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('hms_admin_access_token');
+      // Cookie mode: the access token only lives in memory, so after a reload ask the backend
+      // for a fresh one using the httpOnly refresh cookie (no cookie => stay logged out).
+      if (authCookieMode && !getAccessToken()) {
+        await refreshSession();
+      }
+      const storedToken = getAccessToken();
       if (storedToken) {
         try {
           const me = await authApi.getMe();
@@ -33,15 +42,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error('Access denied: ADMIN role required.');
           }
           setUser(me);
-          localStorage.setItem('hms_admin_user', JSON.stringify(me));
+          setToken(getAccessToken());
+          saveSession({ access_token: getAccessToken() ?? storedToken, user: me });
           adminWs.connect();
         } catch {
           // Token invalid or non-admin
           setUser(null);
           setToken(null);
-          localStorage.removeItem('hms_admin_access_token');
-          localStorage.removeItem('hms_admin_refresh_token');
-          localStorage.removeItem('hms_admin_user');
+          clearSession();
           adminWs.disconnect();
         }
       }
@@ -57,9 +65,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Access denied: Only ADMIN role can access this portal.');
     }
 
-    localStorage.setItem('hms_admin_access_token', tokens.access_token);
-    localStorage.setItem('hms_admin_refresh_token', tokens.refresh_token);
-    localStorage.setItem('hms_admin_user', JSON.stringify(tokens.user));
+    saveSession({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      user: tokens.user,
+    });
 
     setToken(tokens.access_token);
     setUser(tokens.user);
@@ -67,21 +77,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem('hms_admin_refresh_token');
-
-    // Immediately clear credentials and state so logout is instantaneous
-    localStorage.removeItem('hms_admin_access_token');
-    localStorage.removeItem('hms_admin_refresh_token');
-    localStorage.removeItem('hms_admin_user');
+    // Start revoking first so the request still carries the access token / refresh cookie,
+    // then clear credentials and state immediately so logout feels instant.
+    const revoke = authApi.logout(getRefreshToken() || undefined);
+    clearSession();
 
     setToken(null);
     setUser(null);
     adminWs.disconnect();
 
-    // Revoke token in background without blocking UI
-    if (refreshToken) {
-      authApi.logout(refreshToken).catch(() => {});
-    }
+    revoke.catch(() => {});
   };
 
   return (

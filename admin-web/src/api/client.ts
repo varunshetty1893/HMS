@@ -3,8 +3,28 @@
  * Enforces Bearer JWT injection, 401 refresh token rotation, and error standard handling.
  */
 
-import { handleMockRequest } from './mockRouter';
+import {
+  authCookieMode,
+  clearSession,
+  cookieModeHeaders,
+  getAccessToken,
+  isAuthEndpoint,
+  refreshSession,
+} from '../auth/session';
 import { isDevMockAllowed, resolveAdminBaseUrl } from '../utils/env';
+
+/**
+ * In-memory mock API, available in `vite dev` only.
+ * `import.meta.env.DEV` is replaced by the literal `false` in production builds, so the branch
+ * below (and therefore mockRouter.ts + mockData.ts) is removed from the production bundle.
+ */
+async function loadDevMock<T>(endpoint: string, options: RequestInit): Promise<T> {
+  if (import.meta.env.DEV) {
+    const { handleMockRequest } = await import('./mockRouter');
+    return handleMockRequest<T>(endpoint, options as never);
+  }
+  throw new Error('Mock API is not available in production builds');
+}
 
 // In dev without explicit VITE_API_BASE_URL, go through the Vite proxy (/api -> backend)
 const BASE_URL = resolveAdminBaseUrl();
@@ -71,7 +91,7 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('hms_admin_access_token');
+  const token = getAccessToken();
   const headers = new Headers(options.headers || {});
 
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
@@ -82,16 +102,23 @@ export async function apiClient<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  // Cookie mode: auth endpoints carry the refresh cookie and the anti-CSRF headers.
+  let credentials: RequestCredentials | undefined;
+  if (authCookieMode && isAuthEndpoint(endpoint)) {
+    credentials = 'include';
+    for (const [name, value] of Object.entries(cookieModeHeaders())) headers.set(name, value);
+  }
+
   const url = endpoint.startsWith('http') ? endpoint : `${BASE_URL}${endpoint}`;
 
   let response: Response;
   try {
-    response = await fetch(url, { ...options, headers });
+    response = await fetch(url, { ...options, headers, ...(credentials ? { credentials } : {}) });
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
       if (isDevMockAllowed()) {
         console.warn('[DEV MOCK] HTML response received, routing to mock router for:', endpoint);
-        return handleMockRequest<T>(endpoint, options);
+        return loadDevMock<T>(endpoint, options);
       }
       throw new ApiError(
         'Unexpected HTML response received from server. Check API URL configuration.',
@@ -102,7 +129,7 @@ export async function apiClient<T>(
     if (!response.ok && (response.status === 404 || response.status === 502 || response.status === 503)) {
       if (isDevMockAllowed()) {
         console.warn(`[DEV MOCK] HTTP ${response.status} received, routing to mock router for:`, endpoint);
-        return handleMockRequest<T>(endpoint, options);
+        return loadDevMock<T>(endpoint, options);
       }
       // In production / non-mock mode, fall through to structured HTTP error handling
     }
@@ -110,7 +137,7 @@ export async function apiClient<T>(
     if (err instanceof ApiError) throw err;
     if (isDevMockAllowed()) {
       console.warn('[DEV MOCK] Network error, routing to mock router for:', endpoint);
-      return handleMockRequest<T>(endpoint, options);
+      return loadDevMock<T>(endpoint, options);
     }
     throw new ApiError(
       err?.message || 'Network connection failed. Unable to reach backend server.',
@@ -128,35 +155,17 @@ export async function apiClient<T>(
     }
 
     isRefreshing = true;
-    const refreshToken = localStorage.getItem('hms_admin_refresh_token');
-
-    if (refreshToken) {
-      try {
-        const refreshResp = await fetch(`${BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-
-        if (refreshResp.ok) {
-          const tokenData = await refreshResp.json();
-          localStorage.setItem('hms_admin_access_token', tokenData.access_token);
-          localStorage.setItem('hms_admin_refresh_token', tokenData.refresh_token);
-          processQueue(null);
-          isRefreshing = false;
-          return apiClient<T>(endpoint, options);
-        }
-      } catch (refreshErr) {
-        processQueue(refreshErr);
-      }
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      processQueue(null);
+      isRefreshing = false;
+      return apiClient<T>(endpoint, options);
     }
 
     // Refresh failed or no refresh token -> logout
     isRefreshing = false;
     processQueue(new Error('Session expired'));
-    localStorage.removeItem('hms_admin_access_token');
-    localStorage.removeItem('hms_admin_refresh_token');
-    localStorage.removeItem('hms_admin_user');
+    clearSession();
     window.location.href = '/login';
     throw new ApiError('Session expired. Please log in again.', 'SESSION_EXPIRED', 401);
   }
@@ -199,7 +208,7 @@ export async function apiClient<T>(
     return await response.json();
   } catch (err: any) {
     if (isDevMockAllowed()) {
-      return handleMockRequest<T>(endpoint, options);
+      return loadDevMock<T>(endpoint, options);
     }
     throw new ApiError(
       'Invalid JSON response received from backend server',

@@ -60,6 +60,8 @@ class CustomerSessionStatus(_StrEnum):
 
 
 class TableSessionStatus(_StrEnum):
+    # A QR first-order on an empty table parks here until a waiter confirms guests are seated.
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
     ACTIVE = "ACTIVE"
     CLOSED_PAID = "CLOSED_PAID"
     CLOSED_CANCELLED = "CLOSED_CANCELLED"
@@ -109,6 +111,8 @@ class PricingStatus(_StrEnum):
 
 
 class OrderStatus(_StrEnum):
+    # Held for waiter confirmation (QR first order on an empty table); never reaches the kitchen.
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
     PLACED = "PLACED"
     ACCEPTED = "ACCEPTED"
     PREPARING = "PREPARING"

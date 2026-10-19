@@ -45,6 +45,10 @@ class RestaurantSettingsResponse(BaseModel):
     waiter_max_discount_percentage: Decimal = Decimal("0.00")
     waiter_max_price_override_percentage: Decimal = Decimal("0.00")
 
+    require_waiter_confirmation_for_first_qr_order: bool = True
+    qr_confirmation_timeout_seconds: int = 180
+    max_pending_qr_confirmations: int = 15
+
     created_at: datetime | None = None
     updated_at: datetime
 
@@ -85,3 +89,6 @@ class RestaurantSettingsUpdate(StrictRequestModel):
     waiter_max_price_override_percentage: Decimal | None = Field(
         default=None, ge=Decimal("0.00"), le=Decimal("100.00")
     )
+    require_waiter_confirmation_for_first_qr_order: bool | None = None
+    qr_confirmation_timeout_seconds: int | None = Field(default=None, ge=30, le=1800)
+    max_pending_qr_confirmations: int | None = Field(default=None, ge=1, le=100)

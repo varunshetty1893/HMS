@@ -73,6 +73,9 @@ export const INITIAL_SETTINGS: RestaurantSettings = {
   allow_waiter_discount: true,
   waiter_max_discount_percentage: '10.00',
   waiter_max_price_override_percentage: '10.00',
+  require_waiter_confirmation_for_first_qr_order: true,
+  qr_confirmation_timeout_seconds: 180,
+  max_pending_qr_confirmations: 15,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };

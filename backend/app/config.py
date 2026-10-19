@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=15, ge=1, le=1440)
     refresh_token_expire_days: int = Field(default=7, ge=1, le=90)
 
+    # --- Browser refresh-token cookie (opt-in per request via `X-Auth-Transport: cookie`) ---
+    # The admin web can keep the refresh token in an httpOnly cookie instead of localStorage.
+    # Use "lax"/"strict" when the web app and API share a site (e.g. Vercel rewrite of /api/*);
+    # "none" is only for a cross-site deployment and is blocked by Safari/Firefox by default.
+    auth_cookie_name: str = Field(default="hms_refresh", min_length=1, max_length=64)
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = Field(default="lax")
+    # None = Secure in production, not Secure otherwise (plain-http localhost development).
+    auth_cookie_secure: bool | None = Field(default=None)
+
     # --- Network, CORS & QR Base URL ---
     cors_allowed_origins: list[str] = Field(
         default_factory=lambda: [
@@ -110,7 +119,7 @@ class Settings(BaseSettings):
     def parse_trusted_proxy_ips(cls, value: str | list[str] | frozenset[str]) -> frozenset[str]:
         if isinstance(value, frozenset):
             return value
-        if isinstance(value, (list, set)):
+        if isinstance(value, list | set):
             return frozenset(ip.strip() for ip in value if ip.strip())
         if isinstance(value, str):
             raw = value.strip()
@@ -122,6 +131,23 @@ class Settings(BaseSettings):
                 return frozenset(str(ip).strip() for ip in parsed if str(ip).strip())
             return frozenset(ip.strip() for ip in raw.split(",") if ip.strip())
         return frozenset()
+
+    @field_validator("auth_cookie_secure", mode="before")
+    @classmethod
+    def blank_cookie_secure_means_default(cls, value: object) -> object:
+        """`AUTH_COOKIE_SECURE=` (empty) in a .env file means "use the default"."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @property
+    def auth_cookie_is_secure(self) -> bool:
+        """`SameSite=None` requires Secure; otherwise default to Secure in production."""
+        if self.auth_cookie_samesite == "none":
+            return True
+        if self.auth_cookie_secure is not None:
+            return self.auth_cookie_secure
+        return self.environment == "production"
 
     @property
     def imagekit_enabled(self) -> bool:

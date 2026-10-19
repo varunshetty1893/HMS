@@ -61,6 +61,8 @@ jobs:
           alembic upgrade head
           alembic downgrade base
           alembic upgrade head
+          # The pytest integration fixture needs an EMPTY database (it upgrades by itself).
+          alembic downgrade base
 
       - name: Run Pytest Suite
         env:

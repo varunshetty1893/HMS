@@ -55,7 +55,28 @@ class OrderConfirmationScreen extends ConsumerWidget {
                             item: item,
                             secondsLeft: state.secondsLeft(item),
                             busy: state.busyIds.contains(item.order.id),
-                            onConfirm: () => controller.confirm(item.order.id),
+                            onConfirm: () async {
+                              final success = await controller.confirm(item.order.id);
+                              if (context.mounted) {
+                                if (success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Order confirmed and sent to kitchen.'),
+                                      backgroundColor: AppTheme.successColor,
+                                      duration: Duration(seconds: 3),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(controller.state.error ?? 'Failed to confirm order.'),
+                                      backgroundColor: AppTheme.errorColor,
+                                      duration: Duration(seconds: 4),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                             onReject: () => _askReject(context, controller, item),
                           );
                         },
@@ -95,7 +116,25 @@ class OrderConfirmationScreen extends ConsumerWidget {
       ),
     );
     if (ok == true) {
-      await controller.reject(item.order.id, reason: 'No guests at the table');
+      final success = await controller.reject(item.order.id, reason: 'No guests at the table');
+      if (context.mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Order request rejected.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(controller.state.error ?? 'Failed to reject order.'),
+              backgroundColor: AppTheme.errorColor,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
     }
   }
 }

@@ -312,11 +312,15 @@ class QrService:
 
         # 1. Check via existing session token header (if provided)
         if existing_session_token:
-            existing_hash = hashlib.sha256(existing_session_token.strip().encode("utf-8")).hexdigest()
+            token_clean = existing_session_token.strip()
+            existing_hash = hashlib.sha256(token_clean.encode("utf-8")).hexdigest()
             existing_cs = (
                 await db.execute(
                     select(CustomerSession)
-                    .options(selectinload(CustomerSession.table), selectinload(CustomerSession.table_session))
+                    .options(
+                        selectinload(CustomerSession.table),
+                        selectinload(CustomerSession.table_session),
+                    )
                     .where(
                         CustomerSession.session_token_hash == existing_hash,
                         CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
@@ -326,8 +330,16 @@ class QrService:
             ).scalar_one_or_none()
 
             if existing_cs and existing_cs.table_id != qr_token.table_id:
-                if existing_cs.table_session and existing_cs.table_session.status in active_statuses:
-                    t_num = existing_cs.table.table_number if existing_cs.table else "another table"
+                has_active_session = (
+                    existing_cs.table_session
+                    and existing_cs.table_session.status in active_statuses
+                )
+                if has_active_session:
+                    t_num = (
+                        existing_cs.table.table_number
+                        if existing_cs.table
+                        else "another table"
+                    )
                     raise StateConflictError(
                         code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
                         message=(
@@ -340,7 +352,10 @@ class QrService:
         if fingerprint:
             fp_cs_stmt = (
                 select(CustomerSession)
-                .options(selectinload(CustomerSession.table), selectinload(CustomerSession.table_session))
+                .options(
+                    selectinload(CustomerSession.table),
+                    selectinload(CustomerSession.table_session),
+                )
                 .where(
                     CustomerSession.client_fingerprint_hash == fingerprint,
                     CustomerSession.status == CustomerSessionStatus.ACTIVE.value,

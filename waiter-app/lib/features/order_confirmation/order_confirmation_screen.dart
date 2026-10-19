@@ -67,17 +67,18 @@ class OrderConfirmationScreen extends ConsumerWidget {
                                     ),
                                   );
                                 } else {
+                                  final err = ref.read(orderConfirmationControllerProvider).error;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(controller.state.error ?? 'Failed to confirm order.'),
+                                      content: Text(err ?? 'Failed to confirm order.'),
                                       backgroundColor: AppTheme.errorColor,
-                                      duration: Duration(seconds: 4),
+                                      duration: const Duration(seconds: 4),
                                     ),
                                   );
                                 }
                               }
                             },
-                            onReject: () => _askReject(context, controller, item),
+                            onReject: () => _askReject(context, ref, controller, item),
                           );
                         },
                       ),
@@ -89,6 +90,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
 
   Future<void> _askReject(
     BuildContext context,
+    WidgetRef ref,
     OrderConfirmationController controller,
     PendingConfirmation item,
   ) async {
@@ -126,11 +128,12 @@ class OrderConfirmationScreen extends ConsumerWidget {
             ),
           );
         } else {
+          final err = ref.read(orderConfirmationControllerProvider).error;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(controller.state.error ?? 'Failed to reject order.'),
+              content: Text(err ?? 'Failed to reject order.'),
               backgroundColor: AppTheme.errorColor,
-              duration: Duration(seconds: 4),
+              duration: const Duration(seconds: 4),
             ),
           );
         }

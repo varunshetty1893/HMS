@@ -35,12 +35,6 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
     final controller = ref.read(orderEntryControllerProvider.notifier);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    // Projected exposure after placing this cart
-    final projectedExposure =
-        (widget.remainingLimit >= 5000 ? 0 : (5000 - widget.remainingLimit)) +
-            state.cartTotal;
-    const exceedsLimit = false; // waiter ke liye table spend limit nahi
-
     return Container(
       margin: EdgeInsets.only(bottom: bottomInset),
       constraints: BoxConstraints(
@@ -255,13 +249,11 @@ class _WaiterCartSheetState extends ConsumerState<WaiterCartSheet> {
                           fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: exceedsLimit
-                          ? AppTheme.textMuted
-                          : AppTheme.accentColor,
+                      backgroundColor: AppTheme.accentColor,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: AppTheme.textMuted,
                     ),
-                    onPressed: exceedsLimit || state.isSubmitting
+                    onPressed: state.isSubmitting
                         ? null
                         : () async {
                             final controller =

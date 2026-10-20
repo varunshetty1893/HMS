@@ -24,7 +24,7 @@ from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -80,6 +80,10 @@ from app.schemas.order import (
     WaiterTableSessionDetail,
 )
 from app.services.audit_service import AuditService
+from app.services.table_hopping_guard import (
+    find_open_session_on_other_table,
+    other_table_message,
+)
 
 logger = get_logger(__name__)
 
@@ -540,8 +544,9 @@ class OrderService:
         # Update outstanding amount on the locked row
         table_session.current_outstanding_amount = _two_dp(new_outstanding)
 
-        # Link customer_session → table_session (if first order opened the session)
-        if is_first_order:
+        # Link customer_session → table_session on EVERY order (not only the one that opened
+        # the session) so the anti table-hopping guard always sees this guest's open session.
+        if customer_session.table_session_id != table_session.id:
             customer_session.table_session_id = table_session.id
 
         # ── 8. Audit ──────────────────────────────────────────────────────
@@ -821,52 +826,18 @@ class OrderService:
         *,
         customer_session: CustomerSession,
     ) -> None:
-        """Enforce that a customer/device with an active unpaid session at Table A
-        cannot place orders at Table B without settling Table A's bill first.
-        """
-        current_table_id = customer_session.table_id
-        fp_hash = customer_session.client_fingerprint_hash
-
-        stmt = (
-            select(TableSession)
-            .options(selectinload(TableSession.table))
-            .join(CustomerSession, CustomerSession.table_session_id == TableSession.id)
-            .where(
-                TableSession.table_id != current_table_id,
-                TableSession.status.in_(
-                    [TableSessionStatus.ACTIVE.value, TableSessionStatus.PENDING_CONFIRMATION.value]
-                ),
-            )
+        """Enforce that a customer/device with an unsettled session at Table A cannot place
+        orders at Table B until Table A's bill is settled (see `table_hopping_guard`)."""
+        other = await find_open_session_on_other_table(
+            db,
+            table_id=customer_session.table_id,
+            customer_session_id=customer_session.id,
+            fingerprints=[customer_session.client_fingerprint_hash],
         )
-        if fp_hash:
-            stmt = stmt.where(
-                or_(
-                    CustomerSession.id == customer_session.id,
-                    CustomerSession.client_fingerprint_hash == fp_hash,
-                    TableSession.opened_by_customer_session_id == customer_session.id,
-                )
-            )
-        else:
-            stmt = stmt.where(
-                or_(
-                    CustomerSession.id == customer_session.id,
-                    TableSession.opened_by_customer_session_id == customer_session.id,
-                )
-            )
-
-        other_active_session = (await db.execute(stmt)).scalars().first()
-        if other_active_session:
-            table_label = (
-                f"Table {other_active_session.table.table_number}"
-                if other_active_session.table and other_active_session.table.table_number
-                else "another table"
-            )
+        if other:
             raise StateConflictError(
                 code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
-                message=(
-                    f"You already have an active session at {table_label} with an unsettled bill. "
-                    f"Please complete payment for {table_label} before ordering at a new table."
-                ),
+                message=other_table_message(other, ordering=True),
             )
 
     @classmethod

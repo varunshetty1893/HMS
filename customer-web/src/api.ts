@@ -22,6 +22,26 @@ export function setSessionToken(token: string): void {
   sessionStorage.setItem('hms_customer_token', token);
 }
 
+// Stable per-browser device id (localStorage is shared by all tabs of this browser, unlike
+// sessionStorage). The backend uses it so one phone cannot hold unpaid sessions at two tables
+// just by opening the second QR in a new tab.
+function getDeviceId(): string {
+  const KEY = 'hms_device_id';
+  try {
+    let id = localStorage.getItem(KEY);
+    if (!id || id.length < 8) {
+      id =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
 export function getSessionToken(): string | null {
   return _sessionToken;
 }
@@ -66,6 +86,8 @@ async function request<T>(
   if (_sessionToken) {
     (headers as Record<string, string>)['X-Customer-Session-Token'] = _sessionToken;
   }
+  const deviceId = getDeviceId();
+  if (deviceId) (headers as Record<string, string>)['X-Device-Id'] = deviceId;
   if (idempotencyKey) {
     (headers as Record<string, string>)['Idempotency-Key'] = idempotencyKey;
   }
@@ -275,6 +297,8 @@ export async function placeOrder(
     'Idempotency-Key': idempotencyKey,
   };
   if (_sessionToken) headers['X-Customer-Session-Token'] = _sessionToken;
+  const deviceId = getDeviceId();
+  if (deviceId) headers['X-Device-Id'] = deviceId;
 
   try {
     const res = await fetch(`${BASE}/customer/orders`, {

@@ -206,6 +206,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 "Content-Type",
                 "X-Customer-Session",
                 "X-Customer-Session-Token",
+                "X-Device-Id",
                 "X-CSRF-Token",
                 "Idempotency-Key",
                 "X-Request-Id",

@@ -41,6 +41,7 @@ async def resolve_qr_by_path(
         client_ip=client_ip,
         user_agent=user_agent,
         existing_session_token=existing_session_token,
+        device_id=request.headers.get("x-device-id"),
     )
 
 
@@ -68,4 +69,5 @@ async def resolve_qr_by_body(
         client_ip=client_ip,
         user_agent=user_agent,
         existing_session_token=existing_session_token,
+        device_id=request.headers.get("x-device-id"),
     )

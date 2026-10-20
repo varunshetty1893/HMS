@@ -15,7 +15,6 @@ from datetime import timedelta
 from cryptography.fernet import Fernet
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.core.exceptions import (
@@ -34,6 +33,12 @@ from app.schemas.qr import (
     QrResolutionResponse,
 )
 from app.services.audit_service import AuditService
+from app.services.table_hopping_guard import (
+    device_fingerprint,
+    find_open_session_on_other_table,
+    network_fingerprint,
+    other_table_message,
+)
 
 
 class QrService:
@@ -237,6 +242,7 @@ class QrService:
         client_ip: str | None = None,
         user_agent: str | None = None,
         existing_session_token: str | None = None,
+        device_id: str | None = None,
     ) -> QrResolutionResponse:
         """Resolve physical QR token, verifying table state and creating CustomerSession.
 
@@ -302,26 +308,22 @@ class QrService:
             )
 
         # ── Compute Client Fingerprint ─────────────────────────────────────
-        fingerprint = None
-        if client_ip or user_agent:
-            fp_raw = f"{client_ip or ''}:{user_agent or ''}"
-            fingerprint = hashlib.sha256(fp_raw.encode("utf-8")).hexdigest()
+        # Preferred: hash of a client-generated device id (localStorage; survives new tabs,
+        # reloads and IP changes). Fallback: IP + User-Agent (weak, but better than nothing).
+        device_fp = device_fingerprint(device_id)
+        network_fp = network_fingerprint(client_ip, user_agent)
+        fingerprint = device_fp or network_fp
 
         # ── Anti-Table-Hopping Security Check ──────────────────────────────
-        active_statuses = ("ACTIVE", "PENDING_CONFIRMATION")
-
-        # 1. Check via existing session token header (if provided)
+        # Same guest (existing session token OR same device/browser) with an unsettled
+        # session at another table cannot open a new table until that bill is settled.
+        existing_cs_id: uuid.UUID | None = None
         if existing_session_token:
             token_clean = existing_session_token.strip()
             existing_hash = hashlib.sha256(token_clean.encode("utf-8")).hexdigest()
-            existing_cs = (
+            existing_cs_id = (
                 await db.execute(
-                    select(CustomerSession)
-                    .options(
-                        selectinload(CustomerSession.table),
-                        selectinload(CustomerSession.table_session),
-                    )
-                    .where(
+                    select(CustomerSession.id).where(
                         CustomerSession.session_token_hash == existing_hash,
                         CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
                         CustomerSession.expires_at > utc_now(),
@@ -329,51 +331,17 @@ class QrService:
                 )
             ).scalar_one_or_none()
 
-            if existing_cs and existing_cs.table_id != qr_token.table_id:
-                has_active_session = (
-                    existing_cs.table_session
-                    and existing_cs.table_session.status in active_statuses
-                )
-                if has_active_session:
-                    t_num = (
-                        existing_cs.table.table_number
-                        if existing_cs.table
-                        else "another table"
-                    )
-                    raise StateConflictError(
-                        code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
-                        message=(
-                            f"You already have an active dining session at Table {t_num}. "
-                            "Please settle your bill or ask a waiter before switching tables."
-                        ),
-                    )
-
-        # 2. Check via client device/browser fingerprint (if token header was missing/cleared)
-        if fingerprint:
-            fp_cs_stmt = (
-                select(CustomerSession)
-                .options(
-                    selectinload(CustomerSession.table),
-                    selectinload(CustomerSession.table_session),
-                )
-                .where(
-                    CustomerSession.client_fingerprint_hash == fingerprint,
-                    CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
-                    CustomerSession.expires_at > utc_now(),
-                    CustomerSession.table_id != qr_token.table_id,
-                )
+        other_open = await find_open_session_on_other_table(
+            db,
+            table_id=table.id,
+            customer_session_id=existing_cs_id,
+            fingerprints=[device_fp, network_fp],
+        )
+        if other_open:
+            raise StateConflictError(
+                code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
+                message=other_table_message(other_open, ordering=False),
             )
-            fp_sessions = (await db.execute(fp_cs_stmt)).scalars().all()
-            for cs in fp_sessions:
-                if cs.table_session and cs.table_session.status in active_statuses:
-                    t_num = cs.table.table_number if cs.table else "another table"
-                    raise StateConflictError(
-                        code="ACTIVE_SESSION_ON_ANOTHER_TABLE",
-                        message=(
-                            f"You already have an active dining session at Table {t_num}. "
-                            "Please settle your bill or ask a waiter before switching tables."
-                        ),
-                    )
 
         # Check whether an active dining TableSession exists on this table
         session_stmt = select(TableSession).where(

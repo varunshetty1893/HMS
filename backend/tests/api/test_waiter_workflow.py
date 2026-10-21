@@ -40,7 +40,7 @@ from app.core.exceptions import DomainValidationError, StateConflictError
 from app.main import app
 from app.models.enums import UserRole, UserStatus
 from app.models.identity import User
-from app.models.orders import Order, OrderItem
+from app.models.orders import Order, OrderItem, OrderModificationEvent
 from app.models.restaurant import RestaurantTable
 from app.schemas.table import TableResponse
 
@@ -276,6 +276,37 @@ async def test_waiter_table_session_details(
         assert data["session_code"] == "SES-001"
         assert len(data["orders"]) == 1
         assert data["orders"][0]["order_number"] == "ORD-WAITER-001"
+
+
+def test_waiter_order_response_accepts_generated_portion_change_reason() -> None:
+    """A server-generated portion correction must not make table detail return 500."""
+    from app.services.order_service import _build_waiter_order_response
+
+    order = _make_dummy_order(status="READY")
+    event = MagicMock(spec=OrderModificationEvent)
+    event.id = uuid.uuid4()
+    event.order_id = order.id
+    event.order_item_id = order.items[0].id
+    event.modification_type = "QUANTITY_DECREASED"
+    event.order_status_at_modification = "PREPARING"
+    event.previous_quantity = 1
+    event.new_quantity = 0
+    event.previous_notes = None
+    event.new_notes = None
+    event.price_delta = Decimal("-90.00")
+    # This is the historical text already stored in production before the
+    # generator was corrected.  Rendering it must not make table detail fail.
+    event.reason = "Portion changed: Full -> Half (x1)"
+    event.modified_by_role = "WAITER"
+    event.kitchen_ack_required = True
+    event.acknowledged_at = datetime.now(timezone.utc)
+    event.created_at = datetime.now(timezone.utc)
+    order.modification_events = [event]
+
+    response = _build_waiter_order_response(order)
+
+    assert response.status == "READY"
+    assert response.modification_events[0].reason == "Portion changed: Full to Half (x1)"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

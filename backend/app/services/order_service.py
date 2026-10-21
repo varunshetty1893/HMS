@@ -204,6 +204,11 @@ def _build_order_response(order: Order) -> OrderResponse:
 
 
 def _build_mod_event_response(event: OrderModificationEvent) -> OrderModificationEventResponse:
+    # Older portion-change audit rows used an ASCII arrow ("Full -> Half").
+    # StrictRequestModel rejects angle brackets to protect client-entered text,
+    # so normalize that legacy, server-generated notation only while rendering
+    # the response.  The append-only audit record remains unchanged.
+    response_reason = event.reason.replace(" -> ", " to ")
     return OrderModificationEventResponse(
         id=event.id,
         order_id=event.order_id,
@@ -215,7 +220,7 @@ def _build_mod_event_response(event: OrderModificationEvent) -> OrderModificatio
         previous_notes=event.previous_notes,
         new_notes=event.new_notes,
         price_delta=event.price_delta,
-        reason=event.reason,
+        reason=response_reason,
         modified_by_role=event.modified_by_role,
         kitchen_ack_required=event.kitchen_ack_required,
         acknowledged_at=event.acknowledged_at,
@@ -3150,8 +3155,13 @@ class OrderService:
                 )
 
             has_reduction = True
+            # This value is returned through the strict response schema, which
+            # correctly rejects angle brackets in user-entered text.  Use plain
+            # language here instead of an ASCII arrow so a server-generated
+            # audit reason can never be mistaken for HTML and break the waiter
+            # table-detail response.
             swap_reason = (
-                f"Portion changed: {item.variant_name_snapshot} -> {target.variant_name} "
+                f"Portion changed: {item.variant_name_snapshot} to {target.variant_name} "
                 f"(x{move_qty})"
             )[:255]
 
@@ -3285,7 +3295,7 @@ class OrderService:
             change_log.append(
                 {
                     "item_name": item.item_name_snapshot,
-                    "variant_name": f"{item.variant_name_snapshot} -> {target.variant_name}",
+                    "variant_name": f"{item.variant_name_snapshot} to {target.variant_name}",
                     "previous_quantity": prev_qty,
                     "new_quantity": old_new_qty,
                     "moved_quantity": move_qty,

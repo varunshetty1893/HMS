@@ -38,6 +38,8 @@ The changes for the first two defects have regression tests in
 | Admin web | `npm run lint` and `npm run build` | Passed |
 | Combined staff app | `flutter test` in `waiter-app/` | Passed (62 tests, including both role routes, login enforcement, session recovery, and kitchen API calls) |
 | Release-signing guard | `flutter build apk --release` without a keystore | Correctly fails instead of falling back to the Android debug key |
+| Production-signed staff APK | `flutter build apk --release` with the ignored local keystore | Passed: `waiter-app/build/app/outputs/flutter-apk/app-release.apk` (54,590,250 bytes; SHA-256 `dfa37a551e70a82b0f8a2dea6e2876306d5433d018868f7c68ef192fc17ae946`) |
+| APK signature | Android `ApkVerifier` library used by Gradle | Passed: v2 signature verified, no verifier errors; signing certificate SHA-256 `de301d37e04037751f1ac6e04e78f2fc757222555de59e01c2d370db5466aa4a` |
 | Diff sanity | `git diff --check` | Passed |
 | Snapshot ignore | `git check-ignore -v --no-index .snapshots/audit-sentinel` | Passed |
 
@@ -61,11 +63,10 @@ not available in this workspace.
    CORS, WebSocket, media storage, and browser behavior were not asserted.
    In particular, verify the deployed admin build uses the intended secure
    auth-cookie configuration rather than legacy browser token storage.
-4. **Sign and verify the distributable APK with the restaurant's real
-   release/upload key.** `waiter-app/android/key.properties` is absent. The
-   build now deliberately fails rather than falling back to the Android debug
-   key. Create the private keystore and ignored local properties file, build
-   again, then verify the APK signer and checksum before client handover.
+4. **Preserve the private release/upload key.** The generated APK is
+   production-signed and its signature has been verified. Back up the private
+   keystore and its passwords outside Git and restrict access to authorized
+   release personnel. Losing an upload key complicates future updates.
 
 ## Staff-app architecture decision
 

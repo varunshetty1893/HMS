@@ -56,7 +56,8 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item
 
 const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, onClose }) => {
   const { items: cartItems, setItemLines } = useCart();
-  const backdropPointerStarted = useRef(false);
+  const dragStartY = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
 
   // A modal must own touch scrolling. Without this lock, dragging the sheet
   // can scroll the blurred menu underneath it on mobile browsers.
@@ -70,6 +71,36 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
       document.body.style.overscrollBehavior = previousOverscroll;
     };
   }, []);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  const beginDismissDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    dragStartY.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const continueDismissDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    setDragOffset(Math.max(0, event.clientY - dragStartY.current));
+  };
+
+  const finishDismissDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    const draggedFarEnough = event.clientY - dragStartY.current >= 96;
+    dragStartY.current = null;
+    setDragOffset(0);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (draggedFarEnough) onClose();
+  };
 
   const availableVariants = useMemo(() => item.variants.filter((v) => v.is_available), [item]);
   const defaultVariant =
@@ -126,24 +157,33 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)', touchAction: 'none' }}
-      onPointerDown={(event) => {
-        backdropPointerStarted.current = event.target === event.currentTarget;
-      }}
-      onPointerUp={(event) => {
-        // Close only for a tap that both begins and ends on the backdrop.
-        // A drag from the grab bar or any content inside the sheet never
-        // reaches this condition.
-        if (backdropPointerStarted.current && event.target === event.currentTarget) onClose();
-        backdropPointerStarted.current = false;
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-md bg-[var(--bg-card)] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[var(--border)] flex flex-col animate-slide-up sm:animate-scale-in max-h-[85dvh] sm:max-h-[85vh] overflow-hidden"
-        style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
+        style={{
+          touchAction: 'pan-y',
+          overscrollBehavior: 'contain',
+          transform: dragOffset ? `translateY(${dragOffset}px)` : undefined,
+          transition: dragStartY.current === null ? 'transform 160ms ease-out' : undefined,
+        }}
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex justify-center pt-3 sm:hidden">
+        <div
+          className="flex justify-center pt-3 pb-1 sm:hidden cursor-grab active:cursor-grabbing touch-none"
+          role="button"
+          tabIndex={0}
+          aria-label="Drag down to close dish details"
+          onPointerDown={beginDismissDrag}
+          onPointerMove={continueDismissDrag}
+          onPointerUp={finishDismissDrag}
+          onPointerCancel={finishDismissDrag}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') onClose();
+          }}
+        >
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
         </div>
 

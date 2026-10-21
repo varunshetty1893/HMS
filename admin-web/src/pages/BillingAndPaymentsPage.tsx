@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ordersBillsApi } from '@/api/ordersBillsApi';
+import { adminWs } from '@/realtime/adminWs';
 import { formatInr } from '@/utils/currency';
 import { formatDateTimeIst } from '@/utils/dateIst';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -27,7 +28,9 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRowHover, input, tabActive, tabInactive, modalInner } = usePageTheme();
 
   const [bills, setBills] = useState<Bill[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('ISSUED');
+  // "Unpaid" used to make a fully settled restaurant look empty.  Show all
+  // bills on entry; the cashier can still select the unpaid-only tab.
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,14 @@ export const BillingAndPaymentsPage: React.FC = () => {
 
   useEffect(() => {
     fetchBills();
+    const unsubscribe = adminWs.on('*', () => { fetchBills(); });
+    // Poll as a fallback when a proxy or hosting provider does not pass the
+    // WebSocket upgrade through.  This keeps a cashier's screen live.
+    const refreshTimer = window.setInterval(fetchBills, 15_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(refreshTimer);
+    };
   }, [statusFilter]);
 
   const handleApplyDiscount = async () => {

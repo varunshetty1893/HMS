@@ -971,6 +971,9 @@ async def get_orders_report(
         to_date=to_date,
         status_filter=status_filter,
         source_filter=source_filter,
+        # This is an operational queue, not a date-bounded report.  In
+        # particular, a still-open table order from yesterday remains live.
+        default_to_today=False,
     )
 
 

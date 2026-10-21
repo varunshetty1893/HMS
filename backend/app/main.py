@@ -114,7 +114,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 "default-src 'self'; "
                 "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: blob: https://ik.imagekit.io; "
+                "img-src 'self' data: blob: https://ik.imagekit.io https://image.pollinations.ai; "
                 "font-src 'self'; "
                 "object-src 'none'; "
                 "base-uri 'self'; "

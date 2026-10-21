@@ -212,15 +212,23 @@ class ReportService:
         to_date: date | None = None,
         status_filter: str | None = None,
         source_filter: str | None = None,
+        default_to_today: bool = True,
     ) -> list[OrderReportItem]:
-        """Order log with breakdown by source and status."""
-        start_utc, end_utc = _to_utc_range(from_date, to_date)
+        """Order log with breakdown by source and status.
+
+        Reports default to the current IST day.  Operational screens, however,
+        must not silently lose active orders merely because they were placed on
+        a previous calendar day, so callers can opt out of that date window.
+        """
+        date_filter_requested = from_date is not None or to_date is not None
         stmt = (
             select(Order)
             .options(selectinload(Order.items), selectinload(Order.table))
-            .where(Order.placed_at >= start_utc, Order.placed_at <= end_utc)
             .order_by(Order.placed_at.desc())
         )
+        if default_to_today or date_filter_requested:
+            start_utc, end_utc = _to_utc_range(from_date, to_date)
+            stmt = stmt.where(Order.placed_at >= start_utc, Order.placed_at <= end_utc)
         if status_filter:
             stmt = stmt.where(Order.status == status_filter)
         if source_filter:

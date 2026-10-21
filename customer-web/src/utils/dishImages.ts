@@ -1,31 +1,31 @@
 import type { MenuCategory, MenuItem } from '../types';
 import { resolveMediaUrl } from './env';
 
-/** Dedicated illustration for a catalog item, keyed by its item code (public/dishes/<CODE>.svg). */
-export function dishArtUrl(itemCode: string | null | undefined): string | null {
-  const code = (itemCode ?? '').trim();
-  return /^[A-Za-z0-9-]+$/.test(code) ? `/dishes/${code.toUpperCase()}.svg` : null;
-}
-
-/**
- * Old seeded stock-photo URLs (guessed, shared between dishes) and retired `/menu/` pictures are
- * ignored. Only a photo the restaurant uploaded (API `/static/...`, CDN or any other real URL) wins.
- */
+/** A photo uploaded by the restaurant always takes precedence. */
 function uploadedPhoto(item: MenuItem): string | null {
   const raw = item.image_url?.trim();
   if (!raw) return null;
   if (raw.startsWith('/menu/') || raw.startsWith('/dishes/')) return null;
-  if (/^https?:\/\/images\.unsplash\.com\//i.test(raw)) return null;
   return resolveMediaUrl(raw);
 }
 
-/** Ordered list of images to try: real photo first, then the item's own illustration. */
+/**
+ * Stable, dish-specific AI food photography fallback.  The fixed seed makes
+ * each dish retain the same generated photo across menu refreshes.
+ */
+function onlineFoodPhoto(item: MenuItem): string {
+  const prompt = `professional photorealistic food photography of ${item.name}, Indian restaurant menu dish, plated and appetising, natural warm light, no text, no logo, no people`;
+  let seed = 0;
+  for (const char of item.item_code) seed = (seed * 31 + char.charCodeAt(0)) >>> 0;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=480&nologo=true&seed=${seed}`;
+}
+
+/** Ordered list of images to try: restaurant photo first, then a real-food photo. */
 export function dishImageCandidates(item: MenuItem): string[] {
   const out: string[] = [];
   const photo = uploadedPhoto(item);
   if (photo) out.push(photo);
-  const art = dishArtUrl(item.item_code);
-  if (art) out.push(art);
+  out.push(onlineFoodPhoto(item));
   return out;
 }
 

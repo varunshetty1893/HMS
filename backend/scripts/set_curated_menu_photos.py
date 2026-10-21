@@ -5,7 +5,7 @@ stored on the menu item (rather than guessed in either frontend) so the admin
 and customer sites always render the identical, dish-specific picture.
 """
 
-# ruff: noqa: E402, E501
+# ruff: noqa: E402, E501, I001
 
 from __future__ import annotations
 

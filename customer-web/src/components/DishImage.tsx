@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { UtensilsCrossed } from 'lucide-react';
 import type { MenuItem } from '../types';
 import { dishImageCandidates } from '../utils/dishImages';
@@ -11,36 +11,40 @@ interface DishImageProps {
 
 /** Shows the item's verified photo, else a neutral placeholder. */
 export const DishImage: React.FC<DishImageProps> = ({ item, className = '', iconSize = 24 }) => {
-  const candidates = dishImageCandidates(item);
-  const key = candidates.join('|');
-  return <DishImageInner key={key} name={item.name} candidates={candidates} className={className} iconSize={iconSize} />;
-};
-
-const DishImageInner: React.FC<{ name: string; candidates: string[]; className: string; iconSize: number }> = ({
-  name, candidates, className, iconSize,
-}) => {
-  const [index, setIndex] = useState(0);
-  const src = candidates[index];
+  const src = dishImageCandidates(item)[0];
   if (!src) {
     return (
       <div
         className={`flex items-center justify-center ${className}`}
         style={{ background: 'linear-gradient(135deg, var(--primary-bg), var(--bg-subtle))' }}
         role="img"
-        aria-label={`${name} (picture not available)`}
+        aria-label={`${item.name} (picture not available)`}
       >
         <UtensilsCrossed size={iconSize} style={{ color: 'var(--primary-light)' }} aria-hidden />
       </div>
     );
   }
   return (
-    <img
-      src={src}
-      alt={name}
-      className={`object-cover ${className}`}
-      loading="lazy"
-      draggable={false}
-      onError={() => setIndex((i) => i + 1)}
-    />
+    <div className={`relative overflow-hidden ${className}`}>
+      <img
+        src={src}
+        alt={item.name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        draggable={false}
+        onError={(event) => {
+          event.currentTarget.classList.add('hidden');
+          event.currentTarget.nextElementSibling?.classList.remove('hidden');
+        }}
+      />
+      <div
+        className="hidden absolute inset-0 flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, var(--primary-bg), var(--bg-subtle))' }}
+        role="img"
+        aria-label={`${item.name} (picture not available)`}
+      >
+        <UtensilsCrossed size={iconSize} style={{ color: 'var(--primary-light)' }} aria-hidden />
+      </div>
+    </div>
   );
 };

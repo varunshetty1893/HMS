@@ -120,7 +120,9 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
+          # Match the currently supported Flutter Material API used by the app
+          # (for example, CardThemeData). Pinning 3.24.x makes local builds
+          # and CI compile against incompatible framework types.
           channel: "stable"
           cache: true
 

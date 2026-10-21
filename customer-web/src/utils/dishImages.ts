@@ -10,14 +10,19 @@ function uploadedPhoto(item: MenuItem): string | null {
 }
 
 /**
- * Stable, dish-specific AI food photography fallback.  The fixed seed makes
- * each dish retain the same generated photo across menu refreshes.
+ * Stable real-food photo fallback.  These CDN photos do not have the daily
+ * generation quota that caused the previous "free limit reached" placeholders.
  */
 function onlineFoodPhoto(item: MenuItem): string {
-  const prompt = `professional photorealistic food photography of ${item.name}, Indian restaurant menu dish, plated and appetising, natural warm light, no text, no logo, no people`;
-  let seed = 0;
-  for (const char of item.item_code) seed = (seed * 31 + char.charCodeAt(0)) >>> 0;
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=480&nologo=true&seed=${seed}`;
+  const photos = [
+    'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=640&h=480&q=80',
+    'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=640&h=480&q=80',
+    'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=640&h=480&q=80',
+    'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=640&h=480&q=80',
+  ];
+  let hash = 0;
+  for (const char of item.item_code) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return photos[hash % photos.length];
 }
 
 /** Ordered list of images to try: restaurant photo first, then a real-food photo. */

@@ -160,10 +160,10 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: WaiterTheme.primary.withValues(alpha: 0.12),
+                      color: WaiterTheme.primary.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: WaiterTheme.primary.withValues(alpha: 0.4)),
+                          color: WaiterTheme.primary.withOpacity(0.4)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -413,11 +413,11 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: WaiterTheme.primary.withValues(alpha: 0.10),
+                        color: WaiterTheme.primary.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                             color:
-                                WaiterTheme.primary.withValues(alpha: 0.35)),
+                                WaiterTheme.primary.withOpacity(0.35)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -898,7 +898,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
             decoration: BoxDecoration(
               color: WaiterTheme.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: WaiterTheme.primary.withValues(alpha: 0.4)),
+              border: Border.all(color: WaiterTheme.primary.withOpacity(0.4)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -906,7 +906,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: WaiterTheme.primary.withValues(alpha: 0.08),
+                    color: WaiterTheme.primary.withOpacity(0.08),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                   ),
                   child: Row(
@@ -959,7 +959,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                             horizontal: 4, vertical: 1),
                                         decoration: BoxDecoration(
                                           color: WaiterTheme.primary
-                                              .withValues(alpha: 0.15),
+                                              .withOpacity(0.15),
                                           borderRadius:
                                               BorderRadius.circular(3),
                                         ),
@@ -1183,7 +1183,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                                             horizontal: 4, vertical: 1),
                                         decoration: BoxDecoration(
                                           color: WaiterTheme.primary
-                                              .withValues(alpha: 0.18),
+                                              .withOpacity(0.18),
                                           borderRadius:
                                               BorderRadius.circular(3),
                                         ),
@@ -1381,8 +1381,8 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: discount > 0
-                        ? WaiterTheme.availableGreen.withValues(alpha: 0.15)
-                        : WaiterTheme.primary.withValues(alpha: 0.12),
+                        ? WaiterTheme.availableGreen.withOpacity(0.15)
+                        : WaiterTheme.primary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                         color: discount > 0
@@ -1485,8 +1485,8 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: bill != null
-                  ? WaiterTheme.availableGreen.withValues(alpha: 0.2)
-                  : Colors.orange.withValues(alpha: 0.2),
+                  ? WaiterTheme.availableGreen.withOpacity(0.2)
+                  : Colors.orange.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -1607,7 +1607,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      color: bg.withValues(alpha: 0.14),
+      color: bg.withOpacity(0.14),
       child: Row(
         children: [
           Icon(icon, color: fg, size: 18),

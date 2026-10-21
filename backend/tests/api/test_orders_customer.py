@@ -405,6 +405,13 @@ class TestCapEnforcement:
                 "_get_or_create_table_session",
                 AsyncMock(return_value=(table_session, False)),
             ),
+            # This test exercises the outstanding-cap check. The separate
+            # table-hopping guard is covered by its own test module.
+            patch.object(
+                OrderService,
+                "_enforce_no_cross_table_unpaid_session",
+                AsyncMock(return_value=None),
+            ),
         ):
             db = AsyncMock()
             with pytest.raises(DomainValidationError) as exc_info:

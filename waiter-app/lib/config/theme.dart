@@ -52,7 +52,7 @@ class WaiterTheme {
         ),
         iconTheme: IconThemeData(color: textPrimary),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: surface,
         surfaceTintColor: Colors.transparent,
         elevation: 1,

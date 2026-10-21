@@ -21,6 +21,7 @@ class KdsBoardState {
   final int preparingCount;
   final int readyCount;
   final List<KitchenCancellationAlert> cancellations;
+  final Set<String> acknowledgingOrderIds;
 
   const KdsBoardState({
     this.orders = const [],
@@ -32,6 +33,7 @@ class KdsBoardState {
     this.preparingCount = 0,
     this.readyCount = 0,
     this.cancellations = const [],
+    this.acknowledgingOrderIds = const {},
   });
 
   KdsBoardState copyWith({
@@ -44,6 +46,7 @@ class KdsBoardState {
     int? preparingCount,
     int? readyCount,
     List<KitchenCancellationAlert>? cancellations,
+    Set<String>? acknowledgingOrderIds,
   }) {
     return KdsBoardState(
       orders: orders ?? this.orders,
@@ -55,6 +58,7 @@ class KdsBoardState {
       preparingCount: preparingCount ?? this.preparingCount,
       readyCount: readyCount ?? this.readyCount,
       cancellations: cancellations ?? this.cancellations,
+      acknowledgingOrderIds: acknowledgingOrderIds ?? this.acknowledgingOrderIds,
     );
   }
 }
@@ -248,11 +252,22 @@ class KdsController extends StateNotifier<KdsBoardState> {
   }
 
   Future<void> acknowledgeModifications(KitchenOrderModel order) async {
+    if (state.acknowledgingOrderIds.contains(order.id)) return;
+    state = state.copyWith(
+      errorMessage: null,
+      acknowledgingOrderIds: {...state.acknowledgingOrderIds, order.id},
+    );
     try {
       await _apiClient.acknowledgeModifications(order.id);
       await loadQueue(quiet: true);
     } catch (e) {
       state = state.copyWith(errorMessage: _describe(e));
+    } finally {
+      if (mounted) {
+        state = state.copyWith(
+          acknowledgingOrderIds: {...state.acknowledgingOrderIds}..remove(order.id),
+        );
+      }
     }
   }
 }

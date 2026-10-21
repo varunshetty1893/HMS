@@ -297,8 +297,8 @@ export const ReportsPage: React.FC = () => {
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold text-right">Gross Subtotal</th>
                     <th className="px-6 py-4 font-semibold text-right">Discounts</th>
-                    <th className="px-6 py-4 font-semibold text-right">CGST (2.5%)</th>
-                    <th className="px-6 py-4 font-semibold text-right">SGST (2.5%)</th>
+                    <th className="px-6 py-4 font-semibold text-right">CGST</th>
+                    <th className="px-6 py-4 font-semibold text-right">SGST</th>
                     <th className="px-6 py-4 font-semibold text-right">Net Revenue</th>
                     <th className="px-6 py-4 font-semibold text-right">Bills Settled</th>
                     <th className="px-6 py-4 font-semibold text-right">Avg Bill Value</th>

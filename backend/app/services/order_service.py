@@ -1784,6 +1784,7 @@ class OrderService:
         # Update pending modification events
         mods_stmt = select(OrderModificationEvent).where(
             OrderModificationEvent.order_id == order.id,
+            OrderModificationEvent.kitchen_ack_required.is_(True),
             OrderModificationEvent.acknowledged_at.is_(None),
         )
         if modification_event_ids:
@@ -1807,7 +1808,11 @@ class OrderService:
             order.has_unacknowledged_mods = False
 
         await db.commit()
-        await db.refresh(order)
+        # ``order`` was loaded with items, table and modification events above
+        # and the session is configured with expire_on_commit=False.  Do not
+        # refresh it here: refresh can expire those relationships, and turning
+        # them into lazy loads while serialising the async response raises
+        # MissingGreenlet (the live acknowledgement failure).
 
         payload = {
             "event": "order.modification_acknowledged",

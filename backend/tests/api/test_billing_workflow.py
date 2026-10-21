@@ -12,6 +12,7 @@ from decimal import Decimal
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import DomainValidationError, StateConflictError
 from app.models.billing import Bill
@@ -33,6 +34,8 @@ from app.schemas.billing import (
     BillVoidRequest,
     CustomBillLineItem,
     PaymentCreateRequest,
+    PaymentRecordResult,
+    PaymentResponse,
 )
 from app.services.billing_service import BillingService
 
@@ -199,6 +202,44 @@ async def test_bill_preview_unserved_and_unaccepted_flags() -> None:
         assert preview.bill_status == "NOT_GENERATED"
         assert preview.preview_subtotal is not None
         assert preview.preview_grand_total is not None
+
+
+@pytest.mark.asyncio
+async def test_bill_preview_calculates_two_point_five_percent_gst_per_component() -> None:
+    """₹190 taxable must freeze as ₹4.75 CGST + ₹4.75 SGST = ₹199.50."""
+    table, session = _make_table_and_session()
+    order = _make_order(
+        status=OrderStatus.SERVED.value,
+        session_id=session.id,
+        items=[("EB", "Egg Biryani", 1, Decimal("190.00"))],
+    )
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=session)))
+            ),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+            ),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
+            ),
+        ]
+    )
+    with patch.object(
+        BillingService, "_get_restaurant_settings", new_callable=AsyncMock
+    ) as settings:
+        settings.return_value = RestaurantSettings(
+            cgst_percentage=Decimal("2.50"), sgst_percentage=Decimal("2.50")
+        )
+        preview = await BillingService.get_table_bill(db, table_number=table.table_number)
+
+    assert preview.preview_subtotal == Decimal("190.00")
+    assert preview.preview_cgst == Decimal("4.75")
+    assert preview.preview_sgst == Decimal("4.75")
+    assert preview.preview_grand_total == Decimal("199.50")
 
 
 @pytest.mark.asyncio
@@ -476,6 +517,9 @@ async def test_record_payment_success_atomic_table_reset() -> None:
         assert result.bill_status == "PAID"
         assert result.table_session_status == "CLOSED_PAID"
         assert result.table_occupancy_status == "AVAILABLE"
+        assert result.payment.amount_paid == Decimal("504.00")
+        assert result.payment.amount_tendered is None
+        assert result.payment.change_returned == Decimal("0.00")
 
         assert bill.status == BillStatus.PAID.value
         assert order.status == OrderStatus.COMPLETED.value
@@ -496,6 +540,199 @@ async def test_record_payment_success_atomic_table_reset() -> None:
                 "timestamp": ANY,
             },
         )
+        payment_event = next(
+            call.args[1]
+            for call in mock_ws.await_args_list
+            if call.args[0] == "channel:waiters" and call.args[1]["event"] == "payment.completed"
+        )
+        assert payment_event["amount_paid"] == "504.00"
+        assert payment_event["amount_applied"] == "504.00"
+
+
+@pytest.mark.asyncio
+async def test_cash_payment_without_tendered_defaults_to_an_exact_cash_settlement() -> None:
+    """Existing clients that omit tendered cash remain an exact-cash settlement."""
+    table, session = _make_table_and_session()
+    bill = _make_dummy_bill(table_id=table.id, session_id=session.id, grand_total=Decimal("199.50"))
+    order = _make_order(status=OrderStatus.SERVED.value, session_id=session.id)
+    customer_session = MagicMock(spec=CustomerSession)
+    customer_session.status = CustomerSessionStatus.ACTIVE.value
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            MagicMock(scalar_one_or_none=MagicMock(return_value=bill)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
+            ),
+            MagicMock(
+                scalars=MagicMock(
+                    return_value=MagicMock(all=MagicMock(return_value=[customer_session]))
+                )
+            ),
+        ]
+    )
+    with (
+        patch("app.services.billing_service.AuditService.record_event", new_callable=AsyncMock),
+        patch("app.services.billing_service.ws_manager.broadcast_to_room", new_callable=AsyncMock),
+    ):
+        result, _ = await BillingService.record_payment(
+            db,
+            bill_id=bill.id,
+            payload=PaymentCreateRequest(payment_method="CASH", amount_paid=Decimal("199.50")),
+            staff_user=_make_staff_user(),
+        )
+    assert result.payment.amount_paid == Decimal("199.50")
+    assert result.payment.amount_tendered == Decimal("199.50")
+    assert result.payment.change_returned == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+async def test_cash_payment_persists_tendered_applied_and_change_without_overstating_revenue() -> (
+    None
+):
+    """₹200 tendered for a ₹199.50 bill applies ₹199.50 and returns ₹0.50."""
+    table, session = _make_table_and_session()
+    bill = _make_dummy_bill(table_id=table.id, session_id=session.id, grand_total=Decimal("199.50"))
+    order = _make_order(status=OrderStatus.SERVED.value, session_id=session.id)
+    cust_session = MagicMock(spec=CustomerSession)
+    cust_session.status = CustomerSessionStatus.ACTIVE.value
+    staff = _make_staff_user(role=UserRole.WAITER.value)
+    added: list[object] = []
+    db = AsyncMock()
+    db.add = MagicMock(side_effect=added.append)
+    db.execute = AsyncMock(
+        side_effect=[
+            MagicMock(scalar_one_or_none=MagicMock(return_value=bill)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=session)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=table)),
+            MagicMock(
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[order])))
+            ),
+            MagicMock(
+                scalars=MagicMock(
+                    return_value=MagicMock(all=MagicMock(return_value=[cust_session]))
+                )
+            ),
+        ]
+    )
+    payload = PaymentCreateRequest(
+        payment_method="CASH",
+        amount_paid=Decimal("199.50"),
+        amount_tendered=Decimal("200.00"),
+    )
+
+    with (
+        patch("app.services.billing_service.AuditService.record_event", new_callable=AsyncMock),
+        patch("app.services.billing_service.ws_manager.broadcast_to_room", new_callable=AsyncMock),
+    ):
+        result, status_code = await BillingService.record_payment(
+            db, bill_id=bill.id, payload=payload, staff_user=staff
+        )
+
+    payment = result.payment
+    assert status_code == 201
+    assert payment.amount_paid == Decimal("199.50")
+    assert payment.amount_tendered == Decimal("200.00")
+    assert payment.change_returned == Decimal("0.50")
+    persisted_payment = next(obj for obj in added if getattr(obj, "bill_id", None) == bill.id)
+    assert persisted_payment.amount_paid == Decimal("199.50")
+    assert persisted_payment.amount_tendered == Decimal("200.00")
+    assert persisted_payment.change_returned == Decimal("0.50")
+    assert bill.status == BillStatus.PAID.value
+    assert table.status == "AVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_cash_payment_rejects_tendered_amount_below_the_exact_bill_total() -> None:
+    bill = _make_dummy_bill(grand_total=Decimal("199.50"))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=bill)))
+    with pytest.raises(DomainValidationError, match="Cash tendered") as error:
+        await BillingService.record_payment(
+            db,
+            bill_id=bill.id,
+            payload=PaymentCreateRequest(
+                payment_method="CASH",
+                amount_paid=Decimal("199.50"),
+                amount_tendered=Decimal("199.49"),
+            ),
+            staff_user=_make_staff_user(),
+        )
+    assert error.value.code == "CASH_TENDERED_TOO_LOW"
+
+
+@pytest.mark.asyncio
+async def test_non_cash_payment_rejects_a_cash_tendered_amount() -> None:
+    bill = _make_dummy_bill(grand_total=Decimal("199.50"))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=bill)))
+    with pytest.raises(DomainValidationError) as error:
+        await BillingService.record_payment(
+            db,
+            bill_id=bill.id,
+            payload=PaymentCreateRequest(
+                payment_method="UPI",
+                amount_paid=Decimal("199.50"),
+                amount_tendered=Decimal("200.00"),
+            ),
+            staff_user=_make_staff_user(),
+        )
+    assert error.value.code == "TENDERED_AMOUNT_ONLY_FOR_CASH"
+
+
+def test_payment_amounts_reject_more_than_two_decimal_places() -> None:
+    """The API rejects third-decimal inputs instead of silently changing money."""
+    with pytest.raises(ValidationError):
+        PaymentCreateRequest(
+            payment_method="CASH",
+            amount_paid=Decimal("199.500"),
+            amount_tendered=Decimal("200.005"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_payment_idempotency_replay_returns_cached_result_without_a_second_charge() -> None:
+    """A retry with the same idempotency key returns the original settlement."""
+    bill_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    cached_result = PaymentRecordResult(
+        payment=PaymentResponse(
+            id=uuid.uuid4(),
+            bill_id=bill_id,
+            bill_number="INV-20261021-0001",
+            table_session_id=session_id,
+            payment_method="CASH",
+            amount_paid=Decimal("199.50"),
+            amount_tendered=Decimal("200.00"),
+            change_returned=Decimal("0.50"),
+            status="COMPLETED",
+            recorded_by_user_id=uuid.uuid4(),
+        ),
+        bill_status="PAID",
+        table_session_status="CLOSED_PAID",
+        table_occupancy_status="AVAILABLE",
+    )
+    db = AsyncMock()
+    with patch.object(BillingService, "_check_idempotency", new_callable=AsyncMock) as replay:
+        replay.return_value = cached_result.model_dump(mode="json")
+        result, status_code = await BillingService.record_payment(
+            db,
+            bill_id=bill_id,
+            payload=PaymentCreateRequest(
+                payment_method="CASH",
+                amount_paid=Decimal("199.50"),
+                amount_tendered=Decimal("200.00"),
+            ),
+            staff_user=_make_staff_user(),
+            idempotency_key="payment-retry-key",
+        )
+    assert status_code == 200
+    assert result.payment.amount_paid == Decimal("199.50")
+    assert result.payment.change_returned == Decimal("0.50")
+    db.execute.assert_not_awaited()
 
 
 @pytest.mark.asyncio

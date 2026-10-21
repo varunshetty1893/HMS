@@ -1423,8 +1423,10 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
             ),
           ],
           _summaryRow('Taxable Amount', CurrencyFormatter.format(taxable)),
-          _summaryRow('CGST (2.5%)', CurrencyFormatter.format(cgst)),
-          _summaryRow('SGST (2.5%)', CurrencyFormatter.format(sgst)),
+          // A preview only contains computed tax amounts; the final invoice
+          // displays its frozen rate snapshots once it is generated.
+          _summaryRow('CGST', CurrencyFormatter.format(cgst)),
+          _summaryRow('SGST', CurrencyFormatter.format(sgst)),
           const Divider(color: WaiterTheme.surfaceVariant, height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

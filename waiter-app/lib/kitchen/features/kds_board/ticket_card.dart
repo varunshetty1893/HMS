@@ -11,6 +11,7 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onStartPreparing;
   final VoidCallback onMarkReady;
   final VoidCallback onAcknowledgeModifications;
+  final bool isAcknowledgingModifications;
 
   const TicketCard({
     super.key,
@@ -20,6 +21,7 @@ class TicketCard extends StatelessWidget {
     required this.onStartPreparing,
     required this.onMarkReady,
     required this.onAcknowledgeModifications,
+    this.isAcknowledgingModifications = false,
   });
 
   @override
@@ -115,6 +117,7 @@ class TicketCard extends StatelessWidget {
               OrderModificationBadge(
                 modifications: order.unacknowledgedModifications,
                 onAcknowledge: onAcknowledgeModifications,
+                isAcknowledging: isAcknowledgingModifications,
               ),
 
             // Special instructions (if any)
@@ -145,8 +148,10 @@ class TicketCard extends StatelessWidget {
                 ),
               ),
 
-            // Line items list (zero financial fields)
-            ...order.items.map((item) {
+            const Text('CURRENT ORDER', style: TextStyle(color: KdsTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            // Cancelled lines are intentionally excluded from the active kitchen summary.
+            ...order.items.where((item) => item.activeQuantity > 0 && item.itemStatus != 'CANCELLED').map((item) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
@@ -174,7 +179,9 @@ class TicketCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 2,
                             children: [
                               Text(
                                 item.itemName,

@@ -166,7 +166,12 @@ class PaymentCreateRequest(StrictRequestModel):
     """Payload for POST /api/v1/bills/{bill_id}/payments."""
 
     payment_method: str = Field(description="Must be CASH, UPI, CARD, or OTHER")
-    amount_paid: Decimal = Field(gt=Decimal("0.00"))
+    # This is the amount applied to the bill, not the note/coins handed over.
+    amount_paid: Decimal = Field(gt=Decimal("0.00"), max_digits=12, decimal_places=2)
+    # CASH only. The server computes and persists change as tendered - applied.
+    amount_tendered: Decimal | None = Field(
+        default=None, gt=Decimal("0.00"), max_digits=12, decimal_places=2
+    )
     reference_number: str | None = Field(default=None, max_length=100)
     notes: str | None = Field(default=None, max_length=255)
 
@@ -180,7 +185,10 @@ class PaymentResponse(ResponseModel):
     table_session_id: uuid.UUID
     table_number: int | None = None
     payment_method: str
+    # Backward-compatible API name: this is the amount applied to the bill.
     amount_paid: Decimal
+    amount_tendered: Decimal | None = None
+    change_returned: Decimal
     status: str
     reference_number: str | None = None
     notes: str | None = None

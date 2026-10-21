@@ -265,7 +265,10 @@ export interface Payment {
   id: string;
   bill_id: string;
   payment_method: PaymentMethod;
+  /** Amount applied to the invoice (revenue), not cash tendered. */
   amount_paid: string;
+  amount_tendered?: string | null;
+  change_returned?: string;
   status: 'COMPLETED' | 'FAILED';
   reference_number: string | null;
   recorded_by_name?: string;
@@ -280,9 +283,10 @@ export interface Bill {
   subtotal_amount: string;
   discount_amount: string;
   taxable_amount: string;
-  cgst_percentage: string;
+  /** Tax rates frozen when this specific bill was generated. */
+  cgst_rate_snapshot: string;
   cgst_amount: string;
-  sgst_percentage: string;
+  sgst_rate_snapshot: string;
   sgst_amount: string;
   service_charge_amount: string;
   rounding_adjustment: string;

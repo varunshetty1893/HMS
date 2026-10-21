@@ -5,11 +5,13 @@ import '../models/kitchen_item_model.dart';
 class OrderModificationBadge extends StatelessWidget {
   final List<KitchenModificationEventModel> modifications;
   final VoidCallback onAcknowledge;
+  final bool isAcknowledging;
 
   const OrderModificationBadge({
     super.key,
     required this.modifications,
     required this.onAcknowledge,
+    this.isAcknowledging = false,
   });
 
   @override
@@ -33,7 +35,7 @@ class OrderModificationBadge extends StatelessWidget {
               const SizedBox(width: 6),
               const Expanded(
                 child: Text(
-                  'ORDER MODIFIED BY WAITER',
+                  'Order updated by waiter',
                   style: TextStyle(
                     color: Colors.amber,
                     fontSize: 12,
@@ -45,59 +47,20 @@ class OrderModificationBadge extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          ...modifications.map((mod) {
-            final isIncrease = mod.newQuantity > mod.previousQuantity;
-            final isCancelled = mod.newQuantity == 0;
-
-            String badgeText;
-            Color badgeColor;
-            if (isCancelled) {
-              badgeText = '[- CANCELLED]';
-              badgeColor = Colors.red.shade400;
-            } else if (isIncrease) {
-              badgeText = '[+ ADDED]';
-              badgeColor = Colors.green.shade400;
-            } else {
-              badgeText = '[QTY CHANGED]';
-              badgeColor = Colors.amber.shade400;
-            }
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  Text(
-                    badgeText,
-                    style: TextStyle(
-                      color: badgeColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '${mod.itemName}: ${mod.previousQuantity} → ${mod.newQuantity} (${mod.reason})',
-                      style: const TextStyle(
-                        color: KdsTheme.textPrimary,
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+          _section('Removed', modifications.where((m) => m.newQuantity == 0 || m.modificationType == 'ITEM_CANCELLED').toList(), Colors.red.shade300),
+          _section('Added', modifications.where((m) => m.previousQuantity == 0 || m.modificationType == 'ITEM_ADDED').toList(), Colors.green.shade300),
+          _section('Quantity or portion changes', modifications.where((m) => m.newQuantity > 0 && m.previousQuantity > 0 && m.modificationType != 'ITEM_ADDED').toList(), Colors.amber.shade200),
+          const SizedBox(height: 6),
+          const Text('Ready is disabled until these changes are acknowledged.', style: TextStyle(color: KdsTheme.textSecondary, fontSize: 11)),
           const SizedBox(height: 6),
           SizedBox(
             width: double.infinity,
             height: 36,
             child: ElevatedButton.icon(
-              onPressed: onAcknowledge,
-              icon: const Icon(Icons.check, size: 16),
-              label: const Text(
-                'ACKNOWLEDGE CHANGE',
+              onPressed: isAcknowledging ? null : onAcknowledge,
+              icon: isAcknowledging ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check, size: 16),
+              label: Text(
+                isAcknowledging ? 'ACKNOWLEDGING…' : 'ACKNOWLEDGE CHANGE',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
@@ -111,6 +74,20 @@ class OrderModificationBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _section(String heading, List<KitchenModificationEventModel> entries, Color color) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(heading, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+        ...entries.map((mod) => Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text('${mod.itemName}: ${mod.previousQuantity} → ${mod.newQuantity}${mod.reason.isEmpty ? '' : ' · ${mod.reason}'}', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: KdsTheme.textPrimary, fontSize: 12)),
+        )),
+      ]),
     );
   }
 }

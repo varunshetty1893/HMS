@@ -112,7 +112,15 @@ export const ordersBillsApi = {
 
   recordPayment: async (
     billId: string,
-    payload: { payment_method: 'CASH' | 'UPI' | 'CARD' | 'OTHER'; amount_paid: string; reference_number?: string | null; notes?: string | null }
+    payload: {
+      payment_method: 'CASH' | 'UPI' | 'CARD' | 'OTHER';
+      /** Exact bill amount applied as revenue. */
+      amount_paid: string;
+      /** Physical cash handed over; accepted for CASH only. */
+      amount_tendered?: string | null;
+      reference_number?: string | null;
+      notes?: string | null;
+    }
   ): Promise<{ bill_status: string }> => {
     return apiClient<{ bill_status: string }>(`/bills/${billId}/payments`, {
       method: 'POST',

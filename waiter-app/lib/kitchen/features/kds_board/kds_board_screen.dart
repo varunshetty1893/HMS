@@ -152,6 +152,21 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
       body: Column(
         children: [
           ConnectionStatusBanner(isConnected: state.isConnected),
+          if (state.errorMessage != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade900.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent),
+              ),
+              child: Text(
+                'Could not update the order: ${state.errorMessage}. Tap acknowledge to retry.',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
           CancellationAlertBanner(
             alerts: state.cancellations,
             onDismiss: controller.dismissCancellation,
@@ -254,6 +269,7 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
           onStartPreparing: () => controller.startPreparingOrder(order),
           onMarkReady: () => controller.markOrderReady(order),
           onAcknowledgeModifications: () => controller.acknowledgeModifications(order),
+          isAcknowledgingModifications: state.acknowledgingOrderIds.contains(order.id),
         );
       },
     );

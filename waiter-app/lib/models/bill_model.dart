@@ -203,7 +203,11 @@ class PaymentModel {
   final String billNumber;
   final int? tableNumber;
   final String paymentMethod;
+  /// Amount applied to the bill; this is the amount counted as revenue.
   final double amountPaid;
+  /// Physical cash received, present only for CASH payments.
+  final double? amountTendered;
+  final double changeReturned;
   final String status;
   final String? referenceNumber;
   final String? notes;
@@ -217,6 +221,8 @@ class PaymentModel {
     this.tableNumber,
     required this.paymentMethod,
     required this.amountPaid,
+    this.amountTendered,
+    required this.changeReturned,
     required this.status,
     this.referenceNumber,
     this.notes,
@@ -232,6 +238,11 @@ class PaymentModel {
       tableNumber: json['table_number'] as int?,
       paymentMethod: json['payment_method']?.toString() ?? 'CASH',
       amountPaid: double.tryParse(json['amount_paid']?.toString() ?? '0') ?? 0.0,
+      amountTendered: json['amount_tendered'] == null
+          ? null
+          : double.tryParse(json['amount_tendered'].toString()),
+      changeReturned:
+          double.tryParse(json['change_returned']?.toString() ?? '0') ?? 0.0,
       status: json['status']?.toString() ?? 'COMPLETED',
       referenceNumber: json['reference_number']?.toString(),
       notes: json['notes']?.toString(),

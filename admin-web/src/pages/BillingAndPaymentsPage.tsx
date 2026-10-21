@@ -47,6 +47,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [cashTendered, setCashTendered] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
@@ -154,15 +155,25 @@ export const BillingAndPaymentsPage: React.FC = () => {
 
   const handleRecordPayment = async () => {
     if (!paymentBill) return;
+    const amountApplied = Number(paymentBill.grand_total);
+    const tendered = paymentMethod === 'CASH' && cashTendered.trim()
+      ? Number(cashTendered)
+      : amountApplied;
+    if (!Number.isFinite(tendered) || tendered < amountApplied) {
+      setError(`Cash tendered must be at least ${formatInr(paymentBill.grand_total)}.`);
+      return;
+    }
     setIsRecordingPayment(true);
     try {
       await ordersBillsApi.recordPayment(paymentBill.id, {
         payment_method: paymentMethod,
-        amount_paid: Number(paymentBill.grand_total).toFixed(2),
+        amount_paid: amountApplied.toFixed(2),
+        amount_tendered: paymentMethod === 'CASH' ? tendered.toFixed(2) : null,
         reference_number: paymentReference.trim() || null,
         notes: paymentNotes.trim() || null,
       });
       setPaymentBill(null);
+      setCashTendered('');
       setPaymentReference('');
       setPaymentNotes('');
       setSuccessBanner(`Payment recorded for bill #${paymentBill.bill_number}. Table is now settled.`);
@@ -539,11 +550,11 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 </div>
               )}
               <div className="flex justify-between py-0.5" style={{ color: sub }}>
-                <span>CGST (2.5%)</span>
+                <span>CGST ({Number(selectedBill.cgst_rate_snapshot).toFixed(2)}%)</span>
                 <span className="font-mono" style={{ color: heading }}>{formatInr(selectedBill.cgst_amount)}</span>
               </div>
               <div className="flex justify-between py-0.5" style={{ color: sub }}>
-                <span>SGST (2.5%)</span>
+                <span>SGST ({Number(selectedBill.sgst_rate_snapshot).toFixed(2)}%)</span>
                 <span className="font-mono" style={{ color: heading }}>{formatInr(selectedBill.sgst_amount)}</span>
               </div>
               <div className="pt-2.5 mt-1 border-t flex justify-between items-center text-sm font-bold" style={{ borderTopColor: border, color: heading }}>
@@ -560,6 +571,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
                     onClick={() => {
                       setPaymentBill(selectedBill);
                       setPaymentMethod('CASH');
+                      setCashTendered(selectedBill.grand_total);
                       setPaymentReference('');
                       setPaymentNotes('');
                       setSelectedBill(null);
@@ -697,6 +709,30 @@ export const BillingAndPaymentsPage: React.FC = () => {
               <button onClick={() => setPaymentBill(null)} style={{ color: muted }}><X className="w-4 h-4" /></button>
             </div>
             <label className="block text-xs font-bold uppercase" style={{ color: sub }}>Payment method<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="mt-1 w-full px-3 py-2 rounded-xl text-sm" style={input}><option value="CASH">Cash</option><option value="UPI">UPI</option><option value="CARD">Card</option><option value="OTHER">Other</option></select></label>
+            {paymentMethod === 'CASH' && (() => {
+              const billTotal = Number(paymentBill.grand_total);
+              const tendered = Number(cashTendered);
+              const change = Number.isFinite(tendered) && tendered >= billTotal ? tendered - billTotal : 0;
+              return <>
+                <label className="block text-xs font-bold uppercase" style={{ color: sub }}>
+                  Cash Tendered (₹)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={paymentBill.grand_total}
+                    step="0.01"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-xl text-sm font-mono"
+                    style={input}
+                  />
+                </label>
+                <div className="rounded-xl px-3 py-2 text-xs space-y-1" style={{ backgroundColor: L ? '#ecfdf5' : 'rgba(6,78,59,.35)', color: heading }}>
+                  <div className="flex justify-between"><span>Bill total / amount applied</span><strong>{formatInr(paymentBill.grand_total)}</strong></div>
+                  <div className="flex justify-between"><span>Change to return</span><strong>{formatInr(change)}</strong></div>
+                </div>
+              </>;
+            })()}
             <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} maxLength={100} placeholder="UPI/card reference (optional)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
             <input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} maxLength={255} placeholder="Notes (optional)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
             <p className="text-xs" style={{ color: muted }}>The exact final amount of {formatInr(paymentBill.grand_total)} will be recorded.</p>

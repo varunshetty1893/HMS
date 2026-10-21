@@ -714,8 +714,10 @@ class ReportService:
                 "Subtotal Amount",
                 "Discount Amount",
                 "Taxable Amount",
-                "CGST (2.5%)",
-                "SGST (2.5%)",
+                # A report can include invoices generated under more than one
+                # configured tax rate, so do not mislabel aggregates as 2.5%.
+                "CGST",
+                "SGST",
                 "Grand Total",
                 "Payment Method",
                 "Reference Number",

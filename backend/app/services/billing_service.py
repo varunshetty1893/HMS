@@ -817,15 +817,41 @@ class BillingService:
                 message=f"Payment method must be one of: {', '.join(valid_methods)}.",
             )
 
-        # 4. Strict exact-amount check against bill grand_total
-        amount_paid = payload.amount_paid.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-        if amount_paid != bill.grand_total:
+        # 4. This is an atomic final settlement, not an installment ledger.
+        # ``amount_paid`` is the amount applied to the invoice/revenue; for
+        # cash, tendered cash and change are recorded separately below.
+        amount_applied = payload.amount_paid.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+        if amount_applied != bill.grand_total:
             raise DomainValidationError(
                 code="PAYMENT_AMOUNT_MISMATCH",
                 message=(
-                    f"Payment amount (₹{amount_paid}) does not match bill grand "
+                    f"Amount applied (₹{amount_applied}) does not match bill grand "
                     f"total (₹{bill.grand_total})."
                 ),
+            )
+
+        amount_tendered: Decimal | None = None
+        change_returned = Decimal("0.00")
+        if payload.payment_method == PaymentMethod.CASH.value:
+            # Older clients omit amount_tendered for an exact cash payment.
+            amount_tendered = (payload.amount_tendered or amount_applied).quantize(
+                TWO_PLACES, rounding=ROUND_HALF_UP
+            )
+            if amount_tendered < amount_applied:
+                raise DomainValidationError(
+                    code="CASH_TENDERED_TOO_LOW",
+                    message=(
+                        f"Cash tendered (₹{amount_tendered}) cannot be less than the "
+                        f"amount due (₹{amount_applied})."
+                    ),
+                )
+            change_returned = (amount_tendered - amount_applied).quantize(
+                TWO_PLACES, rounding=ROUND_HALF_UP
+            )
+        elif payload.amount_tendered is not None:
+            raise DomainValidationError(
+                code="TENDERED_AMOUNT_ONLY_FOR_CASH",
+                message="amount_tendered is allowed only for CASH payments.",
             )
 
         # 5. Row-lock TableSession and RestaurantTable
@@ -847,7 +873,9 @@ class BillingService:
             bill_id=bill.id,
             table_session_id=bill.table_session_id,
             payment_method=payload.payment_method,
-            amount_paid=amount_paid,
+            amount_paid=amount_applied,
+            amount_tendered=amount_tendered,
+            change_returned=change_returned,
             status=PaymentStatus.COMPLETED.value,
             reference_number=payload.reference_number,
             notes=payload.notes,
@@ -930,7 +958,9 @@ class BillingService:
             new_value={
                 "bill_id": str(bill.id),
                 "bill_number": bill.bill_number,
-                "amount_paid": str(amount_paid),
+                "amount_applied": str(amount_applied),
+                "amount_tendered": str(amount_tendered) if amount_tendered is not None else None,
+                "change_returned": str(change_returned),
                 "payment_method": payload.payment_method,
                 "table_number": table.table_number if table else None,
             },
@@ -945,6 +975,8 @@ class BillingService:
             table_number=table.table_number if table else None,
             payment_method=payment.payment_method,
             amount_paid=payment.amount_paid,
+            amount_tendered=payment.amount_tendered,
+            change_returned=payment.change_returned,
             status=payment.status,
             reference_number=payment.reference_number,
             notes=payment.notes,
@@ -980,7 +1012,13 @@ class BillingService:
             "bill_id": str(bill.id),
             "bill_number": bill.bill_number,
             "table_number": table.table_number if table else None,
-            "amount_paid": str(amount_paid),
+            # Keep amount_paid for existing real-time clients.  It is always
+            # the amount applied to the invoice (and therefore revenue), never
+            # the physical cash handed over by the guest.
+            "amount_paid": str(amount_applied),
+            "amount_applied": str(amount_applied),
+            "amount_tendered": str(amount_tendered) if amount_tendered is not None else None,
+            "change_returned": str(change_returned),
             "payment_method": payload.payment_method,
             "completed_at": payment.completed_at.isoformat() if payment.completed_at else None,
         }

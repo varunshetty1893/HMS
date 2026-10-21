@@ -40,6 +40,17 @@ class _PaymentRecordingScreenState extends ConsumerState<PaymentRecordingScreen>
     });
   }
 
+  double? get _cashTendered {
+    final value = _cashTenderedController.text.trim();
+    return value.isEmpty ? null : double.tryParse(value);
+  }
+
+  bool get _cashTenderedIsTooLow =>
+      _cashTendered != null && _cashTendered! < widget.bill.grandTotal;
+
+  bool get _cashTenderedIsInvalid =>
+      _cashTenderedController.text.trim().isNotEmpty && _cashTendered == null;
+
   void _confirmAndRecordPayment(BuildContext context) {
     showDialog(
       context: context,
@@ -51,6 +62,7 @@ class _PaymentRecordingScreenState extends ConsumerState<PaymentRecordingScreen>
         ),
         content: Text(
           'Confirm ₹${widget.bill.grandTotal.toStringAsFixed(2)} collected via $_selectedMethod?\n\n'
+          '${_selectedMethod == 'CASH' && _cashTendered != null ? 'Cash tendered: ₹${_cashTendered!.toStringAsFixed(2)}\nChange to return: ₹${_changeToReturn.toStringAsFixed(2)}\n\n' : ''}'
           'This will mark the bill PAID, complete all orders, and free Table ${widget.bill.tableNumber ?? ""}.',
           style: const TextStyle(color: AppTheme.textSecondary),
         ),
@@ -70,6 +82,8 @@ class _PaymentRecordingScreenState extends ConsumerState<PaymentRecordingScreen>
                     billId: widget.bill.id,
                     paymentMethod: _selectedMethod,
                     amountPaid: widget.bill.grandTotal,
+                    amountTendered:
+                        _selectedMethod == 'CASH' ? _cashTendered : null,
                     referenceNumber: _refController.text.trim().isNotEmpty ? _refController.text.trim() : null,
                     notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
                   );
@@ -184,6 +198,15 @@ class _PaymentRecordingScreenState extends ConsumerState<PaymentRecordingScreen>
                         prefixIcon: Icon(Icons.currency_rupee),
                       ),
                     ),
+                    if (_cashTenderedIsTooLow || _cashTenderedIsInvalid) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _cashTenderedIsInvalid
+                            ? 'Enter a valid cash amount.'
+                            : 'Cash tendered must be at least ${CurrencyFormatter.format(widget.bill.grandTotal)}.',
+                        style: const TextStyle(color: AppTheme.errorColor, fontSize: 12),
+                      ),
+                    ],
                     if (_changeToReturn > 0) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -285,7 +308,9 @@ class _PaymentRecordingScreenState extends ConsumerState<PaymentRecordingScreen>
                   backgroundColor: AppTheme.readyColor,
                   foregroundColor: Colors.white,
                 ),
-                onPressed: state.isSubmitting ? null : () => _confirmAndRecordPayment(context),
+                onPressed: state.isSubmitting || _cashTenderedIsTooLow || _cashTenderedIsInvalid
+                    ? null
+                    : () => _confirmAndRecordPayment(context),
               ),
             ),
           ],

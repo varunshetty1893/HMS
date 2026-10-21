@@ -121,14 +121,34 @@ class CompletedBillScreen extends StatelessWidget {
                   _buildReceiptRow('Subtotal', CurrencyFormatter.format(bill.subtotalAmount)),
                   if (bill.discountAmount > 0)
                     _buildReceiptRow('Discount', '- ${CurrencyFormatter.format(bill.discountAmount)}', valueColor: AppTheme.errorColor),
-                  _buildReceiptRow('CGST (2.5%)', CurrencyFormatter.format(bill.cgstAmount)),
-                  _buildReceiptRow('SGST (2.5%)', CurrencyFormatter.format(bill.sgstAmount)),
+                  _buildReceiptRow(
+                    'CGST (${bill.cgstRateSnapshot.toStringAsFixed(2)}%)',
+                    CurrencyFormatter.format(bill.cgstAmount),
+                  ),
+                  _buildReceiptRow(
+                    'SGST (${bill.sgstRateSnapshot.toStringAsFixed(2)}%)',
+                    CurrencyFormatter.format(bill.sgstAmount),
+                  ),
+                  const Divider(color: AppTheme.borderColor, height: 20),
+                  _buildReceiptRow('Bill Total', CurrencyFormatter.format(bill.grandTotal)),
+                  _buildReceiptRow('Amount Applied', CurrencyFormatter.format(payment.amountPaid)),
+                  if (payment.paymentMethod == 'CASH' && payment.amountTendered != null)
+                    _buildReceiptRow(
+                      'Cash Tendered',
+                      CurrencyFormatter.format(payment.amountTendered!),
+                    ),
+                  if (payment.paymentMethod == 'CASH' && payment.changeReturned > 0)
+                    _buildReceiptRow(
+                      'Change Returned',
+                      CurrencyFormatter.format(payment.changeReturned),
+                      valueColor: AppTheme.accentColor,
+                    ),
                   const Divider(color: AppTheme.borderColor, height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Total Settled',
+                        'Revenue Applied to Bill',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
                       ),
                       Text(

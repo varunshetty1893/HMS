@@ -293,6 +293,7 @@ class BillingController extends StateNotifier<BillingState> {
     required String billId,
     required String paymentMethod,
     required double amountPaid,
+    double? amountTendered,
     String? referenceNumber,
     String? notes,
   }) async {
@@ -302,6 +303,7 @@ class BillingController extends StateNotifier<BillingState> {
       final payload = {
         'payment_method': paymentMethod,
         'amount_paid': amountPaid.toStringAsFixed(2),
+        'amount_tendered': amountTendered?.toStringAsFixed(2),
         'reference_number': referenceNumber,
         'notes': notes,
       };

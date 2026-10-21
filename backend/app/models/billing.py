@@ -151,12 +151,26 @@ class Payment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         CheckConstraint(in_check("payment_method", PaymentMethod), name="method_valid"),
         CheckConstraint(in_check("status", PaymentStatus), name="status_valid"),
         CheckConstraint("amount_paid > 0", name="amount_paid_positive"),
+        CheckConstraint("change_returned >= 0", name="change_returned_non_negative"),
+        CheckConstraint(
+            "(payment_method = 'CASH' AND amount_tendered IS NOT NULL "
+            "AND amount_tendered = amount_paid + change_returned) "
+            "OR (payment_method <> 'CASH' AND amount_tendered IS NULL "
+            "AND change_returned = 0)",
+            name="cash_tendered_matches_applied_and_change",
+        ),
     )
 
     bill_id: Mapped[uuid.UUID] = uuid_fk("bills.id", nullable=False)
     table_session_id: Mapped[uuid.UUID] = uuid_fk("table_sessions.id", nullable=False)
     payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
+    # amount_paid is the amount applied to the bill/revenue. It is never the
+    # physical cash handed over when change is returned.
     amount_paid: Mapped[Decimal] = mapped_column(money(), nullable=False)
+    amount_tendered: Mapped[Decimal | None] = mapped_column(money(), nullable=True)
+    change_returned: Mapped[Decimal] = mapped_column(
+        money(), nullable=False, default=Decimal("0.00"), server_default=text("0.00")
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(255), nullable=True)

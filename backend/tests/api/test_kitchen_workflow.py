@@ -307,6 +307,7 @@ async def test_acknowledge_modifications_clears_flag() -> None:
         assert mod_event.acknowledged_by_kitchen_user_id == user_id
         assert mod_event.acknowledged_at is not None
         db.commit.assert_awaited_once()
+        db.refresh.assert_not_awaited()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

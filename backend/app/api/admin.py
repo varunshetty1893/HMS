@@ -27,7 +27,7 @@ from app.models.operations import AuditLog
 from app.models.qr_sessions import TableSession
 from app.models.restaurant import RestaurantTable
 from app.schemas.audit import AuditLogFacets, AuditLogPageResponse, AuditLogResponse
-from app.schemas.billing import BillResponse, PaymentResponse
+from app.schemas.billing import BillResponse, PaymentResponse, TableBillResponse
 from app.schemas.common import PaginationMeta
 from app.schemas.menu import (
     CategoryReorderRequest,
@@ -1247,6 +1247,15 @@ async def unlock_table_session(
     )
     await db.commit()
     return {"table_session_id": str(sess.id), "is_locked_for_abuse": False}
+
+
+@router.get("/bills/open-tables", response_model=list[TableBillResponse])
+async def list_open_table_checks(
+    _admin: AdminUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[TableBillResponse]:
+    """Running checks for tables that ordered but have no generated bill yet."""
+    return await BillingService.list_open_table_checks(db)
 
 
 @router.get("/bills", response_model=list[BillResponse])

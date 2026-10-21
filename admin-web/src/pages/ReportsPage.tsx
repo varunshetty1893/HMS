@@ -11,8 +11,6 @@ import {
   TrendingUp,
   UserCheck,
   Utensils,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import {
   CancelledRejectedReportItem,
@@ -25,104 +23,7 @@ import {
   WaiterActivityReportItem,
 } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
-
-// ─── Reusable pagination hook ─────────────────────────────────────────────────
-function usePagination<T>(items: T[], pageSize = 15) {
-  const [page, setPage] = useState(1);
-
-  // Reset to page 1 whenever the underlying data changes
-  useEffect(() => {
-    setPage(1);
-  }, [items]);
-
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * pageSize;
-  const slice = items.slice(start, start + pageSize);
-
-  return {
-    slice,
-    page: safePage,
-    totalPages,
-    totalItems: items.length,
-    pageSize,
-    start,
-    end: Math.min(start + pageSize, items.length),
-    setPage,
-    hasPrev: safePage > 1,
-    hasNext: safePage < totalPages,
-    prev: () => setPage((p) => Math.max(1, p - 1)),
-    next: () => setPage((p) => Math.min(totalPages, p + 1)),
-  };
-}
-
-// ─── Pagination controls component ───────────────────────────────────────────
-interface PaginationBarProps {
-  page: number;
-  totalPages: number;
-  totalItems: number;
-  start: number;
-  end: number;
-  hasPrev: boolean;
-  hasNext: boolean;
-  prev: () => void;
-  next: () => void;
-  setPage: (p: number) => void;
-  border: string;
-  muted: string;
-  heading: string;
-}
-
-const PaginationBar: React.FC<PaginationBarProps> = ({
-  page,
-  totalPages,
-  totalItems,
-  start,
-  end,
-  hasPrev,
-  hasNext,
-  prev,
-  next,
-  border,
-  muted,
-  heading,
-}) => {
-  if (totalItems === 0) return null;
-  return (
-    <div
-      className="flex items-center justify-between px-6 py-3 border-t text-xs"
-      style={{ borderTopColor: border, color: muted }}
-    >
-      <span>
-        Showing <strong style={{ color: heading }}>{start + 1}–{end}</strong> of{' '}
-        <strong style={{ color: heading }}>{totalItems}</strong> records
-      </span>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={prev}
-          disabled={!hasPrev}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          style={{ borderColor: border, color: heading }}
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          Prev
-        </button>
-        <span className="px-2 font-mono" style={{ color: heading }}>
-          {page} / {totalPages}
-        </span>
-        <button
-          onClick={next}
-          disabled={!hasNext}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          style={{ borderColor: border, color: heading }}
-        >
-          Next
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-};
+import { PaginationBar, usePagination } from '@/components/common/Pagination';
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export const ReportsPage: React.FC = () => {
@@ -149,6 +50,7 @@ export const ReportsPage: React.FC = () => {
 
   // Pagination — one per tab that has a table
   const salesPag = usePagination(dailySales, 15);
+  const txnPag = usePagination(dayTransactions, 10);
   const dishesPag = usePagination(popularDishes, 20);
   const tablesPag = usePagination(tableUsage, 15);
   const cancelPag = usePagination(cancellations, 15);
@@ -584,7 +486,7 @@ export const ReportsPage: React.FC = () => {
               <button onClick={() => setSelectedSalesDay(null)} className="px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer" style={{ borderColor: border, color: heading }}>Close</button>
             </div>
             {isLoadingTransactions ? <div className="p-10 text-center text-sm" style={{ color: muted }}>Loading transactions…</div> : (
-              <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: border }}><table className="w-full text-left text-xs"><thead style={thead}><tr><th className="px-4 py-3">Bill</th><th className="px-4 py-3">Table</th><th className="px-4 py-3">Method</th><th className="px-4 py-3 text-right">Applied / Revenue</th><th className="px-4 py-3 text-right">Cash Received</th><th className="px-4 py-3 text-right">Change Returned</th><th className="px-4 py-3">Time</th></tr></thead><tbody>{dayTransactions.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: muted }}>No settled transactions for this date.</td></tr> : dayTransactions.map((transaction) => <tr key={transaction.payment_id} className="border-t" style={{ borderColor: border }}><td className="px-4 py-3 font-mono font-bold" style={{ color: heading }}>{transaction.bill_number}</td><td className="px-4 py-3" style={{ color: sub }}>{transaction.table_display_name || (transaction.table_number ? `Table ${transaction.table_number}` : '—')}</td><td className="px-4 py-3">{transaction.payment_method}</td><td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">{formatInr(transaction.amount_applied)}</td><td className="px-4 py-3 text-right font-mono">{transaction.payment_method === 'CASH' ? formatInr(transaction.amount_tendered ?? transaction.amount_applied) : '—'}</td><td className="px-4 py-3 text-right font-mono text-amber-600">{transaction.payment_method === 'CASH' ? formatInr(transaction.change_returned) : '—'}</td><td className="px-4 py-3" style={{ color: muted }}>{transaction.completed_at ? formatDateTimeIst(transaction.completed_at) : '—'}</td></tr>)}</tbody></table></div>
+              <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: border }}><table className="w-full text-left text-xs"><thead style={thead}><tr><th className="px-4 py-3">Bill</th><th className="px-4 py-3">Table</th><th className="px-4 py-3">Method</th><th className="px-4 py-3 text-right">Applied / Revenue</th><th className="px-4 py-3 text-right">Cash Received</th><th className="px-4 py-3 text-right">Change Returned</th><th className="px-4 py-3">Time</th></tr></thead><tbody>{dayTransactions.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: muted }}>No settled transactions for this date.</td></tr> : txnPag.slice.map((transaction) => <tr key={transaction.payment_id} className="border-t" style={{ borderColor: border }}><td className="px-4 py-3 font-mono font-bold" style={{ color: heading }}>{transaction.bill_number}</td><td className="px-4 py-3" style={{ color: sub }}>{transaction.table_display_name || (transaction.table_number ? `Table ${transaction.table_number}` : '—')}</td><td className="px-4 py-3">{transaction.payment_method}</td><td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">{formatInr(transaction.amount_applied)}</td><td className="px-4 py-3 text-right font-mono">{transaction.payment_method === 'CASH' ? formatInr(transaction.amount_tendered ?? transaction.amount_applied) : '—'}</td><td className="px-4 py-3 text-right font-mono text-amber-600">{transaction.payment_method === 'CASH' ? formatInr(transaction.change_returned) : '—'}</td><td className="px-4 py-3" style={{ color: muted }}>{transaction.completed_at ? formatDateTimeIst(transaction.completed_at) : '—'}</td></tr>)}</tbody></table><PaginationBar {...txnPag} border={border} muted={muted} heading={heading} /></div>
             )}
           </div>
         </div>

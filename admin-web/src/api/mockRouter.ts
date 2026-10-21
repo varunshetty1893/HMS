@@ -296,6 +296,9 @@ export async function handleMockRequest<T>(
   }
 
   // Bills
+  if (path === '/admin/bills/open-tables') {
+    return [] as unknown as T;
+  }
   if (path === '/admin/bills') {
     const bills = getMockBills();
     const status = urlObj.searchParams.get('status');

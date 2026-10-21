@@ -15,12 +15,13 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { Bill, PaymentMethod } from '@/types/api';
+import { Bill, PaymentMethod, TableBillCheck } from '@/types/api';
+import { PaginationBar, usePagination } from '@/components/common/Pagination';
 
 const BILL_TABS: { label: string; value: string }[] = [
+  { label: 'All Bills', value: 'ALL' },
   { label: 'Unpaid Bills', value: 'ISSUED' },
   { label: 'Paid Bills', value: 'PAID' },
-  { label: 'All Bills', value: 'ALL' },
   { label: 'Cancelled for Revision', value: 'VOIDED_FOR_REVISION' },
 ];
 
@@ -36,6 +37,9 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
+  // Tables that have ordered but have no generated bill yet (live running check).
+  const [openChecks, setOpenChecks] = useState<TableBillCheck[]>([]);
+  const [selectedLiveTable, setSelectedLiveTable] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [isLoadingBillDetail, setIsLoadingBillDetail] = useState(false);
   const [discountBill, setDiscountBill] = useState<Bill | null>(null);
@@ -70,10 +74,16 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const fetchBills = async () => {
     setIsLoading(true);
     try {
-      const data = await ordersBillsApi.listBills({
-        status: statusFilter === 'ALL' ? undefined : statusFilter,
-      });
+      const [data, checks] = await Promise.all([
+        ordersBillsApi.listBills({
+          status: statusFilter === 'ALL' ? undefined : statusFilter,
+        }),
+        ordersBillsApi.listOpenTableChecks().catch(() => [] as TableBillCheck[]),
+      ]);
       setBills(data);
+      setOpenChecks(checks);
+      // Keep an open bill popup in sync (e.g. after a discount or payment).
+      setSelectedBill((current) => (current ? data.find((b) => b.id === current.id) ?? current : current));
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Failed to load restaurant bills');
@@ -93,6 +103,13 @@ export const BillingAndPaymentsPage: React.FC = () => {
       window.clearInterval(refreshTimer);
     };
   }, [statusFilter]);
+
+  // If a live check was billed from elsewhere, close its popup.
+  useEffect(() => {
+    if (selectedLiveTable && !openChecks.some((c) => c.table_id === selectedLiveTable)) {
+      setSelectedLiveTable(null);
+    }
+  }, [openChecks, selectedLiveTable]);
 
   const handleApplyDiscount = async () => {
     if (!discountBill) return;
@@ -132,8 +149,8 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  const handleGenerateBill = async () => {
-    const tableNumber = Number(generateTableNumber);
+  const handleGenerateBill = async (tableNumberOverride?: number) => {
+    const tableNumber = tableNumberOverride ?? Number(generateTableNumber);
     if (!Number.isInteger(tableNumber) || tableNumber < 1) {
       setError('Enter a valid table number.');
       return;
@@ -141,6 +158,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
     setIsGenerating(true);
     try {
       const bill = await ordersBillsApi.generateBill(tableNumber);
+      setSelectedLiveTable(null);
       setIsGenerateOpen(false);
       setGenerateTableNumber('');
       setSuccessBanner(`Bill #${bill.bill_number} generated for Table ${tableNumber}.`);
@@ -185,14 +203,40 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  const filteredBills = bills.filter((b) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      b.bill_number.toLowerCase().includes(q) ||
-      String(b.table_number || '').includes(q)
-    );
+  type Row = { kind: 'live'; check: TableBillCheck } | { kind: 'bill'; bill: Bill };
+
+  // Live (not yet billed) tables appear first, in "All" and "Unpaid" views.
+  const showLive = statusFilter === 'ALL' || statusFilter === 'ISSUED';
+  const rows: Row[] = [
+    ...(showLive ? openChecks.map((check) => ({ kind: 'live', check }) as Row) : []),
+    ...bills.map((bill) => ({ kind: 'bill', bill }) as Row),
+  ];
+
+  const query = searchQuery.toLowerCase().trim();
+  const filteredRows = rows.filter((row) => {
+    if (!query) return true;
+    const fields: string[] =
+      row.kind === 'live'
+        ? [
+            'live running open',
+            `table ${row.check.table_number}`,
+            String(row.check.table_number),
+            row.check.table_display_name || '',
+            row.check.preview_grand_total || '',
+            ...row.check.preview_line_items.map((i) => i.item_name),
+          ]
+        : [
+            row.bill.bill_number,
+            row.bill.status,
+            `table ${row.bill.table_number ?? ''}`,
+            String(row.bill.table_number ?? ''),
+            row.bill.grand_total,
+            ...(row.bill.line_items || []).map((i) => i.item_name),
+          ];
+    return fields.some((f) => f.toLowerCase().includes(query));
   });
+  const billsPag = usePagination(filteredRows, 10);
+  const selectedLive = openChecks.find((c) => c.table_id === selectedLiveTable) ?? null;
 
   return (
     <div className="p-8 space-y-6">
@@ -299,7 +343,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
           <div className="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="mt-3 text-sm">Loading bills...</p>
         </div>
-      ) : filteredBills.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div
           className="p-16 text-center rounded-2xl"
           style={{ ...card, color: sub }}
@@ -324,7 +368,34 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredBills.map((b) => (
+                {billsPag.slice.map((row) => {
+                  if (row.kind === 'live') {
+                    const c = row.check;
+                    return (
+                      <tr
+                        key={`live-${c.table_id}`}
+                        onClick={() => setSelectedLiveTable(c.table_id)}
+                        className="transition cursor-pointer border-b"
+                        style={{ borderBottomColor: border, backgroundColor: L ? '#fffbeb' : 'rgba(120,53,15,0.15)' }}
+                      >
+                        <td className="px-6 py-4 font-mono font-bold" style={{ color: heading }}>
+                          <span className="flex items-center gap-2"><Receipt className="w-4 h-4 text-amber-500 shrink-0" />Running check</span>
+                        </td>
+                        <td className="px-6 py-4 font-semibold" style={{ color: heading }}>Table {c.table_number}</td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+                            {c.has_unaccepted_placed_orders || c.has_unserved_orders ? 'LIVE · IN PROGRESS' : 'LIVE · READY TO BILL'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono" style={{ color: muted }}>Not billed yet</td>
+                        <td className="px-6 py-4 text-right font-mono" style={{ color: sub }}>{formatInr(c.preview_subtotal ?? '0')}</td>
+                        <td className="px-6 py-4 text-right font-mono font-semibold" style={{ color: '#d97706' }}>₹0.00</td>
+                        <td className="px-6 py-4 text-right font-mono font-black" style={{ color: heading }}>{formatInr(c.preview_grand_total ?? '0')}</td>
+                      </tr>
+                    );
+                  }
+                  const b = row.bill;
+                  return (
                   <tr
                     key={b.id}
                     onClick={() => handleSelectBill(b)}
@@ -360,9 +431,69 @@ export const BillingAndPaymentsPage: React.FC = () => {
                       {formatInr(b.grand_total)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+          <PaginationBar {...billsPag} border={border} muted={muted} heading={heading} />
+        </div>
+      )}
+
+      {/* Live table check popup */}
+      {selectedLive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
+          <div className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl border" style={{ ...modalInner, borderColor: border }}>
+            <div className="flex items-start justify-between pb-4 border-b" style={{ borderBottomColor: border }}>
+              <div>
+                <h3 className="text-xl font-black" style={{ color: heading }}>Table {selectedLive.table_number} · Running check</h3>
+                <p className="text-xs mt-1" style={{ color: sub }}>Updates automatically as orders change. No bill has been generated yet.</p>
+              </div>
+              <button onClick={() => setSelectedLiveTable(null)} style={{ color: muted }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="mt-4 rounded-2xl border overflow-hidden" style={{ borderColor: border }}>
+              <div className="overflow-auto max-h-64">
+                <table className="w-full text-left text-xs">
+                  <thead style={{ backgroundColor: L ? '#f1f5f9' : '#1e293b', color: muted }}>
+                    <tr><th className="py-2.5 px-3.5">Item</th><th className="py-2.5 px-3 text-center">Qty</th><th className="py-2.5 px-3.5 text-right">Unit Rate</th><th className="py-2.5 px-4 text-right">Line Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {selectedLive.preview_line_items.map((item, idx) => (
+                      <tr key={item.id || idx} className="border-t" style={{ borderColor: border }}>
+                        <td className="py-2.5 px-3.5 font-bold" style={{ color: heading }}>{item.item_name}{item.variant_name && item.variant_name.toUpperCase() !== 'STANDARD' ? <span className="font-normal" style={{ color: muted }}> ({item.variant_name})</span> : null}</td>
+                        <td className="py-2.5 px-3 text-center font-mono" style={{ color: heading }}>{item.quantity_billed}</td>
+                        <td className="py-2.5 px-3.5 text-right font-mono" style={{ color: sub }}>{formatInr(item.unit_price_snapshot)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold" style={{ color: heading }}>{formatInr(item.line_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl border p-4 text-xs space-y-1.5" style={{ borderColor: border, color: sub }}>
+              <div className="flex justify-between"><span>Subtotal (Items)</span><span className="font-mono">{formatInr(selectedLive.preview_subtotal ?? '0')}</span></div>
+              <div className="flex justify-between"><span>CGST</span><span className="font-mono">{formatInr(selectedLive.preview_cgst ?? '0')}</span></div>
+              <div className="flex justify-between"><span>SGST</span><span className="font-mono">{formatInr(selectedLive.preview_sgst ?? '0')}</span></div>
+              <div className="flex justify-between pt-2 border-t text-sm font-black" style={{ borderColor: border, color: heading }}><span>Running total</span><span className="font-mono">{formatInr(selectedLive.preview_grand_total ?? '0')}</span></div>
+            </div>
+            {(selectedLive.has_unaccepted_placed_orders || selectedLive.has_unserved_orders) && (
+              <p className="mt-3 text-xs" style={{ color: '#b45309' }}>
+                {selectedLive.has_unaccepted_placed_orders
+                  ? 'Some orders are not accepted by the kitchen yet.'
+                  : 'Some orders are not served yet.'}{' '}
+                The bill can be generated once all orders are served.
+              </p>
+            )}
+            <div className="mt-6 pt-4 border-t flex justify-end gap-3" style={{ borderTopColor: border }}>
+              <button onClick={() => setSelectedLiveTable(null)} className="px-4 py-2 rounded-xl text-xs font-semibold" style={{ color: heading, border: `1px solid ${border}` }}>Close</button>
+              <button
+                disabled={isGenerating || selectedLive.has_unaccepted_placed_orders || selectedLive.has_unserved_orders}
+                onClick={() => handleGenerateBill(selectedLive.table_number)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50 cursor-pointer"
+              >
+                {isGenerating ? 'Generating…' : 'Generate Bill'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -716,7 +847,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
             <input autoFocus type="number" min="1" value={generateTableNumber} onChange={(e) => setGenerateTableNumber(e.target.value)} placeholder="Table number" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
             <div className="flex justify-end gap-2">
               <button onClick={() => setIsGenerateOpen(false)} className="px-3.5 py-2 rounded-xl text-xs font-semibold" style={{ color: heading }}>Cancel</button>
-              <button disabled={isGenerating} onClick={handleGenerateBill} className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50">{isGenerating ? 'Generating…' : 'Generate Bill'}</button>
+              <button disabled={isGenerating} onClick={() => handleGenerateBill()} className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50">{isGenerating ? 'Generating…' : 'Generate Bill'}</button>
             </div>
           </div>
         </div>

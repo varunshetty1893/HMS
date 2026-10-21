@@ -299,6 +299,24 @@ export interface Bill {
   payments?: Payment[];
 }
 
+/** Running (not yet billed) check for a table, recomputed from live orders. */
+export interface TableBillCheck {
+  table_number: number;
+  table_id: string;
+  table_display_name: string | null;
+  table_session_id: string;
+  session_code: string;
+  has_unaccepted_placed_orders: boolean;
+  has_unserved_orders: boolean;
+  bill_status: string;
+  preview_line_items: BillItem[];
+  preview_subtotal: string | null;
+  preview_taxable: string | null;
+  preview_cgst: string | null;
+  preview_sgst: string | null;
+  preview_grand_total: string | null;
+}
+
 export interface RestaurantSettings {
   id: number;
   restaurant_name: string;

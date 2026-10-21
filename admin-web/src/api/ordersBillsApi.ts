@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { Bill, Order, OrderItemAdjustmentRequest, OrderReportItem, Payment } from '@/types/api';
+import { Bill, Order, TableBillCheck, OrderItemAdjustmentRequest, OrderReportItem, Payment } from '@/types/api';
 
 export const ordersBillsApi = {
   listOrders: async (filters: {
@@ -63,6 +63,10 @@ export const ordersBillsApi = {
     return apiClient<any>(`/admin/table-sessions/${sessionId}/unlock`, {
       method: 'POST',
     });
+  },
+
+  listOpenTableChecks: async (): Promise<TableBillCheck[]> => {
+    return apiClient<TableBillCheck[]>('/admin/bills/open-tables');
   },
 
   listBills: async (filters: {

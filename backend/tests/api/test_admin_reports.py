@@ -161,6 +161,36 @@ async def test_admin_reports_payment_transaction_drilldown(admin_user: User) -> 
 
 
 @pytest.mark.asyncio
+async def test_admin_open_table_checks_list_unbilled_tables(admin_user: User) -> None:
+    """Tables with orders but no bill appear as live checks with current prices."""
+    from app.schemas.billing import TableBillResponse
+    from app.services.billing_service import BillingService
+
+    app = create_app()
+    app.dependency_overrides[get_current_staff_user] = lambda: admin_user
+    check = TableBillResponse(
+        table_number=6,
+        table_id=uuid.uuid4(),
+        table_session_id=uuid.uuid4(),
+        session_code="S-6",
+        bill_status="NOT_GENERATED",
+        preview_subtotal=Decimal("200.00"),
+        preview_grand_total=Decimal("210.00"),
+    )
+    with patch.object(
+        BillingService, "list_open_table_checks", new_callable=AsyncMock
+    ) as mock_list:
+        mock_list.return_value = [check]
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/admin/bills/open-tables")
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["table_number"] == 6
+    assert data[0]["bill_status"] == "NOT_GENERATED"
+    assert data[0]["preview_grand_total"] == "210.00"
+
+
+@pytest.mark.asyncio
 async def test_admin_reports_popular_dishes_success(admin_user: User) -> None:
     """Popular dishes endpoint returns velocity metrics."""
     app = create_app()

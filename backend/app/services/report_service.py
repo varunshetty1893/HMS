@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, case, desc, func, select
+from sqlalchemy import case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -134,26 +134,36 @@ class ReportService:
 
         # Group bills by date (using cast to date)
         day_col = func.date(Bill.generated_at).label("sales_date")
-        cash_tendered = func.coalesce(
-            func.sum(
-                case(
-                    (
-                        Payment.payment_method == "CASH",
-                        func.coalesce(Payment.amount_tendered, Payment.amount_paid),
+        # Aggregate payments PER BILL first.  Joining Payment straight onto Bill
+        # repeats the bill's amounts once per payment row and inflates revenue.
+        pay_agg = (
+            select(
+                Payment.bill_id.label("bill_id"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                Payment.payment_method == "CASH",
+                                func.coalesce(Payment.amount_tendered, Payment.amount_paid),
+                            ),
+                            else_=Decimal("0.00"),
+                        )
                     ),
-                    else_=Decimal("0.00"),
-                )
-            ),
-            Decimal("0.00"),
-        )
-        cash_change = func.coalesce(
-            func.sum(
-                case(
-                    (Payment.payment_method == "CASH", Payment.change_returned),
-                    else_=Decimal("0.00"),
-                )
-            ),
-            Decimal("0.00"),
+                    Decimal("0.00"),
+                ).label("cash_tendered"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Payment.payment_method == "CASH", Payment.change_returned),
+                            else_=Decimal("0.00"),
+                        )
+                    ),
+                    Decimal("0.00"),
+                ).label("cash_change"),
+            )
+            .where(Payment.status == PaymentStatus.COMPLETED.value)
+            .group_by(Payment.bill_id)
+            .subquery()
         )
         stmt = (
             select(
@@ -164,17 +174,11 @@ class ReportService:
                 func.coalesce(func.sum(Bill.sgst_amount), Decimal("0.00")),
                 func.coalesce(func.sum(Bill.grand_total), Decimal("0.00")),
                 func.count(Bill.id),
-                cash_tendered,
-                cash_change,
+                func.coalesce(func.sum(pay_agg.c.cash_tendered), Decimal("0.00")),
+                func.coalesce(func.sum(pay_agg.c.cash_change), Decimal("0.00")),
             )
             .select_from(Bill)
-            .outerjoin(
-                Payment,
-                and_(
-                    Payment.bill_id == Bill.id,
-                    Payment.status == PaymentStatus.COMPLETED.value,
-                ),
-            )
+            .outerjoin(pay_agg, pay_agg.c.bill_id == Bill.id)
             .where(
                 Bill.status == BillStatus.PAID.value,
                 Bill.generated_at >= start_utc,
@@ -799,6 +803,8 @@ class ReportService:
                 "Grand Total",
                 "Payment Method",
                 "Reference Number",
+                "Cash Received",
+                "Change Returned",
             ]
         )
 
@@ -817,6 +823,12 @@ class ReportService:
                     str(b.grand_total),
                     pay.payment_method if pay else "CASH",
                     pay.reference_number if pay and pay.reference_number else "",
+                    str(
+                        (pay.amount_tendered if pay.amount_tendered is not None else pay.amount_paid)
+                        if pay and pay.payment_method == "CASH"
+                        else "0.00"
+                    ),
+                    str(pay.change_returned if pay and pay.payment_method == "CASH" else "0.00"),
                 ]
             )
 

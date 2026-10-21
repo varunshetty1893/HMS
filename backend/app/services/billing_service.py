@@ -1263,6 +1263,28 @@ class BillingService:
         return cls._bill_to_response(bill, table)
 
     @classmethod
+    async def list_open_table_checks(cls, db: AsyncSession) -> list[TableBillResponse]:
+        """Live running checks for every table that has orders but no bill yet.
+
+        Prices are recomputed from the current order lines on every call, so an
+        order that was edited, partly cancelled or extended is always reflected
+        correctly.  Once a bill is generated it is frozen and listed as a Bill.
+        """
+        stmt = (
+            select(TableSession.table_id)
+            .where(TableSession.status == TableSessionStatus.ACTIVE.value)
+            .distinct()
+        )
+        table_ids = (await db.execute(stmt)).scalars().all()
+        checks: list[TableBillResponse] = []
+        for table_id in table_ids:
+            check = await cls.get_table_bill(db, table_id=table_id)
+            if check.bill_status == "NOT_GENERATED" and check.preview_line_items:
+                checks.append(check)
+        checks.sort(key=lambda c: c.table_number)
+        return checks
+
+    @classmethod
     async def get_unpaid_bills(cls, db: AsyncSession) -> list[BillResponse]:
         """List all currently ISSUED (unpaid) bills across the restaurant."""
         stmt = (

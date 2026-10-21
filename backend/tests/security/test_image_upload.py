@@ -190,10 +190,7 @@ def test_delete_menu_image_safely(tmp_path: Path) -> None:
     test_file = tmp_path / "menu_test123.webp"
     test_file.write_bytes(b"dummy")
 
-    assert (
-        ImageService.delete_menu_image("/media/menu_test123.webp", upload_dir=tmp_path)
-        is True
-    )
+    assert ImageService.delete_menu_image("/media/menu_test123.webp", upload_dir=tmp_path) is True
     assert not test_file.exists()
 
     # Attempt directory traversal: should safely fail without error

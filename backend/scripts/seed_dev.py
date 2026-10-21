@@ -49,7 +49,12 @@ from app.models.restaurant import RestaurantSettings, RestaurantTable
 from app.services.qr_service import QrService
 
 # Load canonical Spice Hub shortlisted menu catalog from migration 0011
-_migration_path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "20261018_1700_0011_spice_hub_shortlisted_menu.py"
+_migration_path = (
+    Path(__file__).resolve().parent.parent
+    / "alembic"
+    / "versions"
+    / "20261018_1700_0011_spice_hub_shortlisted_menu.py"
+)
 _spec = importlib.util.spec_from_file_location("m0011_catalog", _migration_path)
 if _spec and _spec.loader:
     _mod = importlib.util.module_from_spec(_spec)
@@ -59,7 +64,12 @@ else:
     raise RuntimeError(f"Could not load MENU_CATALOG from {_migration_path}")
 
 # Dish-specific descriptions (migration 0014). One entry per catalog item code.
-_desc_path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "20261020_1000_0014_menu_item_descriptions_and_images.py"
+_desc_path = (
+    Path(__file__).resolve().parent.parent
+    / "alembic"
+    / "versions"
+    / "20261020_1000_0014_menu_item_descriptions_and_images.py"
+)
 _desc_spec = importlib.util.spec_from_file_location("m0014_descriptions", _desc_path)
 if _desc_spec and _desc_spec.loader:
     _desc_mod = importlib.util.module_from_spec(_desc_spec)
@@ -160,27 +170,33 @@ async def seed_menu(session: AsyncSession) -> None:
     is_available=False) to ensure historical orders and bills remain completely intact.
     """
     catalog_item_codes = {item[0] for cat in MENU_CATALOG for item in cat["items"]}
-    catalog_variant_codes = {
-        v[1] for cat in MENU_CATALOG for item in cat["items"] for v in item[6]
-    }
+    catalog_variant_codes = {v[1] for cat in MENU_CATALOG for item in cat["items"] for v in item[6]}
 
     # 1. Soft-deactivate any legacy items and variants not in the new shortlisted catalog
     legacy_items = (
-        await session.execute(
-            select(MenuItem).where(MenuItem.item_code.not_in(catalog_item_codes))
+        (
+            await session.execute(
+                select(MenuItem).where(MenuItem.item_code.not_in(catalog_item_codes))
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for legacy in legacy_items:
         legacy.is_active = False
         legacy.is_available = False
 
     legacy_variants = (
-        await session.execute(
-            select(MenuPriceVariant).where(
-                MenuPriceVariant.variant_code.not_in(catalog_variant_codes)
+        (
+            await session.execute(
+                select(MenuPriceVariant).where(
+                    MenuPriceVariant.variant_code.not_in(catalog_variant_codes)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for legacy_v in legacy_variants:
         legacy_v.is_active = False
         legacy_v.is_available = False
@@ -217,9 +233,7 @@ async def seed_menu(session: AsyncSession) -> None:
             cat_spec["items"], 1
         ):
             item = (
-                await session.execute(
-                    select(MenuItem).where(MenuItem.item_code == code)
-                )
+                await session.execute(select(MenuItem).where(MenuItem.item_code == code))
             ).scalar_one_or_none()
 
             desc = ITEM_DESCRIPTIONS[code]
@@ -245,7 +259,9 @@ async def seed_menu(session: AsyncSession) -> None:
                 item.category_id = category.id
                 item.name = name
                 # Keep descriptions an admin edited by hand; only replace placeholder text.
-                if not item.description or item.description.startswith(_PLACEHOLDER_DESCRIPTION_PREFIX):
+                if not item.description or item.description.startswith(
+                    _PLACEHOLDER_DESCRIPTION_PREFIX
+                ):
                     item.description = desc
                 item.serving_description = serving
                 item.dietary_type = dietary
@@ -267,7 +283,7 @@ async def seed_menu(session: AsyncSession) -> None:
                     if pricing_type == "SEASONAL" or price is None
                     else PricingStatus.ACTIVE.value
                 )
-                is_default = (v_order == 1)
+                is_default = v_order == 1
 
                 variant = (
                     await session.execute(

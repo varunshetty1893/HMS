@@ -390,9 +390,7 @@ async def test_reconnect_new_events_not_deduplicated() -> None:
 
     # First connection
     ws1 = AsyncMock()
-    ws1.send_json = AsyncMock(
-        side_effect=lambda p: all_received.append(p["event_id"])
-    )
+    ws1.send_json = AsyncMock(side_effect=lambda p: all_received.append(p["event_id"]))
     mgr._connections[ws1] = MagicMock(sequence=0)
     mgr._rooms["reconnect_room"] = {ws1}
     await mgr.broadcast_to_room("reconnect_room", {"event": "order.created"})
@@ -400,9 +398,7 @@ async def test_reconnect_new_events_not_deduplicated() -> None:
     # Simulate reconnect: remove old socket, add new socket (sequence resets to 0)
     del mgr._connections[ws1]
     ws2 = AsyncMock()
-    ws2.send_json = AsyncMock(
-        side_effect=lambda p: all_received.append(p["event_id"])
-    )
+    ws2.send_json = AsyncMock(side_effect=lambda p: all_received.append(p["event_id"]))
     mgr._connections[ws2] = MagicMock(sequence=0)
     mgr._rooms["reconnect_room"] = {ws2}
 

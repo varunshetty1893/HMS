@@ -317,9 +317,7 @@ class OrderConfirmationService:
             PendingConfirmationItem(
                 order=_build_waiter_order_response(o),
                 expires_at=expires_at_for(o, cfg),
-                seconds_remaining=max(
-                    0, int((expires_at_for(o, cfg) - now).total_seconds())
-                ),
+                seconds_remaining=max(0, int((expires_at_for(o, cfg) - now).total_seconds())),
             )
             for o in rows
         ]
@@ -620,8 +618,7 @@ class OrderConfirmationService:
             raise StateConflictError(
                 code="ORDER_NOT_PENDING_CONFIRMATION",
                 message=(
-                    "This request was already handled "
-                    f"(status: {order.status}). Refresh the list."
+                    f"This request was already handled (status: {order.status}). Refresh the list."
                 ),
             )
         return order

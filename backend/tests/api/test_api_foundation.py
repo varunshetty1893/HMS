@@ -162,6 +162,36 @@ async def test_get_db_dependency_works_inside_a_real_request(
         await engine.dispose()
 
 
+async def test_malformed_content_length_returns_a_safe_client_error() -> None:
+    """A malformed client header must not become an unhandled 500 response."""
+    transport = ASGITransport(app=create_app())
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get(
+            "/api/v1/health/live",
+            headers={"content-length": "not-a-number"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_CONTENT_LENGTH"
+
+
+async def test_local_menu_uploads_are_available_at_the_public_media_path(
+    tmp_path: Path,
+    restore_logging: None,
+) -> None:
+    """Local-image fallback URLs use /media and must work without Caddy."""
+    image = tmp_path / "dish.webp"
+    image.write_bytes(b"webp-test")
+    test_app = create_app(Settings(_env_file=None, upload_dir=tmp_path))
+    transport = ASGITransport(app=test_app)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/media/dish.webp")
+
+    assert response.status_code == 200
+    assert response.content == b"webp-test"
+
+
 # ---------------------------------------------------------------------------
 # 2. Database connectivity probe
 # ---------------------------------------------------------------------------
@@ -484,6 +514,7 @@ def test_every_application_route_lives_under_the_versioned_prefix() -> None:
         "/docs",
         "/docs/oauth2-redirect",
         "/redoc",
+        "/media",
         "/static/menu",
     }
     paths = {getattr(route, "path", "") for route in app.routes}

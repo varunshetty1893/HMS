@@ -20,6 +20,7 @@ from app.services.audit_service import AuditService
 # Issue 2 -- Account lockout auto-expiry
 # =============================================================================
 
+
 class TestAccountLockoutAutoExpiry:
     """Test that temporary lockouts expire automatically without manual admin action."""
 
@@ -87,11 +88,13 @@ class TestAccountLockoutAutoExpiry:
 # Issue 3 -- Trusted proxy IP extraction
 # =============================================================================
 
+
 class TestTrustedProxyIPExtraction:
     """Test that X-Forwarded-For is only trusted from configured proxy peers."""
 
     def _make_request(self, xff: str | None, peer_ip: str, trusted_ips: frozenset[str]):
         from app.core.rate_limit import extract_client_ip
+
         request = MagicMock()
         request.client = MagicMock()
         request.client.host = peer_ip
@@ -130,6 +133,7 @@ class TestTrustedProxyIPExtraction:
 # =============================================================================
 # Issue 4 -- Daily-salted IP hashing
 # =============================================================================
+
 
 class TestDailySaltedIPHashing:
     """Test that audit log IP hashing is daily-keyed and not a plain SHA-256."""
@@ -177,6 +181,7 @@ class TestDailySaltedIPHashing:
 # =============================================================================
 # Issue 5 -- IST timezone date range
 # =============================================================================
+
 
 class TestISTTimezoneReporting:
     """Test that report date-range conversion uses IST local calendar days."""
@@ -232,6 +237,7 @@ class TestISTTimezoneReporting:
 # =============================================================================
 # Issue 6 -- Popular dishes stable IDs
 # =============================================================================
+
 
 class TestPopularDishesStableIDs:
     """Test that popular dishes report returns real/None IDs, never random ones."""

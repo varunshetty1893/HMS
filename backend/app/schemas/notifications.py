@@ -1,4 +1,4 @@
-﻿"""Pydantic schemas for notification recovery endpoints."""
+"""Pydantic schemas for notification recovery endpoints."""
 
 from __future__ import annotations
 

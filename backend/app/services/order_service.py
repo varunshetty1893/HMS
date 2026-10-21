@@ -455,9 +455,7 @@ class OrderService:
             )
 
         # ── 2b. Enforce no cross-table active unpaid sessions ──────────────
-        await cls._enforce_no_cross_table_unpaid_session(
-            db, customer_session=customer_session
-        )
+        await cls._enforce_no_cross_table_unpaid_session(db, customer_session=customer_session)
 
         # ── 3. Resolve variant prices (server-authoritative) ──────────────
         resolved_lines = await cls._resolve_variants(db, payload)
@@ -2204,10 +2202,7 @@ class OrderService:
             for m in payload.items
         )
         forced_reduction = False
-        if (
-            order.status in (OrderStatus.PREPARING.value, OrderStatus.READY.value)
-            and has_reduction
-        ):
+        if order.status in (OrderStatus.PREPARING.value, OrderStatus.READY.value) and has_reduction:
             settings = await db.scalar(select(RestaurantSettings))
             if not (
                 staff_user.role == UserRole.ADMIN

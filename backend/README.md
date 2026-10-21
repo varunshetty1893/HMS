@@ -6,16 +6,14 @@ Modular-monolith Python + FastAPI backend for a single physical restaurant, buil
 
 ## 1. Current Implementation Status
 
-- **Implemented:**
-  - Validated environment configuration (`app/config.py`) with production safety guards
-  - Structured logging with `X-Request-Id` correlation and secret redaction (`app/core/logging.py`)
-  - Canonical JSON error envelope and domain exception hierarchy (`app/core/exceptions.py`)
-  - Async SQLAlchemy 2.x engine, `get_db` session dependency and connectivity probe (`app/core/database.py`)
-  - All 20 SQLAlchemy models (`app/models/`) and the single initial Alembic migration `0001` (`alembic/versions/`)
-  - Alembic async environment wired to `app.config` and `Base.metadata` (`alembic/env.py`)
-  - Health endpoints: `GET /api/v1/health`, `/api/v1/health/live`, `/api/v1/health/ready`, `/api/v1/health/db`
-  - `pytest` suites: API/config tests, offline schema and migration tests, and PostgreSQL integration tests
-- **Not yet implemented:** staff authentication and RBAC, WebSockets, and the menu, table/QR, ordering, kitchen, waiter, billing and admin modules. There are deliberately no placeholder endpoints for these.
+- **Implemented:** validated production configuration, structured request logging, JSON error envelopes,
+  async SQLAlchemy/Alembic migrations, health checks, staff authentication with refresh-token rotation,
+  role-based access control, menu and table/QR management, customer sessions and orders, kitchen and
+  waiter workflows, billing/payments, reports, audit logging, notifications, and WebSockets.
+- **Database:** migrations `0001`–`0015` define the current schema. The initial-migration wording in
+  older documents is obsolete; use `alembic heads` to determine the active revision.
+- **Test coverage:** unit/API/security tests run without PostgreSQL. The integration suite requires a
+  deliberately configured, empty database whose name ends in `_test`; it must never target production.
 
 ---
 

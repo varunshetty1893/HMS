@@ -50,6 +50,7 @@ class AuditService:
         # Lazily import settings to avoid circular imports at module load time.
         try:
             from app.config import get_settings  # noqa: PLC0415
+
             settings = get_settings()
             secret = getattr(settings, "audit_ip_hash_secret", "") or settings.jwt_secret_key
         except Exception:  # noqa: BLE001 — never fail an audit log write

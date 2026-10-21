@@ -125,10 +125,18 @@ async def run(apply: bool) -> int:
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as session:
         async with session.begin():
-            items = list((await session.execute(select(MenuItem).where(MenuItem.item_code.in_(PHOTO_URLS)))).scalars())
+            items = list(
+                (
+                    await session.execute(
+                        select(MenuItem).where(MenuItem.item_code.in_(PHOTO_URLS))
+                    )
+                ).scalars()
+            )
             found = {item.item_code.upper() for item in items}
             missing = sorted(set(PHOTO_URLS) - found)
-            print(f"Matched {len(items)} dishes; missing {len(missing)}: {', '.join(missing) or 'none'}")
+            print(
+                f"Matched {len(items)} dishes; missing {len(missing)}: {', '.join(missing) or 'none'}"
+            )
             if not apply:
                 print("DRY RUN: no image URLs changed. Pass --apply to save these photos.")
                 await session.rollback()
@@ -141,7 +149,11 @@ async def run(apply: bool) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Set curated online photos for the Spice Hub catalog.")
-    parser.add_argument("--apply", action="store_true", help="Save the URLs (default is a dry run).")
+    parser = argparse.ArgumentParser(
+        description="Set curated online photos for the Spice Hub catalog."
+    )
+    parser.add_argument(
+        "--apply", action="store_true", help="Save the URLs (default is a dry run)."
+    )
     args = parser.parse_args()
     raise SystemExit(asyncio.run(run(args.apply)))

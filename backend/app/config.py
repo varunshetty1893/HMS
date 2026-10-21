@@ -127,6 +127,7 @@ class Settings(BaseSettings):
                 return frozenset()
             if raw.startswith("["):
                 import json  # noqa: PLC0415
+
                 parsed = json.loads(raw)
                 return frozenset(str(ip).strip() for ip in parsed if str(ip).strip())
             return frozenset(ip.strip() for ip in raw.split(",") if ip.strip())

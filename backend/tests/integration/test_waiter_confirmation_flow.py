@@ -73,9 +73,7 @@ class World:
 
     async def seed(self) -> World:
         async with self.maker() as db:
-            waiter = User(
-                username=f"w_{_u()}", full_name="W", password_hash="x", role="WAITER"
-            )
+            waiter = User(username=f"w_{_u()}", full_name="W", password_hash="x", role="WAITER")
             cat = MenuCategory(name=f"cat_{_u()}")
             db.add_all([waiter, cat])
             await db.flush()

@@ -43,7 +43,9 @@ from app.config import get_settings
 from app.models.menu import MenuCategory, MenuItem, MenuPriceVariant
 from app.models.orders import OrderItem
 
-_MIGRATION = backend_dir / "alembic" / "versions" / "20261018_1700_0011_spice_hub_shortlisted_menu.py"
+_MIGRATION = (
+    backend_dir / "alembic" / "versions" / "20261018_1700_0011_spice_hub_shortlisted_menu.py"
+)
 
 
 def load_catalog() -> list[dict]:
@@ -61,10 +63,18 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
     keep_categories = {cat["category"].strip().lower() for cat in catalog}
 
     settings = get_settings()
-    target = settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url
+    target = (
+        settings.database_url.split("@")[-1]
+        if "@" in settings.database_url
+        else settings.database_url
+    )
     print(f"Database target : {target}")
-    print(f"Mode            : {'APPLY (changes will be committed)' if apply else 'DRY RUN (no changes)'}")
-    print(f"Keeping         : {len(keep_codes)} item codes (90 catalog dishes{' + ' + ', '.join(sorted(keep)) if keep else ''})\n")
+    print(
+        f"Mode            : {'APPLY (changes will be committed)' if apply else 'DRY RUN (no changes)'}"
+    )
+    print(
+        f"Keeping         : {len(keep_codes)} item codes (90 catalog dishes{' + ' + ', '.join(sorted(keep)) if keep else ''})\n"
+    )
 
     engine = create_async_engine(settings.database_url, echo=False)
     maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -79,8 +89,12 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
             )
 
             to_delete = [i for i in legacy if i.id not in ordered_ids]
-            to_archive = [i for i in legacy if i.id in ordered_ids and (i.is_active or i.is_available)]
-            already = [i for i in legacy if i.id in ordered_ids and not (i.is_active or i.is_available)]
+            to_archive = [
+                i for i in legacy if i.id in ordered_ids and (i.is_active or i.is_available)
+            ]
+            already = [
+                i for i in legacy if i.id in ordered_ids and not (i.is_active or i.is_available)
+            ]
 
             print(f"Total items in database : {len(items)}")
             print(f"Catalog items kept      : {len(items) - len(legacy)}")
@@ -105,14 +119,24 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
             if apply:
                 if to_delete:
                     ids = [i.id for i in to_delete]
-                    await session.execute(delete(MenuPriceVariant).where(MenuPriceVariant.menu_item_id.in_(ids)))
+                    await session.execute(
+                        delete(MenuPriceVariant).where(MenuPriceVariant.menu_item_id.in_(ids))
+                    )
                     await session.execute(delete(MenuItem).where(MenuItem.id.in_(ids)))
                 for i in to_archive:
                     i.is_active = False
                     i.is_available = False
                     variants = (
-                        await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.menu_item_id == i.id))
-                    ).scalars().all()
+                        (
+                            await session.execute(
+                                select(MenuPriceVariant).where(
+                                    MenuPriceVariant.menu_item_id == i.id
+                                )
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
                     for v in variants:
                         v.is_active = False
                         v.is_available = False
@@ -122,13 +146,33 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
                         i.is_available = True
                     cat_ids = [i.id for i in catalog_items]
                     for v in (
-                        await session.execute(select(MenuPriceVariant).where(MenuPriceVariant.menu_item_id.in_(cat_ids)))
-                    ).scalars().all():
+                        (
+                            await session.execute(
+                                select(MenuPriceVariant).where(
+                                    MenuPriceVariant.menu_item_id.in_(cat_ids)
+                                )
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    ):
                         v.is_active = True
                         v.is_available = True
-                    for c in (await session.execute(select(MenuCategory).where(func.lower(MenuCategory.name).in_(keep_categories)))).scalars().all():
+                    for c in (
+                        (
+                            await session.execute(
+                                select(MenuCategory).where(
+                                    func.lower(MenuCategory.name).in_(keep_categories)
+                                )
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    ):
                         c.is_active = True
-                    print(f"Restored {len(catalog_items)} catalog dishes (+ their portions and categories) to active / in stock.")
+                    print(
+                        f"Restored {len(catalog_items)} catalog dishes (+ their portions and categories) to active / in stock."
+                    )
                 await session.flush()
 
             # ---- legacy categories -------------------------------------------------------
@@ -139,7 +183,11 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
                 if cat.name.strip().lower() in keep_categories:
                     continue
                 remaining = (
-                    await session.execute(select(func.count()).select_from(MenuItem).where(MenuItem.category_id == cat.id))
+                    await session.execute(
+                        select(func.count())
+                        .select_from(MenuItem)
+                        .where(MenuItem.category_id == cat.id)
+                    )
                 ).scalar_one()
                 if not apply:  # the real deletes have not run yet - account for them
                     remaining -= sum(1 for i in to_delete if i.category_id == cat.id)
@@ -157,7 +205,9 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
                 print("  none")
 
             if not apply:
-                print("\nDRY RUN finished - nothing was changed. Re-run with --apply to perform this.")
+                print(
+                    "\nDRY RUN finished - nothing was changed. Re-run with --apply to perform this."
+                )
                 await session.rollback()
             else:
                 print("\nDone. Changes committed.")
@@ -168,9 +218,17 @@ async def run(apply: bool, keep: set[str], restore_catalog: bool) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Retire legacy (non-catalog) menu items safely.")
-    parser.add_argument("--apply", action="store_true", help="Actually change the database (default: dry run).")
-    parser.add_argument("--restore-catalog", action="store_true", help="Also mark all catalog dishes, portions and categories active and in stock.")
-    parser.add_argument("--keep", default="", help="Comma-separated item codes to keep, e.g. PB,M081.")
+    parser.add_argument(
+        "--apply", action="store_true", help="Actually change the database (default: dry run)."
+    )
+    parser.add_argument(
+        "--restore-catalog",
+        action="store_true",
+        help="Also mark all catalog dishes, portions and categories active and in stock.",
+    )
+    parser.add_argument(
+        "--keep", default="", help="Comma-separated item codes to keep, e.g. PB,M081."
+    )
     args = parser.parse_args()
     keep = {c.strip().upper() for c in args.keep.split(",") if c.strip()}
     raise SystemExit(asyncio.run(run(args.apply, keep, args.restore_catalog)))

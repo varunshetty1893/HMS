@@ -143,11 +143,29 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     ) -> Response:
         content_length = request.headers.get("content-length")
         if content_length:
-            cl_int = int(content_length)
+            try:
+                cl_int = int(content_length)
+            except ValueError:
+                return Response(
+                    content=(
+                        '{"error": {"code": "INVALID_CONTENT_LENGTH",'
+                        ' "message": "Content-Length must be a non-negative integer."}}'
+                    ),
+                    status_code=400,
+                    media_type="application/json",
+                )
+            if cl_int < 0:
+                return Response(
+                    content=(
+                        '{"error": {"code": "INVALID_CONTENT_LENGTH",'
+                        ' "message": "Content-Length must be a non-negative integer."}}'
+                    ),
+                    status_code=400,
+                    media_type="application/json",
+                )
             # Determine per-route limit
-            is_image_upload = (
-                request.method == "POST"
-                and request.url.path.endswith(_IMAGE_UPLOAD_PATH_SUFFIX)
+            is_image_upload = request.method == "POST" and request.url.path.endswith(
+                _IMAGE_UPLOAD_PATH_SUFFIX
             )
             if is_image_upload:
                 max_bytes = settings.image_upload_max_body_bytes
@@ -223,10 +241,13 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     # 4. Versioned API routers (`/api/v1`)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
-    # 5. Static files for menu dish photos
+    # 5. Static files for menu dish photos.  New local uploads are stored as
+    # /media/<uuid>.webp (the Caddy route uses the same public path), while
+    # /static/menu remains available for legacy rows.
     from fastapi.staticfiles import StaticFiles
 
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=str(settings.upload_dir)), name="menu_media")
     app.mount("/static/menu", StaticFiles(directory=str(settings.upload_dir)), name="static_menu")
 
     return app

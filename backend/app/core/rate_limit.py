@@ -68,10 +68,12 @@ class SlidingWindowRateLimiter:
 #
 # The value is loaded lazily from settings to avoid circular imports.
 
+
 def _get_trusted_proxy_ips() -> frozenset[str]:
     """Return the frozenset of trusted proxy IPs from settings (lazy load)."""
     try:
         from app.config import get_settings  # noqa: PLC0415
+
         settings = get_settings()
         return settings.trusted_proxy_ips
     except Exception:

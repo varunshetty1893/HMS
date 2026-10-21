@@ -101,7 +101,6 @@ class AuthService:
             user.failed_login_attempts = 0
             user.locked_until = None
 
-
         # 4. Verify Argon2id password BEFORE any role or client-type checks.
         #    Checking client_type before the password would allow an attacker to distinguish
         #    "unknown user" (401) from "wrong client for this role" (403) without knowing the

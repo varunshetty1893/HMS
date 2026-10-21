@@ -1,4 +1,4 @@
-﻿"""Notification recovery endpoints for reconnecting devices.
+"""Notification recovery endpoints for reconnecting devices.
 
 Follows `docs/04-database-design.md` (Table 17) and `docs/05-api-specification.md`.
 
@@ -42,6 +42,7 @@ AdminOrWaiter = Annotated[User, Depends(require_roles(UserRole.WAITER, UserRole.
 # ---------------------------------------------------------------------------
 # Staff recovery (kitchen, waiters, admin)
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/unread",
@@ -98,6 +99,7 @@ async def ack_notifications_staff(
 # ---------------------------------------------------------------------------
 # Customer recovery (table_session scoped)
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/customer/unread",

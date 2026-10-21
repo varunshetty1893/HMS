@@ -1,4 +1,4 @@
-﻿"""Notification persistence service for durable event delivery.
+"""Notification persistence service for durable event delivery.
 
 Follows `docs/04-database-design.md` (Table 17 `notifications`).
 
@@ -46,27 +46,35 @@ _CHANNEL_MAP: dict[str, str] = {
 }
 
 # Events worth persisting (skip heartbeats and non-actionable metadata)
-_PERSIST_EVENT_TYPES: frozenset[str] = frozenset({
-    "ORDER_CREATED",
-    "ORDER_ACCEPTED",
-    "ORDER_PREPARING",
-    "ORDER_READY",
-    "ORDER_SERVED",
-    "ORDER_COMPLETED",
-    "ORDER_CANCELLED",
-    "ORDER_REJECTED",
-    "ORDER_MODIFIED",
-    "WAITER_REQUEST",
-    "TABLE_SESSION_OPENED",
-    "TABLE_SESSION_CLOSED",
-    "TABLE_STATUS_CHANGED",
-})
+_PERSIST_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "ORDER_CREATED",
+        "ORDER_ACCEPTED",
+        "ORDER_PREPARING",
+        "ORDER_READY",
+        "ORDER_SERVED",
+        "ORDER_COMPLETED",
+        "ORDER_CANCELLED",
+        "ORDER_REJECTED",
+        "ORDER_MODIFIED",
+        "WAITER_REQUEST",
+        "TABLE_SESSION_OPENED",
+        "TABLE_SESSION_CLOSED",
+        "TABLE_STATUS_CHANGED",
+    }
+)
 
 # Fields forbidden in kitchen-channel notifications (billing privacy)
-_BILLING_FIELDS: frozenset[str] = frozenset({
-    "grand_total", "cgst_amount", "sgst_amount",
-    "discount_amount", "payment_method", "bill_id",
-})
+_BILLING_FIELDS: frozenset[str] = frozenset(
+    {
+        "grand_total",
+        "cgst_amount",
+        "sgst_amount",
+        "discount_amount",
+        "payment_method",
+        "bill_id",
+    }
+)
 
 
 def _strip_billing(payload: dict[str, Any]) -> dict[str, Any]:

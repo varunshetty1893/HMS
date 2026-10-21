@@ -721,4 +721,3 @@ async def test_generate_bill_with_custom_items_and_price_overrides() -> None:
         assert custom_item.order_number == "CUSTOM"
 
         db.commit.assert_awaited_once()
-

@@ -362,14 +362,11 @@ class QrService:
         # INVARIANT: does not restrict the number of orders, only simultaneous bearer
         # tokens.  A customer whose session expires can re-scan to get a new one.
         max_concurrent = max(int(table.seating_capacity or 10), 1)
-        concurrent_stmt = (
-            select(func.count(CustomerSession.id))
-            .where(
-                CustomerSession.table_id == table.id,
-                CustomerSession.qr_token_id == qr_token.id,
-                CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
-                CustomerSession.expires_at > utc_now(),
-            )
+        concurrent_stmt = select(func.count(CustomerSession.id)).where(
+            CustomerSession.table_id == table.id,
+            CustomerSession.qr_token_id == qr_token.id,
+            CustomerSession.status == CustomerSessionStatus.ACTIVE.value,
+            CustomerSession.expires_at > utc_now(),
         )
         active_count: int = (await db.execute(concurrent_stmt)).scalar() or 0
         if active_count >= max_concurrent:

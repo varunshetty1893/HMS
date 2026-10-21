@@ -149,7 +149,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           {/* Compact outstanding line (only when there is a balance) */}
           {outstandingNum > 0 && (
             <div className="flex items-center justify-between text-[11px] leading-none">
-              <span style={{ color: 'var(--text-muted)' }}>Table outstanding</span>
+              <span style={{ color: 'var(--text-muted)' }}>Order subtotal</span>
               <span className="flex items-center gap-1 font-semibold">
                 <span style={{ color: isOverLimit ? '#B91C1C' : isNearLimit ? '#B45309' : 'var(--text-primary)' }}>
                   {formatInr(outstandingNum)}

@@ -101,12 +101,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
     };
   }, [sessionToken, loadOrders, refreshSession]);
 
-  // The order list is the immediate source of truth on this screen. Use it
-  // when a session refresh response has not caught up with a new order yet.
-  const orderDerivedOutstanding = orders
-    .filter((order) => ['PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(order.status))
-    .reduce((sum, order) => sum + (parseFloat(String(order.order_subtotal)) || 0), 0);
-  const outstandingNum = orderDerivedOutstanding || parseFloat(currentOutstanding) || 0;
+  // This value is the server's live order subtotal/exposure. It deliberately
+  // is not presented as the final bill: GST, service charge, rounding, and a
+  // staff-approved discount are calculated only when staff generates the bill.
+  const outstandingNum = parseFloat(currentOutstanding) || 0;
   const limitNum = parseFloat(customLimit) || 5000;
   const isLimitLocked = outstandingNum >= limitNum;
 
@@ -127,7 +125,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
               <Receipt size={14} style={{ color: 'var(--primary)' }} />
-              <span>Current Table Bill Total</span>
+              <span>Current Order Subtotal</span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span
@@ -145,6 +143,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
                 Limit Reached — Please ask your waiter to settle or verify.
               </span>
             )}
+            <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+              Final bill, including applicable taxes and discounts, is confirmed by staff.
+            </p>
           </div>
 
           <button

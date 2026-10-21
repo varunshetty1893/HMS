@@ -181,7 +181,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onOrder
                     <div className="flex items-center gap-1">
                       {/* Delete */}
                       <button
-                        onClick={() => removeItem(it.variantId)}
+                        onClick={() => removeItem(it.variantId, it.itemNotes)}
                         className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
                         style={{ background: '#FEF2F2', color: '#B91C1C' }}
                         title="Remove"
@@ -195,7 +195,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onOrder
                         style={{ border: '1px solid var(--border)', background: 'var(--white)' }}
                       >
                         <button
-                          onClick={() => updateQuantity(it.variantId, it.quantity - 1)}
+                          onClick={() => updateQuantity(it.variantId, it.quantity - 1, it.itemNotes)}
                           className="w-7 h-7 flex items-center justify-center transition-colors"
                           style={{ color: 'var(--text-secondary)' }}
                         >
@@ -205,7 +205,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onOrder
                           {it.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(it.variantId, it.quantity + 1)}
+                          onClick={() => updateQuantity(it.variantId, it.quantity + 1, it.itemNotes)}
                           className="w-7 h-7 flex items-center justify-center transition-colors"
                           style={{ background: 'var(--primary)', color: '#fff' }}
                         >

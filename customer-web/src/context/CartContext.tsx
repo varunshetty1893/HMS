@@ -4,8 +4,8 @@ import type { CartItem } from '../types';
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  updateQuantity: (variantId: string, quantity: number) => void;
-  removeItem: (variantId: string) => void;
+  updateQuantity: (variantId: string, quantity: number, itemNotes?: string) => void;
+  removeItem: (variantId: string, itemNotes?: string) => void;
   /** Replace every cart line of one dish (all its portions) in one go. */
   setItemLines: (menuItemId: string, lines: CartItem[]) => void;
   clearCart: () => void;
@@ -52,17 +52,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
-  const updateQuantity = useCallback((variantId: string, quantity: number) => {
+  const updateQuantity = useCallback((variantId: string, quantity: number, itemNotes?: string) => {
     setItems((prev) => {
       if (quantity <= 0) {
-        return prev.filter((it) => it.variantId !== variantId);
+        return prev.filter(
+          (it) => it.variantId !== variantId || (it.itemNotes || '') !== (itemNotes || '')
+        );
       }
-      return prev.map((it) => (it.variantId === variantId ? { ...it, quantity } : it));
+      return prev.map((it) =>
+        it.variantId === variantId && (it.itemNotes || '') === (itemNotes || '')
+          ? { ...it, quantity }
+          : it
+      );
     });
   }, []);
 
-  const removeItem = useCallback((variantId: string) => {
-    setItems((prev) => prev.filter((it) => it.variantId !== variantId));
+  const removeItem = useCallback((variantId: string, itemNotes?: string) => {
+    setItems((prev) =>
+      prev.filter(
+        (it) => it.variantId !== variantId || (it.itemNotes || '') !== (itemNotes || '')
+      )
+    );
   }, []);
 
   const setItemLines = useCallback((menuItemId: string, lines: CartItem[]) => {

@@ -3,6 +3,7 @@ import { resolveQrToken, getSession, setSessionToken, clearSessionToken, getSess
 import type { CustomerSession } from '../types';
 import { isDevDemoEnabled, purgeDemoStorageIfProduction, isProd } from '../utils/env';
 import { clearPendingQrToken } from '../utils/qrToken';
+import { useCart } from './CartContext';
 
 interface SessionContextType {
   sessionToken: string | null;
@@ -27,6 +28,7 @@ interface SessionContextType {
 const SessionContext = createContext<SessionContextType | null>(null);
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { clearCart } = useCart();
   const [sessionTokenState, setSessionTokenState] = useState<string | null>(getSessionToken());
   const [session, setSession] = useState<CustomerSession | null>(null);
   const [tableDisplayName, setTableDisplayName] = useState<string>(
@@ -85,6 +87,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setError(null);
     try {
       const res = await resolveQrToken(qrToken);
+      // A cart belongs only to the QR session in which it was assembled. Never
+      // let an unfinished order move to another table or a later seating.
+      if (getSessionToken() !== res.session_token) {
+        clearCart();
+      }
       clearPendingQrToken();
       setSessionToken(res.session_token);
       setSessionTokenState(res.session_token);
@@ -111,7 +118,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return false;
     }
-  }, []);
+  }, [clearCart]);
 
   const isDemoSession = !!sessionTokenState?.startsWith('demo-');
 
@@ -146,6 +153,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const clearSession = useCallback(() => {
+    clearCart();
     clearSessionToken();
     setSessionTokenState(null);
     setSession(null);
@@ -159,7 +167,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     sessionStorage.removeItem('hms_table_id');
     sessionStorage.removeItem('hms_table_session_id');
     sessionStorage.removeItem('hms_demo_orders');
-  }, []);
+  }, [clearCart]);
 
   const updateOutstanding = useCallback((amount: string) => {
     setCurrentOutstanding(amount);

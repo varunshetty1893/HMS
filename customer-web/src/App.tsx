@@ -60,11 +60,11 @@ const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <SessionProvider>
-      <CartProvider>
+    <CartProvider>
+      <SessionProvider>
         <AppContent />
-      </CartProvider>
-    </SessionProvider>
+      </SessionProvider>
+    </CartProvider>
   );
 };
 

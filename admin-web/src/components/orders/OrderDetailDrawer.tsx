@@ -46,18 +46,6 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   const [isSubmittingAdj, setIsSubmittingAdj] = useState(false);
   const [adjError, setAdjError] = useState<string | null>(null);
 
-  if (!activeOrder) return null;
-
-  const canCancel =
-    activeOrder.status !== 'COMPLETED' &&
-    activeOrder.status !== 'CANCELLED' &&
-    activeOrder.status !== 'REJECTED';
-
-  const canAdjust =
-    activeOrder.status !== 'COMPLETED' &&
-    activeOrder.status !== 'CANCELLED' &&
-    activeOrder.status !== 'REJECTED';
-
   const formatSourceLabel = (src?: string) => {
     if (!src) return 'Direct Order';
     if (src === 'CUSTOMER_QR') return 'Customer QR';
@@ -138,7 +126,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     const currentLineTotal = parseFloat(adjustingItem.line_subtotal) || 0;
     const newLineTotal = activeQty * newUnitPrice;
     const lineDelta = newLineTotal - currentLineTotal;
-    const currentOrderSubtotal = parseFloat(activeOrder.order_subtotal || '0') || 0;
+    const currentOrderSubtotal = parseFloat(activeOrder?.order_subtotal || '0') || 0;
     const projectedOrderSubtotal = Math.max(0, currentOrderSubtotal + lineDelta);
 
     return {
@@ -162,6 +150,21 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     surchargeAmount,
     activeOrder?.order_subtotal,
   ]);
+
+  // Hooks must run in the same order whether the drawer is closed (null) or
+  // an order has just been selected.  Returning above `useMemo` caused React
+  // error #310 the moment an admin clicked an order row.
+  if (!activeOrder) return null;
+
+  const canCancel =
+    activeOrder.status !== 'COMPLETED' &&
+    activeOrder.status !== 'CANCELLED' &&
+    activeOrder.status !== 'REJECTED';
+
+  const canAdjust =
+    activeOrder.status !== 'COMPLETED' &&
+    activeOrder.status !== 'CANCELLED' &&
+    activeOrder.status !== 'REJECTED';
 
   const handleSaveAdjustment = async () => {
     if (!activeOrder || !adjustingItem) return;

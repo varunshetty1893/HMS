@@ -101,7 +101,12 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
     };
   }, [sessionToken, loadOrders, refreshSession]);
 
-  const outstandingNum = parseFloat(currentOutstanding) || 0;
+  // The order list is the immediate source of truth on this screen. Use it
+  // when a session refresh response has not caught up with a new order yet.
+  const orderDerivedOutstanding = orders
+    .filter((order) => ['PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(order.status))
+    .reduce((sum, order) => sum + (parseFloat(String(order.order_subtotal)) || 0), 0);
+  const outstandingNum = orderDerivedOutstanding || parseFloat(currentOutstanding) || 0;
   const limitNum = parseFloat(customLimit) || 5000;
   const isLimitLocked = outstandingNum >= limitNum;
 
@@ -143,7 +148,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onBackToMenu }) => {
           </div>
 
           <button
-            onClick={() => loadOrders(false)}
+            onClick={() => {
+              loadOrders(false);
+              refreshSession();
+            }}
             className="p-2.5 rounded-xl transition-all"
             style={{
               background: 'var(--bg-subtle)',

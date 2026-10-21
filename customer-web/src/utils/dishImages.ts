@@ -6,32 +6,20 @@ function uploadedPhoto(item: MenuItem): string | null {
   const raw = item.image_url?.trim();
   if (!raw) return null;
   if (raw.startsWith('/menu/') || raw.startsWith('/dishes/')) return null;
+  // These were the previous guessed stock URLs. They were not one-to-one
+  // dish photos, so never allow an old value to reintroduce a mismatch.
+  if (/^https?:\/\/images\.unsplash\.com\//i.test(raw)) return null;
   return resolveMediaUrl(raw);
 }
 
 /**
- * Stable real-food photo fallback.  These CDN photos do not have the daily
- * generation quota that caused the previous "free limit reached" placeholders.
+ * Never substitute an unrelated stock photo. A photo is shown only when it
+ * belongs to this dish (uploaded by the restaurant or explicitly saved on the
+ * menu item). This prevents mistakes such as samosas shown for Plain Dosa.
  */
-function onlineFoodPhoto(item: MenuItem): string {
-  const photos = [
-    'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=640&h=480&q=80',
-    'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=640&h=480&q=80',
-    'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=640&h=480&q=80',
-    'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=640&h=480&q=80',
-  ];
-  let hash = 0;
-  for (const char of item.item_code) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return photos[hash % photos.length];
-}
-
-/** Ordered list of images to try: restaurant photo first, then a real-food photo. */
 export function dishImageCandidates(item: MenuItem): string[] {
-  const out: string[] = [];
   const photo = uploadedPhoto(item);
-  if (photo) out.push(photo);
-  out.push(onlineFoodPhoto(item));
-  return out;
+  return photo ? [photo] : [];
 }
 
 /** Representative picture for a category tile. */

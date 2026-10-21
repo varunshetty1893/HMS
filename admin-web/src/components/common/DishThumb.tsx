@@ -3,7 +3,7 @@ import { UtensilsCrossed } from 'lucide-react';
 import type { MenuItem } from '@/types/api';
 import { dishImageCandidates } from '@/utils/dishArt';
 
-/** Photo -> item illustration -> placeholder icon. */
+/** Restaurant photo -> neutral placeholder. Never show a mismatched cartoon. */
 export const DishThumb: React.FC<{ item: MenuItem; className?: string }> = ({ item, className = 'w-16 h-16' }) => {
   const candidates = dishImageCandidates(item);
   return <Inner key={candidates.join('|')} name={item.name} candidates={candidates} className={className} />;

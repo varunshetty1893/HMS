@@ -9,7 +9,7 @@ interface DishImageProps {
   iconSize?: number;
 }
 
-/** Shows the item's real photo, else a dish-specific photographic fallback. */
+/** Shows the item's verified photo, else a neutral placeholder. */
 export const DishImage: React.FC<DishImageProps> = ({ item, className = '', iconSize = 24 }) => {
   const candidates = dishImageCandidates(item);
   const key = candidates.join('|');

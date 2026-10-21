@@ -16,14 +16,6 @@ Mobile-first, zero-install web application accessed by dine-in customers when sc
 
 ## Dish pictures
 
-Every menu item has its own illustration at `public/dishes/<ITEM_CODE>.svg` (90 files, one per item
-code of the catalog in Alembic migration 0011). The app shows, in order:
-
-1. a real photo uploaded by the restaurant in the admin panel (`image_url`), else
-2. the item's own illustration (`/dishes/<ITEM_CODE>.svg`), else
-3. a neutral placeholder (e.g. a new dish added in admin that has no photo yet).
-
-Old seeded stock-photo URLs (`images.unsplash.com/...`) and `/menu/...` paths are ignored.
-To regenerate the illustrations: `python scripts/dish_art/build.py` (from the repo root). The build
-fails if a catalog item has no artwork or two items would share identical artwork. To use a real
-photo for a dish, upload it in Admin → Menu Management; it overrides the illustration automatically.
+Menu images use only a real photo uploaded for that specific dish through Admin → Menu Management.
+When a dish has no photo, the app shows a neutral placeholder rather than an unrelated stock photo
+or cartoon. Old seeded stock-photo URLs and former cartoon paths are ignored.

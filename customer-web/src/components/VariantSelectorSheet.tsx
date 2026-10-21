@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CartItem, MenuItem, MenuPriceVariant } from '../types';
 import { formatInr } from '../utils/currency';
 import { useCart } from '../context/CartContext';
@@ -56,6 +56,20 @@ export const VariantSelectorSheet: React.FC<VariantSelectorSheetProps> = ({ item
 
 const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, onClose }) => {
   const { items: cartItems, setItemLines } = useCart();
+  const backdropPointerStarted = useRef(false);
+
+  // A modal must own touch scrolling. Without this lock, dragging the sheet
+  // can scroll the blurred menu underneath it on mobile browsers.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, []);
 
   const availableVariants = useMemo(() => item.variants.filter((v) => v.is_available), [item]);
   const defaultVariant =
@@ -111,12 +125,23 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
-      style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      style={{ background: 'rgba(40,40,32,0.5)', backdropFilter: 'blur(4px)', touchAction: 'none' }}
+      onPointerDown={(event) => {
+        backdropPointerStarted.current = event.target === event.currentTarget;
+      }}
+      onPointerUp={(event) => {
+        // Close only for a tap that both begins and ends on the backdrop.
+        // A drag from the grab bar or any content inside the sheet never
+        // reaches this condition.
+        if (backdropPointerStarted.current && event.target === event.currentTarget) onClose();
+        backdropPointerStarted.current = false;
+      }}
     >
       <div
         className="w-full max-w-md bg-[var(--bg-card)] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[var(--border)] flex flex-col animate-slide-up sm:animate-scale-in max-h-[85dvh] sm:max-h-[85vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
       >
         <div className="flex justify-center pt-3 sm:hidden">
           <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />

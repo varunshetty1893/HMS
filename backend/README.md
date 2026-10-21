@@ -184,3 +184,16 @@ python scripts/seed_dev.py
 ```
 
 The script is safe to re-run at any time without duplicating records.
+
+## Cleaning up legacy menu items
+
+`scripts/retire_legacy_menu.py` removes every dish that is not part of the Spice Hub catalog
+(migration 0011). Dishes that were never ordered are deleted; dishes with order history are archived
+so old bills keep working. It is a **dry run unless you pass `--apply`**:
+
+```powershell
+python scripts/retire_legacy_menu.py                          # preview
+python scripts/retire_legacy_menu.py --apply                  # perform
+python scripts/retire_legacy_menu.py --apply --keep PB,M081   # keep chosen item codes
+python scripts/retire_legacy_menu.py --apply --restore-catalog  # also mark all 90 dishes in stock
+```

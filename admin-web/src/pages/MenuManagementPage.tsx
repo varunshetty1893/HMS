@@ -34,6 +34,8 @@ import {
 } from '@/types/api';
 import { usePageTheme } from '@/hooks/usePageTheme';
 import { resolveMediaUrl } from '@/utils/env';
+import { DishThumb } from '@/components/common/DishThumb';
+import { CategoryDropdown } from '@/components/common/CategoryDropdown';
 
 // ---------------------------------------------------------------------------
 // Pricing Methods & Preset Configurations
@@ -255,7 +257,8 @@ export const MenuManagementPage: React.FC = () => {
         menuApi.listItems(undefined, false),
       ]);
       setCategories(cats.sort((a, b) => a.display_order - b.display_order));
-      setItems(dishList.sort((a, b) => a.display_order - b.display_order));
+      // Archived (soft-deleted / retired) dishes are hidden; they stay in the database for old bills.
+      setItems(dishList.filter((d) => d.is_active).sort((a, b) => a.display_order - b.display_order));
       setError(null);
     } catch (err: any) {
       setError(friendlyMenuError(err));
@@ -802,39 +805,13 @@ export const MenuManagementPage: React.FC = () => {
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
-          <button
-            onClick={() => setSelectedCategory('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1.5 ${
-              selectedCategory === 'ALL'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-            }`}
-          >
-            <span>All Categories</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedCategory === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
-              {items.length}
-            </span>
-          </button>
-
-          {categories.filter((c) => c.is_active).map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedCategory(c.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === c.id
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-              }`}
-            >
-              <span>{c.name}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedCategory === c.id ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                {categoryDishCountMap[c.id] || 0}
-              </span>
-            </button>
-          ))}
-        </div>
+        {/* Category picker */}
+        <CategoryDropdown
+          options={categories.filter((c) => c.is_active).map((c) => ({ id: c.id, name: c.name, count: categoryDishCountMap[c.id] || 0 }))}
+          totalCount={items.length}
+          value={selectedCategory}
+          onChange={setSelectedCategory}
+        />
 
         {/* Search Field */}
         <div className="relative w-full md:w-80 shrink-0">
@@ -960,21 +937,7 @@ export const MenuManagementPage: React.FC = () => {
 
                   {/* Dish Title & Photo */}
                   <div className="flex items-start gap-3 mt-3">
-                    {item.image_url && resolveMediaUrl(item.image_url) ? (
-                      <img
-                        src={resolveMediaUrl(item.image_url)!}
-                        alt={item.name}
-                        className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0 bg-slate-50"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 text-slate-300">
-                        <UtensilsCrossed size={20} />
-                      </div>
-                    )}
+                    <DishThumb item={item} />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
@@ -2000,17 +1963,7 @@ export const MenuManagementPage: React.FC = () => {
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
-              {deleteConfirmItem.image_url ? (
-                <img
-                  src={deleteConfirmItem.image_url}
-                  alt={deleteConfirmItem.name}
-                  className="w-12 h-12 rounded-lg object-cover border border-slate-200"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
-                  <UtensilsCrossed size={18} className="text-slate-400" />
-                </div>
-              )}
+              <DishThumb item={deleteConfirmItem} className="w-12 h-12" />
               <div>
                 <p className="font-bold text-slate-900 text-sm">{deleteConfirmItem.name}</p>
                 <p className="text-[11px] text-slate-400 font-mono">{deleteConfirmItem.item_code}</p>

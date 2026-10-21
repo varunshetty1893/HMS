@@ -58,121 +58,26 @@ if _spec and _spec.loader:
 else:
     raise RuntimeError(f"Could not load MENU_CATALOG from {_migration_path}")
 
-# ---------------------------------------------------------------------------
-# Curated food photography for Spice Hub catalog items (Unsplash, free-to-use)
-# Format: item_code -> image URL (w=600 for consistent card thumbnail sizing)
-# Applied only when an item has no image yet (admin-uploaded images are kept).
-# ---------------------------------------------------------------------------
-ITEM_IMAGE_URLS: dict[str, str] = {
-    # Breakfast
-    "BF-IDL": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=600&q=80",  # Idli
-    "BF-PD":  "https://images.unsplash.com/photo-1630383249896-424e482df921?w=600&q=80",  # Plain Dosa
-    "BF-MD":  "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80",  # Masala Dosa
-    "BF-SD":  "https://images.unsplash.com/photo-1630383249896-424e482df921?w=600&q=80",  # Set Dosa
-    "BF-PB":  "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80",  # Poori Bhaji
-    # Lunch — Meals
-    "LM-VM":  "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80",  # Veg Meals
-    "LM-SVM": "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=600&q=80",  # Special Veg Meals
-    "LM-SIM": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80",  # South Indian Meals
-    "LM-CM":  "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # Chicken Meals
-    "LM-FM":  "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Fish Meals (seasonal)
-    # Lunch — Rice & Pulao
-    "LR-SR":  "https://images.unsplash.com/photo-1536304993881-ff86d2a56a95?w=600&q=80",  # Steamed Rice
-    "LR-JR":  "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80",  # Jeera Rice
-    "LR-GR":  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80",  # Ghee Rice
-    "LR-VP":  "https://images.unsplash.com/photo-1596560548464-f010549b84d7?w=600&q=80",  # Veg Pulao
-    "LR-EFR": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Egg Fried Rice
-    # Biryani
-    "BY-VB":  "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80",  # Veg Biryani
-    "BY-EB":  "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80",  # Egg Biryani
-    "CB":     "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&q=80",  # Chicken Biryani
-    "BY-CDB": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&q=80",  # Chicken Dum Biryani
-    "BY-MB":  "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80",  # Mutton Biryani
-    # Dinner — Indian Breads
-    "DN-KP":  "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Kerala Parotta
-    "DN-CH":  "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80",  # Chapati
-    "DN-TR":  "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Tandoori Roti
-    "DN-PN":  "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=600&q=80",  # Plain Naan
-    "DN-BN":  "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=600&q=80",  # Butter Naan
-    # Dinner — Veg Curries
-    "DV-PBM": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&q=80",  # Paneer Butter Masala
-    "DV-KP":  "https://images.unsplash.com/photo-1600335895229-6e75511892c8?w=600&q=80",  # Kadai Paneer
-    "DV-DAL": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Dal Fry
-    "DV-VK":  "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80",  # Veg Kurma
-    "DV-CM":  "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80",  # Chana Masala
-    # Dinner — Non-Veg Curries
-    "DN-CC":  "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80",  # Chicken Curry
-    "DN-BC":  "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Butter Chicken
-    "DN-CHE": "https://images.unsplash.com/photo-1617196034183-421b4040ed20?w=600&q=80",  # Chicken Chettinad
-    "DN-MC":  "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80",  # Mutton Curry
-    "DN-EC":  "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80",  # Egg Curry
-    # Mandi & Grilled
-    "MD-AFM": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # Alfaham Mandi
-    "MD-BBQ": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # BBQ Chicken Mandi
-    "MD-TM":  "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # Tandoori Mandi
-    "GR-AFC": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80",  # Alfaham Chicken
-    "GR-GRC": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # Grilled Chicken
-    # Snacks — Veg
-    "SV-GM":  "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80",  # Gobi Manchurian
-    "SV-P65": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&q=80",  # Paneer 65
-    "SV-CP":  "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80",  # Chilli Paneer
-    "SV-FF":  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80",  # French Fries
-    "SV-VM":  "https://images.unsplash.com/photo-1519984388953-d2406bc725e1?w=600&q=80",  # Veg Momos
-    # Snacks — Chicken
-    "SC-C65": "https://images.unsplash.com/photo-1612392062798-d2d73a33f90a?w=600&q=80",  # Chicken 65
-    "SC-CCH": "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80",  # Chilli Chicken
-    "SC-CLL": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600&q=80",  # Chicken Lollipop
-    "SC-CKB": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80",  # Chicken Kebab
-    "SC-CTK": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Chicken Tikka
-    # Snacks — Fish & Seafood (seasonal)
-    "SF-FF":  "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Fish Fry
-    "SF-ATF": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Anjal Tawa Fry
-    "SF-PF":  "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Prawns Fry
-    "SF-FIN": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Fish Fingers
-    "SF-GFP": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Golden Fried Prawns
-    # Snacks — Rolls & Quick Bites
-    "RQ-VR":  "https://images.unsplash.com/photo-1626776876729-bab4369a5a5a?w=600&q=80",  # Veg Roll
-    "RQ-ER":  "https://images.unsplash.com/photo-1626776876729-bab4369a5a5a?w=600&q=80",  # Egg Roll
-    "RQ-CR":  "https://images.unsplash.com/photo-1626776876729-bab4369a5a5a?w=600&q=80",  # Chicken Roll
-    "RQ-CSW": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80",  # Chicken Shawarma
-    "RQ-CBR": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80",  # Chicken Burger
-    # Soups
-    "SP-TOM": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Tomato Soup
-    "SP-SWC": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Sweet Corn Soup
-    "SP-VCL": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Veg Clear Soup
-    "SP-CCL": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Chicken Clear Soup
-    "SP-MCH": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",  # Manchow Soup
-    # Beverages — Fresh Juice
-    "BJ-FL":  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80",  # Fresh Lime
-    "BJ-OR":  "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",  # Orange Juice
-    "BJ-WM":  "https://images.unsplash.com/photo-1587394560897-ec08a16a2e84?w=600&q=80",  # Watermelon Juice
-    "BJ-MS":  "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",  # Mosambi Juice
-    "BJ-MF":  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80",  # Mixed Fruit Juice
-    # Beverages — Milkshakes & Lassi
-    "BM-CHO": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80",  # Chocolate Milkshake
-    "BM-ORE": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80",  # Oreo Milkshake
-    "BM-MAN": "https://images.unsplash.com/photo-1517686469429-8bdb88b9f907?w=600&q=80",  # Mango Milkshake
-    "BM-CCF": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80",  # Cold Coffee
-    "BM-LAS": "https://images.unsplash.com/photo-1618580747099-f22ae67d1cc6?w=600&q=80",  # Sweet Lassi
-    # Beverages — Cold & Hot Drinks
-    "BD-SPR": "https://images.unsplash.com/photo-1543253687-c931c8e01820?w=600&q=80",  # Sprite
-    "BD-COC": "https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=600&q=80",  # Coca-Cola
-    "BD-THU": "https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=600&q=80",  # Thums Up
-    "BD-TEA": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&q=80",  # Tea
-    "BD-COF": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&q=80",  # Coffee
-    # Ice Creams & Desserts
-    "DS-VIC": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&q=80",  # Vanilla Ice Cream
-    "DS-CIC": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&q=80",  # Chocolate Ice Cream
-    "DS-BIC": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&q=80",  # Brownie with Ice Cream
-    "DS-GJ":  "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&q=80",  # Gulab Jamun
-    "DS-FAL": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&q=80",  # Falooda
-    # Chinese & Indo-Chinese
-    "CH-VFR": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Veg Fried Rice
-    "CH-EFR": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Egg Fried Rice
-    "CH-CFR": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80",  # Chicken Fried Rice
-    "CH-CHN": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80",  # Chicken Hakka Noodles
-    "CH-CMD": "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80",  # Chicken Manchurian Dry
-}
+# Dish-specific descriptions (migration 0014). One entry per catalog item code.
+_desc_path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "20261020_1000_0014_menu_item_descriptions_and_images.py"
+_desc_spec = importlib.util.spec_from_file_location("m0014_descriptions", _desc_path)
+if _desc_spec and _desc_spec.loader:
+    _desc_mod = importlib.util.module_from_spec(_desc_spec)
+    _desc_spec.loader.exec_module(_desc_mod)
+    ITEM_DESCRIPTIONS: dict[str, str] = _desc_mod.ITEM_DESCRIPTIONS
+else:
+    raise RuntimeError(f"Could not load ITEM_DESCRIPTIONS from {_desc_path}")
+
+_missing = {item[0] for cat in MENU_CATALOG for item in cat["items"]} - set(ITEM_DESCRIPTIONS)
+if _missing:
+    raise RuntimeError(f"Menu items without a description: {sorted(_missing)}")
+
+# Dish pictures are NOT stored in the database any more: the customer app draws a dedicated
+# illustration per item code (customer-web/public/dishes/<ITEM_CODE>.svg) unless the restaurant
+# uploads a real photo in the admin panel. Seeded stock-photo URLs were the source of mismatches
+# (e.g. Coca-Cola showing a Sprite picture), so they are cleared here.
+_OLD_SEEDED_IMAGE_PREFIXES = ("https://images.unsplash.com/", "/menu/")
+_PLACEHOLDER_DESCRIPTION_PREFIX = "Freshly prepared "
 
 
 async def seed_settings(session: AsyncSession) -> None:
@@ -317,7 +222,7 @@ async def seed_menu(session: AsyncSession) -> None:
                 )
             ).scalar_one_or_none()
 
-            desc = f"Freshly prepared {name}."
+            desc = ITEM_DESCRIPTIONS[code]
             if not item:
                 item = MenuItem(
                     category_id=category.id,
@@ -328,7 +233,7 @@ async def seed_menu(session: AsyncSession) -> None:
                     dietary_type=dietary,
                     spice_level=spice,
                     pricing_type=pricing_type,
-                    image_url=ITEM_IMAGE_URLS.get(code),
+                    image_url=None,
                     is_available=True,
                     is_active=True,
                     display_order=item_order,
@@ -339,7 +244,9 @@ async def seed_menu(session: AsyncSession) -> None:
             else:
                 item.category_id = category.id
                 item.name = name
-                item.description = desc
+                # Keep descriptions an admin edited by hand; only replace placeholder text.
+                if not item.description or item.description.startswith(_PLACEHOLDER_DESCRIPTION_PREFIX):
+                    item.description = desc
                 item.serving_description = serving
                 item.dietary_type = dietary
                 item.spice_level = spice
@@ -347,12 +254,9 @@ async def seed_menu(session: AsyncSession) -> None:
                 item.is_active = True
                 item.is_available = True
                 item.display_order = item_order
-                # Drop old local-disk image paths (ephemeral on free hosting) ...
-                if item.image_url and item.image_url.startswith("/menu/"):
+                # Drop old seeded stock photos / local-disk paths; keep admin-uploaded photos.
+                if item.image_url and item.image_url.startswith(_OLD_SEEDED_IMAGE_PREFIXES):
                     item.image_url = None
-                # ... and fill gaps with curated photos; never overwrite admin-set images.
-                if not item.image_url:
-                    item.image_url = ITEM_IMAGE_URLS.get(code)
                 print(f"    [*] Item present: {name} ({code})")
 
             for v_order, (v_name, v_code, price, _portion_name, is_portion) in enumerate(

@@ -61,7 +61,7 @@ All implementation phases strictly follow these 13 locked specification document
 
 ## 4. Implementation Status
 
-- **Backend (`backend/`):** auth (Argon2id, refresh-token rotation), menu, tables + QR tokens, customer sessions, orders (customer / waiter / kitchen), billing and payments, waiter requests, notifications, reports, settings, audit logs, WebSockets. Schema managed by Alembic (migrations `0001`–`0013`, 21 tables). Checked in CI with `ruff`, a migration up/down/up cycle on PostgreSQL 16 and `pytest`.
+- **Backend (`backend/`):** auth (Argon2id, refresh-token rotation), menu, tables + QR tokens, customer sessions, orders (customer / waiter / kitchen), billing and payments, waiter requests, notifications, reports, settings, audit logs, WebSockets. Schema managed by Alembic (migrations `0001`–`0014`, 21 tables). Checked in CI with `ruff`, a migration up/down/up cycle on PostgreSQL 16 and `pytest`.
 - **QR abuse defence (threat T-01):** the first QR order on an empty table is held until a waiter confirms guests are seated (setting `require_waiter_confirmation_for_first_qr_order`, default on), plus rate limits and the unpaid-table cap.
 - **Web apps:** `customer-web/` and `admin-web/` build in CI. In `admin-web/` the dev-only mock API and demo shortcuts are compiled out of production builds.
 - **Staff app:** `waiter-app/` contains both the waiter flows and the kitchen KDS. `kitchen-app/` is legacy and kept only until its removal is approved.

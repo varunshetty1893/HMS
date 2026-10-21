@@ -33,7 +33,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Cottage cheese cubes marinated in spiced yogurt, capsicum & roasted in clay tandoor.',
           dietary_type: 'VEG',
           spice_level: 'MEDIUM',
-          image_url: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 1,
           variants: [
@@ -56,7 +56,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Tender chicken boneless chunks marinated in rich cream, cashew paste & aromatic green cardamom.',
           dietary_type: 'NON_VEG',
           spice_level: 'MILD',
-          image_url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 2,
           variants: [
@@ -79,7 +79,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Golden fried crispy babycorn tossed with spring onions, bell peppers & oriental wok spices.',
           dietary_type: 'VEG',
           spice_level: 'HOT',
-          image_url: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 3,
           variants: [
@@ -102,7 +102,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Farm fresh eggs scrambled with chopped onions, juicy tomatoes, green chillies & fresh coriander.',
           dietary_type: 'EGG',
           spice_level: 'MEDIUM',
-          image_url: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 4,
           variants: [
@@ -133,7 +133,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Smoked tandoori chicken simmered in a velvety tomato and butter gravy finished with kasoori methi.',
           dietary_type: 'NON_VEG',
           spice_level: 'MEDIUM',
-          image_url: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 1,
           variants: [
@@ -161,12 +161,12 @@ export const DEMO_MENU: CustomerMenuResponse = {
         },
         {
           id: 'item-paneer-butter-masala',
-          item_code: 'MC02',
+          item_code: 'VC-PBM',
           name: 'Paneer Butter Masala',
           description: 'Fresh malai paneer simmered in a rich creamy tomato, butter, and cashew nut gravy.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 2,
           variants: [
@@ -199,7 +199,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Whole black lentils slow-cooked overnight with white butter, fresh cream & gentle spices.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 3,
           variants: [
@@ -230,7 +230,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Long grain basmati rice and marinated chicken cooked under dum with saffron, mint & caramelized onions.',
           dietary_type: 'NON_VEG',
           spice_level: 'HOT',
-          image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 1,
           variants: [
@@ -263,7 +263,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Refined flour clay oven flatbread topped with minced garlic, fresh coriander & melted desi butter.',
           dietary_type: 'VEG',
           spice_level: 'MILD',
-          image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 2,
           variants: [
@@ -294,7 +294,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Thick churned creamy yogurt blended with sweet Ratnagiri Alphonso mango pulp & cardamoms.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 1,
           variants: [
@@ -317,7 +317,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Freshly squeezed lemon juice with sparkling club soda, black salt & roasted cumin.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 2,
           variants: [
@@ -340,7 +340,7 @@ export const DEMO_MENU: CustomerMenuResponse = {
           description: 'Warm khoya dumplings steeped in rose cardamom syrup, served with chilled creamy rabdi.',
           dietary_type: 'VEG',
           spice_level: null,
-          image_url: 'https://images.unsplash.com/photo-1605197154247-a870d02ea29b?auto=format&fit=crop&w=600&q=80',
+          image_url: null,
           is_available: true,
           display_order: 3,
           variants: [

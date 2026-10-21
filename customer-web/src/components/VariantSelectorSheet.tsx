@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import type { CartItem, MenuItem, MenuPriceVariant } from '../types';
 import { formatInr } from '../utils/currency';
 import { useCart } from '../context/CartContext';
-import { ImageOff, Plus, Minus } from 'lucide-react';
-import { resolveMediaUrl } from '../utils/env';
+import { Plus, Minus } from 'lucide-react';
+import { DishImage } from './DishImage';
 
 interface VariantSelectorSheetProps {
   item: MenuItem | null;
@@ -108,8 +108,6 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
     onClose();
   };
 
-  const imageUrl = item.image_url?.trim().startsWith('/menu/') ? null : resolveMediaUrl(item.image_url);
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
@@ -149,7 +147,7 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
               </p>
             )}
           </div>
-          <DishThumb url={imageUrl} name={item.name} />
+          <DishThumb item={item} />
         </div>
 
         {/* Portions, each with its own quantity */}
@@ -312,18 +310,8 @@ const SheetBody: React.FC<{ item: MenuItem; onClose: () => void }> = ({ item, on
   );
 };
 
-const DishThumb: React.FC<{ url: string | null; name: string }> = ({ url, name }) => {
-  const [failed, setFailed] = useState(false);
-  return (
-    <div
-      className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-2xl"
-      style={{ background: 'var(--bg-subtle)' }}
-    >
-      {url && !failed ? (
-        <img src={url} alt={name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
-      ) : (
-        <ImageOff size={20} style={{ color: 'var(--text-muted)' }} aria-label={`No photo for ${name}`} />
-      )}
-    </div>
-  );
-};
+const DishThumb: React.FC<{ item: MenuItem }> = ({ item }) => (
+  <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-subtle)' }}>
+    <DishImage item={item} className="w-full h-full" iconSize={22} />
+  </div>
+);

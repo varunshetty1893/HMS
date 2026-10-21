@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getMenu } from '../api';
 import type { CustomerMenuResponse, MenuItem, MenuCategory } from '../types';
-import { CategoryBrowser, type DietaryFilter } from '../components/CategoryTabs';
+import { CategoryBrowser, type DietaryFilter, type SpiceFilter, type SortMode } from '../components/CategoryTabs';
+import { categoryCoverItem } from '../utils/dishImages';
+import { DishImage } from '../components/DishImage';
 import { MenuItemCard } from '../components/MenuItemCard';
 import { VariantSelectorSheet } from '../components/VariantSelectorSheet';
 import { CartDrawer } from '../components/CartDrawer';
 import { useCart } from '../context/CartContext';
-import { formatInr } from '../utils/currency';
+import { formatInrShort } from '../utils/currency';
 import {
-  Search, ShoppingBag, ChevronRight, RefreshCw, AlertCircle, X, Star,
+  Search, ShoppingCart, ChevronRight, RefreshCw, AlertCircle, X, Star,
 } from 'lucide-react';
 
 interface MenuPageProps {
@@ -25,6 +27,9 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [dietaryFilter, setDietaryFilter] = useState<DietaryFilter>('ALL');
+  const [spiceFilter, setSpiceFilter] = useState<SpiceFilter>('ANY');
+  const [sortMode, setSortMode] = useState<SortMode>('MENU');
+  const [showAllPopular, setShowAllPopular] = useState(false);
 
   const [selectedItemForSheet, setSelectedItemForSheet] = useState<MenuItem | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState<boolean>(false);
@@ -57,6 +62,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
 
   const matchesFilters = useCallback((item: MenuItem, catName: string): boolean => {
     if (dietaryFilter !== 'ALL' && item.dietary_type !== dietaryFilter) return false;
+    if (spiceFilter !== 'ANY' && item.spice_level !== spiceFilter) return false;
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     const queries = [q, ...(aliases[q] ?? [])];
@@ -67,16 +73,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
       includesQuery(catName) || item.variants.some((v) => includesQuery(v.variant_name))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dietaryFilter, searchQuery]);
-
-  // Counts shown on category tiles: items that pass search + dietary filter.
-  const categoryCounts = useMemo<Record<string, number>>(() => {
-    const out: Record<string, number> = {};
-    visibleCategories.forEach((c) => {
-      out[c.id] = c.items.filter((i) => matchesFilters(i, c.name)).length;
-    });
-    return out;
-  }, [visibleCategories, matchesFilters]);
+  }, [dietaryFilter, spiceFilter, searchQuery]);
 
   // Selecting a category shows that category; bring its first dish into view
   // just below the sticky header (offset comes from the measured --header-h).
@@ -88,16 +85,35 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
   }, []);
 
   const resetAll = useCallback(() => {
-    setSearchQuery(''); setDietaryFilter('ALL'); setSelectedCategoryId(null);
+    setSearchQuery(''); setDietaryFilter('ALL'); setSelectedCategoryId(null); setSpiceFilter('ANY'); setSortMode('MENU');
   }, []);
 
   // Filtered menu logic
+  const minPriceOf = (item: MenuItem): number => {
+    const prices = item.variants
+      .filter((v) => v.is_available && v.price !== null)
+      .map((v) => parseFloat(v.price!) || 0)
+      .filter((p) => p > 0);
+    return prices.length ? Math.min(...prices) : Number.POSITIVE_INFINITY;
+  };
+
   const filteredCategories = useMemo<MenuCategory[]>(() => {
     if (!menuData) return [];
     return menuData.categories
-      .map((cat) => ({ ...cat, items: cat.items.filter((item) => matchesFilters(item, cat.name)) }))
+      .map((cat) => {
+        const items = cat.items.filter((item) => matchesFilters(item, cat.name));
+        if (sortMode === 'MENU') return { ...cat, items };
+        const sign = sortMode === 'PRICE_ASC' ? 1 : -1;
+        return { ...cat, items: [...items].sort((x, y) => {
+          const px = minPriceOf(x), py = minPriceOf(y);
+          if (px === py) return 0;
+          if (!isFinite(px)) return 1; // seasonal / unpriced always last
+          if (!isFinite(py)) return -1;
+          return (px - py) * sign;
+        }) };
+      })
       .filter((cat) => (selectedCategoryId ? cat.id === selectedCategoryId : cat.items.length > 0));
-  }, [menuData, selectedCategoryId, matchesFilters]);
+  }, [menuData, selectedCategoryId, matchesFilters, sortMode]);
 
   // Popular dishes = most ordered (server-ranked, max 6). Hidden until orders exist.
   const popularIds = useMemo<Set<string>>(
@@ -105,16 +121,20 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
     [menuData]
   );
 
+  // Curated picks shown only until real order history exists (then the heading says so).
+  const FALLBACK_POPULAR_CODES = ['BD-TEA', 'CB', 'BF-IDL', 'BF-MD', 'NC-BC', 'BR-BN'];
+  const hasOrderRanking = (menuData?.popular_item_ids?.length ?? 0) > 0;
+
   const featuredItems = useMemo<MenuItem[]>(() => {
-    if (!menuData || searchQuery || dietaryFilter !== 'ALL') return [];
-    const ids = menuData.popular_item_ids ?? [];
+    if (!menuData || searchQuery || dietaryFilter !== 'ALL' || spiceFilter !== 'ANY') return [];
     const byId = new Map<string, MenuItem>();
-    menuData.categories.forEach((c) => c.items.forEach((i) => byId.set(i.id, i)));
-    return ids
-      .map((id) => byId.get(id))
-      .filter((i): i is MenuItem => !!i && i.is_available)
-      .slice(0, 6);
-  }, [menuData, searchQuery, dietaryFilter]);
+    const byCode = new Map<string, MenuItem>();
+    menuData.categories.forEach((c) => c.items.forEach((i) => { byId.set(i.id, i); byCode.set(i.item_code.toUpperCase(), i); }));
+    const ranked = (menuData.popular_item_ids ?? []).map((id) => byId.get(id));
+    const picks = ranked.length > 0 ? ranked : FALLBACK_POPULAR_CODES.map((code) => byCode.get(code));
+    return picks.filter((i): i is MenuItem => !!i && i.is_available).slice(0, 6);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuData, searchQuery, dietaryFilter, spiceFilter]);
 
   const skeletonCards = [1, 2, 3, 4, 5, 6];
 
@@ -154,11 +174,14 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
               categories={visibleCategories}
               selectedCategoryId={selectedCategoryId}
               onSelectCategory={handleSelectCategory}
-              counts={categoryCounts}
               dietaryFilter={dietaryFilter}
               onSelectDietaryFilter={setDietaryFilter}
+              spiceFilter={spiceFilter}
+              onSelectSpiceFilter={setSpiceFilter}
+              sortMode={sortMode}
+              onSelectSortMode={setSortMode}
               onReset={resetAll}
-              canReset={!!searchQuery || !!selectedCategoryId || dietaryFilter !== 'ALL'}
+              canReset={!!searchQuery || !!selectedCategoryId || dietaryFilter !== 'ALL' || spiceFilter !== 'ANY' || sortMode !== 'MENU'}
             />
           )}
         </div>
@@ -199,18 +222,39 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
           </div>
         )}
 
-        {/* Featured / Popular section */}
+        {/* Most Ordered */}
         {!isLoading && !error && featuredItems.length > 0 && !searchQuery && !selectedCategoryId && (
-          <section>
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <Star size={16} style={{ color: 'var(--primary)' }} fill="var(--primary)" />
-              <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                Most Ordered
-              </h2>
+          <section className="rounded-3xl p-3" style={{ background: 'var(--primary-bg)' }}>
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <div className="flex items-center gap-2">
+                <Star size={22} style={{ color: 'var(--primary)' }} fill="var(--primary)" />
+                <h2 className="text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                  {hasOrderRanking ? 'Most Ordered' : 'Popular Picks'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllPopular((v) => !v)}
+                className="flex items-center gap-0.5 text-sm font-semibold cursor-pointer"
+                style={{ color: 'var(--primary)' }}
+              >
+                {showAllPopular ? 'Show less' : 'See All'}
+                <ChevronRight size={16} className={showAllPopular ? 'rotate-90' : ''} />
+              </button>
             </div>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x pb-1 -mx-3 px-3">
+            <div
+              className={showAllPopular
+                ? 'grid grid-cols-2 gap-2.5'
+                : 'flex gap-2.5 overflow-x-auto no-scrollbar snap-x pb-1 -mx-1 px-1'}
+            >
               {featuredItems.map((item) => (
-                <MenuItemCard key={item.id} item={item} compact isPopular onSelect={setSelectedItemForSheet} />
+                <MenuItemCard
+                  key={item.id}
+                  item={item}
+                  compact
+                  isPopular
+                  onSelect={setSelectedItemForSheet}
+                />
               ))}
             </div>
           </section>
@@ -242,15 +286,23 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
         {!isLoading && !error && filteredCategories.map((category) => (
           <section key={category.id} style={{ scrollMarginTop: 'calc(var(--header-h, 0px) + 8px)' }}>
             {/* Category header */}
-            <div
-              className="flex items-center justify-between mb-3 pb-2 px-1"
-              style={{ borderBottom: '1.5px solid var(--border)' }}
-            >
-              <h2 className="text-base font-bold tracking-wide" style={{ color: 'var(--text-primary)' }}>
-                {category.name}
-              </h2>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {(() => {
+                  const cover = categoryCoverItem(category);
+                  return cover ? (
+                    <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0" style={{ background: 'var(--bg-subtle)' }}>
+                      <DishImage item={cover} className="w-full h-full" iconSize={16} />
+                    </div>
+                  ) : null;
+                })()}
+                <h2 className="text-lg font-extrabold leading-tight" style={{ color: 'var(--text-primary)' }}>
+                  {category.name}
+                </h2>
+              </div>
+              <span className="flex items-center gap-0.5 text-sm shrink-0" style={{ color: 'var(--text-secondary)' }}>
                 {category.items.length} {category.items.length === 1 ? 'item' : 'items'}
+                <ChevronRight size={16} />
               </span>
             </div>
 
@@ -284,18 +336,20 @@ export const MenuPage: React.FC<MenuPageProps> = ({ onOrderSuccess }) => {
               }}
             >
               <div className="flex items-center gap-3">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold"
-                  style={{ background: 'rgba(255,255,255,0.25)' }}
-                >
-                  <ShoppingBag size={16} />
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="block text-xs font-bold">
-                    View Cart
+                <div className="relative w-9 h-9 flex items-center justify-center">
+                  <ShoppingCart size={26} />
+                  <span
+                    className="absolute -top-1 -right-1.5 min-w-[20px] h-5 px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
+                    style={{ background: '#fff', color: 'var(--primary)' }}
+                  >
+                    {totalItemsCount}
                   </span>
-                  <span className="text-xs opacity-90 font-mono">
-                    {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'} • {formatInr(totalEstimatedAmount)}
+                </div>
+                <div className="w-px h-9 bg-white/40" />
+                <div className="text-left leading-tight">
+                  <span className="block text-base font-bold">View Cart</span>
+                  <span className="text-sm opacity-95">
+                    {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'} • {formatInrShort(totalEstimatedAmount)}
                   </span>
                 </div>
               </div>

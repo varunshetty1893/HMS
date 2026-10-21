@@ -52,19 +52,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       >
         <div className="max-w-5xl mx-auto space-y-2">
           {/* Row 1: table • brand • call waiter */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
+                className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
                 style={{ background: 'var(--primary-bg)', color: 'var(--primary)' }}
               >
                 {tableNumber ? `T${tableNumber}` : '🍽'}
               </div>
               <div className="min-w-0 leading-tight">
-                <h1 className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                <h1 className="text-[13px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>
                   {tableDisplayName || 'Your Table'}
                 </h1>
-                <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
                   <span
                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     style={{ background: isDiningActive ? '#22C55E' : '#94A3B8' }}
@@ -74,17 +74,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               </div>
             </div>
 
-            <div className="hidden min-[400px]:flex items-center gap-1.5 min-w-0" aria-label="SpiceHub Family Restaurant">
-              <img src="/logo.png" alt="" className="w-8 h-8 rounded-full object-cover" />
-              <span className="hidden sm:block text-sm font-extrabold" style={{ color: 'var(--primary)' }}>
-                SpiceHub
-              </span>
+            <div className="flex items-center gap-1 shrink-0" aria-label="SpiceHub Family Restaurant">
+              <img src="/logo.png" alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+              <div className="leading-none min-w-0">
+                <div className="text-base font-extrabold tracking-tight" style={{ color: 'var(--primary)' }}>SpiceHub</div>
+                <div className="text-[7px] font-bold tracking-[0.08em] mt-0.5 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>FAMILY RESTAURANT</div>
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={() => setIsCallWaiterOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer active:scale-95 transition"
+                className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer active:scale-95 transition whitespace-nowrap"
                 style={{
                   background: 'var(--primary-bg)',
                   color: 'var(--primary)',

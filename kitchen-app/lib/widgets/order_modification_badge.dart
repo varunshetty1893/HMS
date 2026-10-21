@@ -5,11 +5,13 @@ import '../models/kitchen_item_model.dart';
 class OrderModificationBadge extends StatelessWidget {
   final List<KitchenModificationEventModel> modifications;
   final VoidCallback onAcknowledge;
+  final bool isProcessing;
 
   const OrderModificationBadge({
     super.key,
     required this.modifications,
     required this.onAcknowledge,
+    this.isProcessing = false,
   });
 
   @override
@@ -94,10 +96,10 @@ class OrderModificationBadge extends StatelessWidget {
             width: double.infinity,
             height: 36,
             child: ElevatedButton.icon(
-              onPressed: onAcknowledge,
+              onPressed: isProcessing ? null : onAcknowledge,
               icon: const Icon(Icons.check, size: 16),
-              label: const Text(
-                'ACKNOWLEDGE CHANGE',
+              label: Text(
+                isProcessing ? 'ACKNOWLEDGING…' : 'ACKNOWLEDGE CHANGE',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(

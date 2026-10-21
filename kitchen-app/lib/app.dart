@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/theme.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
+import 'features/kds_board/kds_controller.dart';
 import 'features/kds_board/kds_board_screen.dart';
 
 class KdsApp extends ConsumerWidget {
@@ -11,6 +12,12 @@ class KdsApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
+
+    ref.listen<AuthState>(authControllerProvider, (previous, next) {
+      if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+        ref.invalidate(kdsControllerProvider);
+      }
+    });
 
     return MaterialApp(
       title: 'SpiceHub Chef',

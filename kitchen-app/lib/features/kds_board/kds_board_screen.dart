@@ -152,6 +152,21 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
       body: Column(
         children: [
           ConnectionStatusBanner(isConnected: state.isConnected),
+          if (state.errorMessage != null)
+            MaterialBanner(
+              backgroundColor: Colors.red.shade50,
+              content: Text(
+                state.errorMessage!,
+                style: const TextStyle(color: Color(0xFFB91C1C)),
+              ),
+              leading: const Icon(Icons.error_outline, color: Color(0xFFB91C1C)),
+              actions: [
+                TextButton(
+                  onPressed: () => controller.loadQueue(),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           CancellationAlertBanner(
             alerts: state.cancellations,
             onDismiss: controller.dismissCancellation,
@@ -159,6 +174,9 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                if (state.isLoading && state.orders.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 if (constraints.maxWidth >= 900) {
                   // Tablet multi-column layout
                   return Row(
@@ -254,6 +272,9 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
           onStartPreparing: () => controller.startPreparingOrder(order),
           onMarkReady: () => controller.markOrderReady(order),
           onAcknowledgeModifications: () => controller.acknowledgeModifications(order),
+          isProcessing: ref.watch(kdsControllerProvider.select(
+            (state) => state.processingOrderIds.contains(order.id),
+          )),
         );
       },
     );

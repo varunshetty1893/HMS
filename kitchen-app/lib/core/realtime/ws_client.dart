@@ -85,6 +85,12 @@ class KdsWebSocketClient {
       final wsUri =
           Uri.parse('${EnvConfig.wsUrl}?token=${Uri.encodeComponent(_token ?? '')}');
       _channel = WebSocketChannel.connect(wsUri);
+      await _channel!.ready;
+      if (_destroyed) {
+        await _channel?.sink.close();
+        _channel = null;
+        return;
+      }
 
       _subscription = _channel!.stream.listen(
         _handleMessage,
@@ -93,9 +99,7 @@ class KdsWebSocketClient {
         cancelOnError: true,
       );
 
-      // Reset backoff counter and notify connected state only after stream is open.
-      // WebSocketChannel does not provide an explicit onOpen callback, so we
-      // optimistically signal connected here; _handleDisconnect will correct it.
+      // Report LIVE only after the WebSocket handshake has completed.
       _reconnectAttempt = 0;
       if (!_connectionStateController.isClosed) {
         _connectionStateController.add(true);

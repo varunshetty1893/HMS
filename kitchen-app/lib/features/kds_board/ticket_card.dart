@@ -11,6 +11,7 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onStartPreparing;
   final VoidCallback onMarkReady;
   final VoidCallback onAcknowledgeModifications;
+  final bool isProcessing;
 
   const TicketCard({
     super.key,
@@ -20,6 +21,7 @@ class TicketCard extends StatelessWidget {
     required this.onStartPreparing,
     required this.onMarkReady,
     required this.onAcknowledgeModifications,
+    this.isProcessing = false,
   });
 
   @override
@@ -115,6 +117,7 @@ class TicketCard extends StatelessWidget {
               OrderModificationBadge(
                 modifications: order.unacknowledgedModifications,
                 onAcknowledge: onAcknowledgeModifications,
+                isProcessing: isProcessing,
               ),
 
             // Special instructions (if any)
@@ -228,7 +231,7 @@ class TicketCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: onReject,
+                      onPressed: isProcessing ? null : onReject,
                       child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -244,8 +247,14 @@ class TicketCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: onAccept,
-                      child: const Text('Accept Order', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: isProcessing ? null : onAccept,
+                      child: isProcessing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Accept Order', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -262,9 +271,12 @@ class TicketCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: onStartPreparing,
+                  onPressed: isProcessing ? null : onStartPreparing,
                   icon: const Icon(Icons.soup_kitchen, size: 18),
-                  label: const Text('Start Preparing', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: Text(
+                    isProcessing ? 'Updating…' : 'Start Preparing',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               )
             else if (isPreparing)
@@ -281,10 +293,16 @@ class TicketCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: order.hasUnacknowledgedMods ? null : onMarkReady,
+                  onPressed: order.hasUnacknowledgedMods || isProcessing
+                      ? null
+                      : onMarkReady,
                   icon: const Icon(Icons.check_circle_outline, size: 18),
                   label: Text(
-                    order.hasUnacknowledgedMods ? 'Ack Mods Before Ready' : 'Mark Ready for Pickup',
+                    order.hasUnacknowledgedMods
+                        ? 'Ack Mods Before Ready'
+                        : isProcessing
+                            ? 'Updating…'
+                            : 'Mark Ready for Pickup',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

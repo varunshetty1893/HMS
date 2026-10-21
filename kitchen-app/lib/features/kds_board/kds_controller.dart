@@ -18,17 +18,19 @@ class KdsBoardState {
   final int preparingCount;
   final int readyCount;
   final List<KitchenCancellationAlert> cancellations;
+  final Set<String> processingOrderIds;
 
   const KdsBoardState({
     this.orders = const [],
     this.isLoading = false,
-    this.isConnected = true,
+    this.isConnected = false,
     this.errorMessage,
     this.placedCount = 0,
     this.acceptedCount = 0,
     this.preparingCount = 0,
     this.readyCount = 0,
     this.cancellations = const [],
+    this.processingOrderIds = const {},
   });
 
   KdsBoardState copyWith({
@@ -41,6 +43,7 @@ class KdsBoardState {
     int? preparingCount,
     int? readyCount,
     List<KitchenCancellationAlert>? cancellations,
+    Set<String>? processingOrderIds,
   }) {
     return KdsBoardState(
       orders: orders ?? this.orders,
@@ -52,11 +55,16 @@ class KdsBoardState {
       preparingCount: preparingCount ?? this.preparingCount,
       readyCount: readyCount ?? this.readyCount,
       cancellations: cancellations ?? this.cancellations,
+      processingOrderIds: processingOrderIds ?? this.processingOrderIds,
     );
   }
 }
 
-final wsClientProvider = Provider<KdsWebSocketClient>((ref) => KdsWebSocketClient());
+final wsClientProvider = Provider<KdsWebSocketClient>((ref) {
+  final client = KdsWebSocketClient();
+  ref.onDispose(client.disconnect);
+  return client;
+});
 
 final kdsControllerProvider = StateNotifierProvider<KdsController, KdsBoardState>((ref) {
   return KdsController(
@@ -73,6 +81,7 @@ class KdsController extends StateNotifier<KdsBoardState> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   StreamSubscription? _connSub;
+  late final WsEventHandler _wsListener;
   // Cancellation alerts the cook already acknowledged on this device
   final Set<String> _dismissedCancellations = {};
   final Set<String> _seenCancellations = {};
@@ -101,36 +110,38 @@ class KdsController extends StateNotifier<KdsBoardState> {
   void dispose() {
     _connSub?.cancel();
     _elapsedTicker?.cancel();
+    _wsClient.removeListener(_wsListener);
     _wsClient.disconnect();
     _audioPlayer.dispose();
     super.dispose();
   }
 
   void _initRealtime() async {
-    final token = await _tokenStorage.getAccessToken();
-    if (token != null) {
-      _wsClient.connect(token);
-    }
-
     _connSub = _wsClient.isConnectedStream.listen((connected) {
+      if (!mounted) return;
       state = state.copyWith(isConnected: connected);
-      if (connected) {
-        // Automatic HTTP reconciliation on reconnect (matching docs/08)
-        loadQueue(quiet: true);
-      }
+      if (connected) loadQueue(quiet: true);
     });
-
-    _wsClient.addListener((event) {
+    _wsListener = (event) {
+      if (!mounted) return;
       final eventType = event['event']?.toString() ?? '';
-      if (eventType.startsWith('order.')) {
-        if (eventType == 'order.created' ||
-            eventType == 'order.modified' ||
-            eventType == 'order.cancelled') {
-          _playChime();
-        }
-        loadQueue(quiet: true);
+      if (!eventType.startsWith('order.')) return;
+      if (eventType == 'order.created' ||
+          eventType == 'order.modified' ||
+          eventType == 'order.cancelled') {
+        _playChime();
       }
-    });
+      loadQueue(quiet: true);
+    };
+    _wsClient.addListener(_wsListener);
+
+    final token = await _tokenStorage.getAccessToken();
+    if (!mounted) return;
+    if (token != null && token.isNotEmpty) {
+      _wsClient.connect(token);
+    } else {
+      state = state.copyWith(isConnected: false);
+    }
   }
 
   void _playChime() {
@@ -140,10 +151,12 @@ class KdsController extends StateNotifier<KdsBoardState> {
   }
 
   Future<void> loadQueue({bool quiet = false}) async {
+    if (!mounted) return;
     if (!quiet) state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
       final data = await _apiClient.getActiveQueue();
+      if (!mounted) return;
       final countsJson = data['counts'] as Map<String, dynamic>? ?? {};
       final ordersJson = (data['orders'] as List<dynamic>? ?? []);
 
@@ -174,6 +187,7 @@ class KdsController extends StateNotifier<KdsBoardState> {
         readyCount: countsJson['ready'] as int? ?? 0,
       );
     } catch (e) {
+      if (!mounted) return;
       if (!quiet) {
         state = state.copyWith(
           isLoading: false,
@@ -193,55 +207,92 @@ class KdsController extends StateNotifier<KdsBoardState> {
   }
 
   Future<void> acceptOrder(KitchenOrderModel order) async {
+    if (!_beginAction(order.id)) return;
     try {
       await _apiClient.acceptOrder(order.id, order.version);
       await loadQueue(quiet: true);
     } on VersionConflictException {
       await loadQueue(quiet: true);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      _showActionError(e);
+    } finally {
+      _finishAction(order.id);
     }
   }
 
   Future<void> rejectOrder(KitchenOrderModel order, String reason) async {
+    if (!_beginAction(order.id)) return;
     try {
       await _apiClient.rejectOrder(order.id, order.version, reason);
       await loadQueue(quiet: true);
     } on VersionConflictException {
       await loadQueue(quiet: true);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      _showActionError(e);
+    } finally {
+      _finishAction(order.id);
     }
   }
 
   Future<void> startPreparingOrder(KitchenOrderModel order) async {
+    if (!_beginAction(order.id)) return;
     try {
       await _apiClient.startPreparingOrder(order.id, order.version);
       await loadQueue(quiet: true);
     } on VersionConflictException {
       await loadQueue(quiet: true);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      _showActionError(e);
+    } finally {
+      _finishAction(order.id);
     }
   }
 
   Future<void> markOrderReady(KitchenOrderModel order) async {
+    if (!_beginAction(order.id)) return;
     try {
       await _apiClient.markOrderReady(order.id, order.version);
       await loadQueue(quiet: true);
     } on VersionConflictException {
       await loadQueue(quiet: true);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      _showActionError(e);
+    } finally {
+      _finishAction(order.id);
     }
   }
 
   Future<void> acknowledgeModifications(KitchenOrderModel order) async {
+    if (!_beginAction(order.id)) return;
     try {
       await _apiClient.acknowledgeModifications(order.id);
       await loadQueue(quiet: true);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      _showActionError(e);
+    } finally {
+      _finishAction(order.id);
     }
+  }
+
+  bool _beginAction(String orderId) {
+    if (!mounted || state.processingOrderIds.contains(orderId)) return false;
+    state = state.copyWith(
+      processingOrderIds: {...state.processingOrderIds, orderId},
+      errorMessage: null,
+    );
+    return true;
+  }
+
+  void _finishAction(String orderId) {
+    if (!mounted) return;
+    state = state.copyWith(
+      processingOrderIds: {...state.processingOrderIds}..remove(orderId),
+      errorMessage: state.errorMessage,
+    );
+  }
+
+  void _showActionError(Object error) {
+    if (!mounted) return;
+    state = state.copyWith(errorMessage: describeError(error));
   }
 }

@@ -1,4 +1,6 @@
-keyAlias=hms_key
-keyPassword=YOUR_KEY_PASSWORD_HERE
-storeFile=../keystore/release.jks
-storePassword=YOUR_STORE_PASSWORD_HERE
+# Copy this file to android/key.properties locally. Do not commit the copy.
+# Keep the keystore outside this repository and use forward slashes on Windows.
+keyAlias=spicehub_upload
+keyPassword=YOUR_PRIVATE_KEY_PASSWORD
+storeFile=C:/Users/YOUR_WINDOWS_USER/SpiceHubPrivate/spicehub-upload.jks
+storePassword=YOUR_PRIVATE_KEYSTORE_PASSWORD

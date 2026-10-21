@@ -37,7 +37,7 @@ The changes for the first two defects have regression tests in
 | Customer web | `npm run lint` and `npm run build` | Passed |
 | Admin web | `npm run lint` and `npm run build` | Passed |
 | Combined staff app | `flutter test` in `waiter-app/` | Passed (62 tests, including both role routes, login enforcement, session recovery, and kitchen API calls) |
-| Combined staff APK | `flutter build apk --release` with the production API define | Produced `build/app/outputs/flutter-apk/app-release.apk` (54,590,250 bytes; SHA-256 `e019edda0c5b56d1500afbaf7a7c3ffc23137b18f1d39f9379da75779b9d62cd`) |
+| Release-signing guard | `flutter build apk --release` without a keystore | Correctly fails instead of falling back to the Android debug key |
 | Diff sanity | `git diff --check` | Passed |
 | Snapshot ignore | `git check-ignore -v --no-index .snapshots/audit-sentinel` | Passed |
 
@@ -61,11 +61,11 @@ not available in this workspace.
    CORS, WebSocket, media storage, and browser behavior were not asserted.
    In particular, verify the deployed admin build uses the intended secure
    auth-cookie configuration rather than legacy browser token storage.
-4. **Sign the distributable APK with the restaurant's real release/upload
-   key.** `waiter-app/android/key.properties` is absent. The current Gradle
-   configuration deliberately falls back to the Android debug key, so the
-   generated APK is valid for QA installation but is not a production-signed
-   client handover artifact. Keep the keystore private and outside Git.
+4. **Sign and verify the distributable APK with the restaurant's real
+   release/upload key.** `waiter-app/android/key.properties` is absent. The
+   build now deliberately fails rather than falling back to the Android debug
+   key. Create the private keystore and ignored local properties file, build
+   again, then verify the APK signer and checksum before client handover.
 
 ## Staff-app architecture decision
 

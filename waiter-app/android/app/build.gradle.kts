@@ -1,6 +1,22 @@
 import java.io.FileInputStream
 import java.util.Properties
 
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use(keystoreProperties::load)
+}
+
+val requiredReleaseSigningProperties = listOf(
+    "keyAlias",
+    "keyPassword",
+    "storeFile",
+    "storePassword",
+)
+val hasReleaseSigningCredentials =
+    keystorePropertiesFile.exists() &&
+        requiredReleaseSigningProperties.all { !keystoreProperties.getProperty(it).isNullOrBlank() }
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -32,12 +48,6 @@ android {
         versionName = flutter.versionName
     }
 
-    val keystorePropertiesFile = rootProject.file("key.properties")
-    val keystoreProperties = Properties()
-    if (keystorePropertiesFile.exists()) {
-        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-    }
-
     signingConfigs {
         create("release") {
             val keyAliasVal = keystoreProperties.getProperty("keyAlias")
@@ -55,8 +65,9 @@ android {
 
     buildTypes {
         release {
-            val hasKeystore = keystorePropertiesFile.exists() && keystoreProperties.getProperty("storeFile") != null
-            signingConfig = if (hasKeystore) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            if (hasReleaseSigningCredentials) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }
@@ -64,6 +75,19 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val isReleaseTask = allTasks.any { task ->
+        task.name.contains("release", ignoreCase = true)
+    }
+    if (isReleaseTask && !hasReleaseSigningCredentials) {
+        throw GradleException(
+            "Release signing is not configured. Create android/key.properties from " +
+                "android/key.properties.example and provide a private keystore. " +
+                "Never use the debug signing key for a client release.",
+        )
     }
 }
 

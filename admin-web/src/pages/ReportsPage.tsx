@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { reportsApi } from '@/api/reportsApi';
 import { formatInr } from '@/utils/currency';
-import { formatDateIst, formatDateTimeIst } from '@/utils/dateIst';
+import { formatDateIst, formatDateTimeIst, todayIst } from '@/utils/dateIst';
 import {
   Calendar,
   CreditCard,
@@ -126,7 +126,7 @@ const PaginationBar: React.FC<PaginationBarProps> = ({
 // ─── Main page ────────────────────────────────────────────────────────────────
 export const ReportsPage: React.FC = () => {
   const { L, heading, sub, muted, border, card, tableWrap, thead, tbodyRow, tbodyRowHover } = usePageTheme();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayIst();
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);
   const [activeTab, setActiveTab] = useState<'sales' | 'dishes' | 'payments' | 'tables' | 'cancellations' | 'staff'>('sales');

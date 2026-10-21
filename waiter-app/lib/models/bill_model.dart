@@ -165,9 +165,11 @@ class TableBillModel {
 
   bool get isBillIssued => billStatus == 'ISSUED';
   bool get isBillPaid => billStatus == 'PAID';
-  // Only block billing if there are kitchen-unaccepted PLACED orders.
-  // Unserved orders are allowed (waiter can bill early), just shown as a warning.
-  bool get canGenerateBill => !hasUnacceptedPlacedOrders && bill == null;
+  // The billing API only issues a bill once every active order is served.
+  // Keep the client action aligned with that rule so waiters are not offered
+  // an action that the server will reject.
+  bool get canGenerateBill =>
+      !hasUnacceptedPlacedOrders && !hasUnservedOrders && bill == null;
 
   factory TableBillModel.fromJson(Map<String, dynamic> json) {
     final previewItems = (json['preview_line_items'] as List<dynamic>? ?? [])

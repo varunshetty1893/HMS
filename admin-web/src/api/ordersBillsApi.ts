@@ -102,6 +102,25 @@ export const ordersBillsApi = {
     return apiClient<Bill>(`/bills/${billId}`);
   },
 
+  generateBill: async (tableNumber: number): Promise<Bill> => {
+    return apiClient<Bill>('/bills/generate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ table_number: tableNumber }),
+    });
+  },
+
+  recordPayment: async (
+    billId: string,
+    payload: { payment_method: 'CASH' | 'UPI' | 'CARD' | 'OTHER'; amount_paid: string; reference_number?: string | null; notes?: string | null }
+  ): Promise<{ bill_status: string }> => {
+    return apiClient<{ bill_status: string }>(`/bills/${billId}/payments`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    });
+  },
+
   listPayments: async (filters: {
     status?: string;
     payment_method?: string;

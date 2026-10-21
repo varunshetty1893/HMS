@@ -268,7 +268,7 @@ void main() {
       expect(tableBill.isBillIssued, isFalse);
     });
 
-    test('TableBillModel canGenerateBill allows early billing when unserved orders remain', () {
+    test('TableBillModel canGenerateBill blocks billing while orders remain unserved', () {
       final json = {
         'table_number': 5,
         'table_id': 'tbl-001',
@@ -282,7 +282,7 @@ void main() {
 
       final tableBill = TableBillModel.fromJson(json);
 
-      expect(tableBill.canGenerateBill, isTrue);
+      expect(tableBill.canGenerateBill, isFalse);
     });
 
     test('TableBillModel canGenerateBill blocks billing when unaccepted placed orders exist', () {

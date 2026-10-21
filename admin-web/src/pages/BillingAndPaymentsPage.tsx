@@ -15,7 +15,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { Bill } from '@/types/api';
+import { Bill, PaymentMethod } from '@/types/api';
 
 const BILL_TABS: { label: string; value: string }[] = [
   { label: 'Unpaid Bills', value: 'ISSUED' },
@@ -42,6 +42,14 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const [discountAmount, setDiscountAmount] = useState('50.00');
   const [discountReason, setDiscountReason] = useState('Manager goodwill');
   const [voidBill, setVoidBill] = useState<Bill | null>(null);
+  const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [generateTableNumber, setGenerateTableNumber] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
   const handleSelectBill = async (b: Bill) => {
     setSelectedBill(b);
@@ -123,6 +131,49 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
+  const handleGenerateBill = async () => {
+    const tableNumber = Number(generateTableNumber);
+    if (!Number.isInteger(tableNumber) || tableNumber < 1) {
+      setError('Enter a valid table number.');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const bill = await ordersBillsApi.generateBill(tableNumber);
+      setIsGenerateOpen(false);
+      setGenerateTableNumber('');
+      setSuccessBanner(`Bill #${bill.bill_number} generated for Table ${tableNumber}.`);
+      await fetchBills();
+      await handleSelectBill(bill);
+    } catch (err: any) {
+      setError(err?.message || 'Could not generate the bill. Ensure all table orders are served.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!paymentBill) return;
+    setIsRecordingPayment(true);
+    try {
+      await ordersBillsApi.recordPayment(paymentBill.id, {
+        payment_method: paymentMethod,
+        amount_paid: Number(paymentBill.grand_total).toFixed(2),
+        reference_number: paymentReference.trim() || null,
+        notes: paymentNotes.trim() || null,
+      });
+      setPaymentBill(null);
+      setPaymentReference('');
+      setPaymentNotes('');
+      setSuccessBanner(`Payment recorded for bill #${paymentBill.bill_number}. Table is now settled.`);
+      await fetchBills();
+    } catch (err: any) {
+      setError(err?.message || 'Could not record payment.');
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  };
+
   const filteredBills = bills.filter((b) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -145,6 +196,12 @@ export const BillingAndPaymentsPage: React.FC = () => {
             Cashier settlement desk, table checks, GST tax calculation, and discounts
           </p>
         </div>
+        <button
+          onClick={() => { setError(null); setIsGenerateOpen(true); }}
+          className="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-500 shadow-md cursor-pointer"
+        >
+          Generate Table Bill
+        </button>
       </div>
 
       {/* Success Banner */}
@@ -501,6 +558,19 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 <>
                   <button
                     onClick={() => {
+                      setPaymentBill(selectedBill);
+                      setPaymentMethod('CASH');
+                      setPaymentReference('');
+                      setPaymentNotes('');
+                      setSelectedBill(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Record Payment</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       setDiscountBill(selectedBill);
                       setSelectedBill(null);
                     }}
@@ -598,6 +668,39 @@ export const BillingAndPaymentsPage: React.FC = () => {
                 Apply
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isGenerateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4" style={modalInner}>
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderBottomColor: border }}>
+              <h3 className="font-bold text-base" style={{ color: heading }}>Generate Table Bill</h3>
+              <button onClick={() => setIsGenerateOpen(false)} style={{ color: muted }}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs" style={{ color: sub }}>All orders for this table must be served before a final bill can be generated.</p>
+            <input autoFocus type="number" min="1" value={generateTableNumber} onChange={(e) => setGenerateTableNumber(e.target.value)} placeholder="Table number" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsGenerateOpen(false)} className="px-3.5 py-2 rounded-xl text-xs font-semibold" style={{ color: heading }}>Cancel</button>
+              <button disabled={isGenerating} onClick={handleGenerateBill} className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50">{isGenerating ? 'Generating…' : 'Generate Bill'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4" style={modalInner}>
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderBottomColor: border }}>
+              <div><h3 className="font-bold text-base" style={{ color: heading }}>Record Payment</h3><p className="text-xs" style={{ color: sub }}>{paymentBill.bill_number} · {formatInr(paymentBill.grand_total)}</p></div>
+              <button onClick={() => setPaymentBill(null)} style={{ color: muted }}><X className="w-4 h-4" /></button>
+            </div>
+            <label className="block text-xs font-bold uppercase" style={{ color: sub }}>Payment method<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="mt-1 w-full px-3 py-2 rounded-xl text-sm" style={input}><option value="CASH">Cash</option><option value="UPI">UPI</option><option value="CARD">Card</option><option value="OTHER">Other</option></select></label>
+            <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} maxLength={100} placeholder="UPI/card reference (optional)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
+            <input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} maxLength={255} placeholder="Notes (optional)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
+            <p className="text-xs" style={{ color: muted }}>The exact final amount of {formatInr(paymentBill.grand_total)} will be recorded.</p>
+            <div className="flex justify-end gap-2"><button onClick={() => setPaymentBill(null)} className="px-3.5 py-2 rounded-xl text-xs font-semibold" style={{ color: heading }}>Cancel</button><button disabled={isRecordingPayment} onClick={handleRecordPayment} className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white disabled:opacity-50">{isRecordingPayment ? 'Recording…' : 'Confirm Payment'}</button></div>
           </div>
         </div>
       )}

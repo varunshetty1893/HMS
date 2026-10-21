@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
@@ -5,7 +7,7 @@ import '../../models/table_session_detail.dart';
 import '../auth/auth_controller.dart';
 import '../../core/network/api_exceptions.dart';
 
-final tableDetailControllerProvider = StateNotifierProvider.family<
+final tableDetailControllerProvider = StateNotifierProvider.autoDispose.family<
     TableDetailController, TableDetailState, String>((ref, tableId) {
   final apiClient = ref.watch(apiClientProvider);
   final wsClient = ref.watch(wsClientProvider);
@@ -40,6 +42,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
   final ApiClient _apiClient;
   final WsClient _wsClient;
   final String tableId;
+  StreamSubscription<Map<String, dynamic>>? _wsSubscription;
 
   TableDetailController(this._apiClient, this._wsClient, this.tableId)
       : super(const TableDetailState()) {
@@ -48,7 +51,8 @@ class TableDetailController extends StateNotifier<TableDetailState> {
   }
 
   void _initWsListener() {
-    _wsClient.messages.listen((msg) {
+    _wsSubscription = _wsClient.messages.listen((msg) {
+      if (!mounted) return;
       final type = (msg['event'] ?? msg['type'])?.toString();
       if (type != null &&
           (type.startsWith('order.') ||
@@ -60,17 +64,26 @@ class TableDetailController extends StateNotifier<TableDetailState> {
     });
   }
 
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> loadSessionDetail({bool silent = false}) async {
+    if (!mounted) return;
     if (!silent) {
       state = state.copyWith(isLoading: true, error: null);
     }
     try {
       final res =
           await _apiClient.get('/api/v1/waiter/tables/$tableId/session');
+      if (!mounted) return;
       final detail = TableSessionDetail.fromJson(res as Map<String, dynamic>);
       state =
           state.copyWith(sessionDetail: detail, isLoading: false, error: null);
     } catch (e) {
+      if (!mounted) return;
       if (!silent) {
         state = state.copyWith(isLoading: false, error: describeError(e));
       }
@@ -92,9 +105,11 @@ class TableDetailController extends StateNotifier<TableDetailState> {
         '/api/v1/waiter/orders/$orderId/serve',
         data: {'expected_version': _versionOf(orderId)},
       );
+      if (!mounted) return false;
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: describeError(e));
       return false;
     }
@@ -110,9 +125,11 @@ class TableDetailController extends StateNotifier<TableDetailState> {
           'force': true,
         },
       );
+      if (!mounted) return false;
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: describeError(e));
       return false;
     }
@@ -134,9 +151,11 @@ class TableDetailController extends StateNotifier<TableDetailState> {
           'reason': reason,
         },
       );
+      if (!mounted) return false;
       await loadSessionDetail(silent: true);
       return true;
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: describeError(e));
       return false;
     }

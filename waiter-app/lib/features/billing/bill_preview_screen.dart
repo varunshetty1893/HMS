@@ -845,7 +845,7 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
               Icons.info_outline,
               const Color(0xFFB45309),
               Colors.amber,
-              'Some orders not yet SERVED. Bill can still be generated.'),
+              'Some orders are not yet SERVED. Serve every order before generating the bill.'),
 
         // ── Main scrollable content ────────────────────────────────────
         Expanded(

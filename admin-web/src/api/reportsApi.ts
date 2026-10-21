@@ -7,6 +7,7 @@ import {
   OrderReportItem,
   OrderStatusReportItem,
   PaymentMethodReportItem,
+  PaymentTransactionReportItem,
   PopularDishReportItem,
   RevenueTimeSeriesItem,
   TableUsageReportItem,
@@ -24,6 +25,13 @@ export const reportsApi = {
     if (from) params.append('from', from);
     if (to) params.append('to', to);
     return apiClient<DailySalesSummary[]>(`/admin/reports/daily-sales?${params.toString()}`);
+  },
+
+  getPaymentTransactions: async (from?: string, to?: string): Promise<PaymentTransactionReportItem[]> => {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    return apiClient<PaymentTransactionReportItem[]>(`/admin/reports/payment-transactions?${params.toString()}`);
   },
 
   getOrdersReport: async (

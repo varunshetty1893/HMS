@@ -18,10 +18,29 @@ class DailySalesSummary(BaseModel):
     cgst_amount: Decimal
     sgst_amount: Decimal
     net_collected_revenue: Decimal
+    # Physical cash movement.  These are intentionally separate from revenue.
+    cash_tendered: Decimal
+    cash_change_returned: Decimal
     total_bills: int
     total_orders: int
     completed_sessions: int
     average_bill_value: Decimal
+
+
+class PaymentTransactionReportItem(BaseModel):
+    """A settled payment shown after selecting a daily sales-report row."""
+
+    payment_id: uuid.UUID
+    bill_id: uuid.UUID
+    bill_number: str
+    table_number: int | None = None
+    table_display_name: str | None = None
+    payment_method: str
+    amount_applied: Decimal
+    amount_tendered: Decimal | None = None
+    change_returned: Decimal
+    completed_at: datetime | None = None
+    reference_number: str | None = None
 
 
 class OrderReportItem(BaseModel):

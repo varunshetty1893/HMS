@@ -388,10 +388,28 @@ export interface DailySalesSummary {
   cgst_amount: string;
   sgst_amount: string;
   net_collected_revenue: string;
+  /** Physical CASH received from guests; never counted as revenue. */
+  cash_tendered: string;
+  /** Cash handed back to guests; never deducted from revenue twice. */
+  cash_change_returned: string;
   total_bills: number;
   total_orders: number;
   completed_sessions: number;
   average_bill_value: string;
+}
+
+export interface PaymentTransactionReportItem {
+  payment_id: string;
+  bill_id: string;
+  bill_number: string;
+  table_number: number | null;
+  table_display_name: string | null;
+  payment_method: PaymentMethod;
+  amount_applied: string;
+  amount_tendered: string | null;
+  change_returned: string;
+  completed_at: string | null;
+  reference_number: string | null;
 }
 
 export interface OrderReportItem {

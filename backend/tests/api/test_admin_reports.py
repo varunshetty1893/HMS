@@ -28,6 +28,7 @@ from app.schemas.reports import (
     AdminDashboardKPIs,
     DailySalesSummary,
     PaymentMethodReportItem,
+    PaymentTransactionReportItem,
     PopularDishReportItem,
 )
 from app.services.report_service import ReportService
@@ -102,6 +103,8 @@ async def test_admin_reports_daily_sales_success(admin_user: User) -> None:
             cgst_amount=Decimal("237.50"),
             sgst_amount=Decimal("237.50"),
             net_collected_revenue=Decimal("9975.00"),
+            cash_tendered=Decimal("6000.00"),
+            cash_change_returned=Decimal("125.00"),
             total_bills=15,
             total_orders=22,
             completed_sessions=14,
@@ -120,7 +123,41 @@ async def test_admin_reports_daily_sales_success(admin_user: User) -> None:
             assert len(data) == 1
             assert data[0]["gross_subtotal"] == "10000.00"
             assert data[0]["net_collected_revenue"] == "9975.00"
+            assert data[0]["cash_tendered"] == "6000.00"
+            assert data[0]["cash_change_returned"] == "125.00"
             assert data[0]["total_bills"] == 15
+
+
+@pytest.mark.asyncio
+async def test_admin_reports_payment_transaction_drilldown(admin_user: User) -> None:
+    """A daily report row can retrieve applied, tendered, and returned cash separately."""
+    app = create_app()
+    app.dependency_overrides[get_current_staff_user] = lambda: admin_user
+    transaction = PaymentTransactionReportItem(
+        payment_id=uuid.uuid4(),
+        bill_id=uuid.uuid4(),
+        bill_number="INV-20261021-0002",
+        table_number=1,
+        table_display_name="Table 1",
+        payment_method="CASH",
+        amount_applied=Decimal("357.00"),
+        amount_tendered=Decimal("400.00"),
+        change_returned=Decimal("43.00"),
+        completed_at=None,
+    )
+    with patch.object(
+        ReportService, "get_payment_transactions", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = [transaction]
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/admin/reports/payment-transactions?from=2026-10-21&to=2026-10-21"
+            )
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["amount_applied"] == "357.00"
+    assert data[0]["amount_tendered"] == "400.00"
+    assert data[0]["change_returned"] == "43.00"
 
 
 @pytest.mark.asyncio

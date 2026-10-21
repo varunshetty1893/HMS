@@ -563,6 +563,27 @@ export const BillingAndPaymentsPage: React.FC = () => {
               </div>
             </div>
 
+            {selectedBill.payments && selectedBill.payments.length > 0 && (
+              <div className="mt-4 rounded-2xl border overflow-hidden" style={{ borderColor: border }}>
+                <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: sub }}>
+                  Settlement record
+                </div>
+                {selectedBill.payments.map((payment) => (
+                  <div key={payment.id} className="px-4 py-3 border-t space-y-2" style={{ borderColor: border }}>
+                    <div className="flex justify-between text-xs" style={{ color: sub }}>
+                      <span>{payment.payment_method} payment</span>
+                      <span>{payment.completed_at ? formatDateTimeIst(payment.completed_at) : 'Recorded'}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div><span style={{ color: muted }}>Applied to bill</span><div className="font-mono font-bold" style={{ color: heading }}>{formatInr(payment.amount_paid)}</div></div>
+                      {payment.payment_method === 'CASH' && <div><span style={{ color: muted }}>Cash received</span><div className="font-mono font-bold" style={{ color: heading }}>{formatInr(payment.amount_tendered ?? payment.amount_paid)}</div></div>}
+                      {payment.payment_method === 'CASH' && <div><span style={{ color: muted }}>Change returned</span><div className="font-mono font-bold text-amber-600">{formatInr(payment.change_returned ?? 0)}</div></div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div className="mt-6 pt-4 border-t flex items-center justify-end gap-3" style={{ borderTopColor: border }}>
               {selectedBill.status === 'ISSUED' && (

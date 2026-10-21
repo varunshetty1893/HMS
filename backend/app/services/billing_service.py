@@ -57,6 +57,7 @@ from app.schemas.billing import (
     BillDiscountRequest,
     BillGenerateRequest,
     BillItemResponse,
+    BillPaymentResponse,
     BillResponse,
     BillVoidRequest,
     PaymentCreateRequest,
@@ -1248,7 +1249,11 @@ class BillingService:
     @classmethod
     async def get_bill_by_id(cls, db: AsyncSession, bill_id: uuid.UUID) -> BillResponse:
         """Retrieve a bill by ID with line items."""
-        stmt = select(Bill).options(selectinload(Bill.items)).where(Bill.id == bill_id)
+        stmt = (
+            select(Bill)
+            .options(selectinload(Bill.items), selectinload(Bill.payments))
+            .where(Bill.id == bill_id)
+        )
         bill = (await db.execute(stmt)).scalar_one_or_none()
         if not bill:
             raise ResourceNotFoundError(code="BILL_NOT_FOUND", message="Bill not found.")
@@ -1314,6 +1319,20 @@ class BillingService:
             )
             for item in (bill.items or [])
         ]
+        payments = [
+            BillPaymentResponse(
+                id=payment.id,
+                bill_id=payment.bill_id,
+                payment_method=payment.payment_method,
+                amount_paid=payment.amount_paid,
+                amount_tendered=payment.amount_tendered,
+                change_returned=payment.change_returned,
+                status=payment.status,
+                reference_number=payment.reference_number,
+                completed_at=payment.completed_at,
+            )
+            for payment in (bill.payments or [])
+        ]
 
         return BillResponse(
             id=bill.id,
@@ -1343,4 +1362,5 @@ class BillingService:
             voided_at=bill.voided_at,
             void_reason=bill.void_reason,
             line_items=line_items,
+            payments=payments,
         )

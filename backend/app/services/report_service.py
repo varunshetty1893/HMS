@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import and_, case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,6 +32,7 @@ from app.schemas.reports import (
     OrderReportItem,
     OrderStatusReportItem,
     PaymentMethodReportItem,
+    PaymentTransactionReportItem,
     PopularDishReportItem,
     RevenueTimeSeriesItem,
     TableUsageReportItem,
@@ -133,6 +134,27 @@ class ReportService:
 
         # Group bills by date (using cast to date)
         day_col = func.date(Bill.generated_at).label("sales_date")
+        cash_tendered = func.coalesce(
+            func.sum(
+                case(
+                    (
+                        Payment.payment_method == "CASH",
+                        func.coalesce(Payment.amount_tendered, Payment.amount_paid),
+                    ),
+                    else_=Decimal("0.00"),
+                )
+            ),
+            Decimal("0.00"),
+        )
+        cash_change = func.coalesce(
+            func.sum(
+                case(
+                    (Payment.payment_method == "CASH", Payment.change_returned),
+                    else_=Decimal("0.00"),
+                )
+            ),
+            Decimal("0.00"),
+        )
         stmt = (
             select(
                 day_col,
@@ -142,6 +164,16 @@ class ReportService:
                 func.coalesce(func.sum(Bill.sgst_amount), Decimal("0.00")),
                 func.coalesce(func.sum(Bill.grand_total), Decimal("0.00")),
                 func.count(Bill.id),
+                cash_tendered,
+                cash_change,
+            )
+            .select_from(Bill)
+            .outerjoin(
+                Payment,
+                and_(
+                    Payment.bill_id == Bill.id,
+                    Payment.status == PaymentStatus.COMPLETED.value,
+                ),
             )
             .where(
                 Bill.status == BillStatus.PAID.value,
@@ -162,6 +194,8 @@ class ReportService:
             sgst = _two_dp(r[4])
             grand = _two_dp(r[5])
             total_bills = r[6]
+            tendered = _two_dp(r[7])
+            change_returned = _two_dp(r[8])
 
             # Count completed orders on this day (IST timezone boundary)
             d_start, d_end = ist_day_to_utc_range(d, d)
@@ -196,6 +230,8 @@ class ReportService:
                     cgst_amount=cgst,
                     sgst_amount=sgst,
                     net_collected_revenue=grand,
+                    cash_tendered=tendered,
+                    cash_change_returned=change_returned,
                     total_bills=total_bills,
                     total_orders=ord_count,
                     completed_sessions=sess_count,
@@ -203,6 +239,48 @@ class ReportService:
                 )
             )
         return results
+
+    @classmethod
+    async def get_payment_transactions(
+        cls, db: AsyncSession, from_date: date | None = None, to_date: date | None = None
+    ) -> list[PaymentTransactionReportItem]:
+        """Settled payment detail for a selected daily report row.
+
+        The date window intentionally matches daily-sales (bill generation date),
+        so every row total reconciles to the transaction drill-down.
+        """
+        start_utc, end_utc = _to_utc_range(from_date, to_date)
+        stmt = (
+            select(Payment, Bill, RestaurantTable)
+            .join(Bill, Payment.bill_id == Bill.id)
+            .outerjoin(RestaurantTable, RestaurantTable.id == Bill.table_id)
+            .where(
+                Payment.status == PaymentStatus.COMPLETED.value,
+                Bill.status == BillStatus.PAID.value,
+                Bill.generated_at >= start_utc,
+                Bill.generated_at <= end_utc,
+            )
+            .order_by(Payment.completed_at.desc())
+        )
+        rows = (await db.execute(stmt)).all()
+        return [
+            PaymentTransactionReportItem(
+                payment_id=payment.id,
+                bill_id=bill.id,
+                bill_number=bill.bill_number,
+                table_number=table.table_number if table else None,
+                table_display_name=table.display_name if table else None,
+                payment_method=payment.payment_method,
+                amount_applied=_two_dp(payment.amount_paid),
+                amount_tendered=_two_dp(payment.amount_tendered)
+                if payment.amount_tendered is not None
+                else None,
+                change_returned=_two_dp(payment.change_returned),
+                completed_at=payment.completed_at,
+                reference_number=payment.reference_number,
+            )
+            for payment, bill, table in rows
+        ]
 
     @classmethod
     async def get_orders_report(

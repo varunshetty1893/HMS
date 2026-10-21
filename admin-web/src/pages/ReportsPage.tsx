@@ -19,6 +19,7 @@ import {
   DailySalesSummary,
   KitchenActivityReportItem,
   PaymentMethodReportItem,
+  PaymentTransactionReportItem,
   PopularDishReportItem,
   TableUsageReportItem,
   WaiterActivityReportItem,
@@ -142,6 +143,9 @@ export const ReportsPage: React.FC = () => {
   const [cancellations, setCancellations] = useState<CancelledRejectedReportItem[]>([]);
   const [waiters, setWaiters] = useState<WaiterActivityReportItem[]>([]);
   const [kitchens, setKitchens] = useState<KitchenActivityReportItem[]>([]);
+  const [selectedSalesDay, setSelectedSalesDay] = useState<DailySalesSummary | null>(null);
+  const [dayTransactions, setDayTransactions] = useState<PaymentTransactionReportItem[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
   // Pagination — one per tab that has a table
   const salesPag = usePagination(dailySales, 15);
@@ -195,6 +199,19 @@ export const ReportsPage: React.FC = () => {
       document.body.removeChild(link);
     } catch (err: any) {
       alert(err?.message || 'Failed to download CSV');
+    }
+  };
+
+  const openSalesDay = async (day: DailySalesSummary) => {
+    setSelectedSalesDay(day);
+    setDayTransactions([]);
+    setIsLoadingTransactions(true);
+    try {
+      setDayTransactions(await reportsApi.getPaymentTransactions(day.date, day.date));
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load settlement transactions.');
+    } finally {
+      setIsLoadingTransactions(false);
     }
   };
 
@@ -300,6 +317,8 @@ export const ReportsPage: React.FC = () => {
                     <th className="px-6 py-4 font-semibold text-right">CGST</th>
                     <th className="px-6 py-4 font-semibold text-right">SGST</th>
                     <th className="px-6 py-4 font-semibold text-right">Net Revenue</th>
+                    <th className="px-6 py-4 font-semibold text-right">Cash Received</th>
+                    <th className="px-6 py-4 font-semibold text-right">Change Returned</th>
                     <th className="px-6 py-4 font-semibold text-right">Bills Settled</th>
                     <th className="px-6 py-4 font-semibold text-right">Avg Bill Value</th>
                   </tr>
@@ -307,7 +326,7 @@ export const ReportsPage: React.FC = () => {
                 <tbody className="divide-y font-mono" style={{ borderColor: border }}>
                   {salesPag.slice.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center font-sans" style={{ color: muted }}>
+                      <td colSpan={10} className="p-8 text-center font-sans" style={{ color: muted }}>
                         No settled sales in this period.
                       </td>
                     </tr>
@@ -315,7 +334,8 @@ export const ReportsPage: React.FC = () => {
                     salesPag.slice.map((d, i) => (
                       <tr
                         key={i}
-                        className="transition"
+                        onClick={() => openSalesDay(d)}
+                        className="transition cursor-pointer"
                         style={{ ...tbodyRow, borderBottomColor: border }}
                         onMouseEnter={(e) => {
                           if (tbodyRowHover.backgroundColor) e.currentTarget.style.backgroundColor = tbodyRowHover.backgroundColor as string;
@@ -332,6 +352,8 @@ export const ReportsPage: React.FC = () => {
                         <td className="px-6 py-4 text-right font-bold text-emerald-600">
                           {formatInr(d.net_collected_revenue)}
                         </td>
+                        <td className="px-6 py-4 text-right font-bold" style={{ color: heading }}>{formatInr(d.cash_tendered)}</td>
+                        <td className="px-6 py-4 text-right text-amber-600">{formatInr(d.cash_change_returned)}</td>
                         <td className="px-6 py-4 text-right" style={{ color: heading }}>{d.total_bills}</td>
                         <td className="px-6 py-4 text-right text-brand-600 font-bold">{formatInr(d.average_bill_value)}</td>
                       </tr>
@@ -552,6 +574,19 @@ export const ReportsPage: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {selectedSalesDay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-5xl max-h-[85vh] overflow-auto rounded-3xl p-6 shadow-2xl" style={card}>
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div><h2 className="text-lg font-black" style={{ color: heading }}>Settled transactions — {formatDateIst(selectedSalesDay.date)}</h2><p className="text-xs mt-1" style={{ color: muted }}>Revenue is the bill amount applied. Cash received and change are shown separately.</p></div>
+              <button onClick={() => setSelectedSalesDay(null)} className="px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer" style={{ borderColor: border, color: heading }}>Close</button>
+            </div>
+            {isLoadingTransactions ? <div className="p-10 text-center text-sm" style={{ color: muted }}>Loading transactions…</div> : (
+              <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: border }}><table className="w-full text-left text-xs"><thead style={thead}><tr><th className="px-4 py-3">Bill</th><th className="px-4 py-3">Table</th><th className="px-4 py-3">Method</th><th className="px-4 py-3 text-right">Applied / Revenue</th><th className="px-4 py-3 text-right">Cash Received</th><th className="px-4 py-3 text-right">Change Returned</th><th className="px-4 py-3">Time</th></tr></thead><tbody>{dayTransactions.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: muted }}>No settled transactions for this date.</td></tr> : dayTransactions.map((transaction) => <tr key={transaction.payment_id} className="border-t" style={{ borderColor: border }}><td className="px-4 py-3 font-mono font-bold" style={{ color: heading }}>{transaction.bill_number}</td><td className="px-4 py-3" style={{ color: sub }}>{transaction.table_display_name || (transaction.table_number ? `Table ${transaction.table_number}` : '—')}</td><td className="px-4 py-3">{transaction.payment_method}</td><td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">{formatInr(transaction.amount_applied)}</td><td className="px-4 py-3 text-right font-mono">{transaction.payment_method === 'CASH' ? formatInr(transaction.amount_tendered ?? transaction.amount_applied) : '—'}</td><td className="px-4 py-3 text-right font-mono text-amber-600">{transaction.payment_method === 'CASH' ? formatInr(transaction.change_returned) : '—'}</td><td className="px-4 py-3" style={{ color: muted }}>{transaction.completed_at ? formatDateTimeIst(transaction.completed_at) : '—'}</td></tr>)}</tbody></table></div>
+            )}
+          </div>
         </div>
       )}
     </div>

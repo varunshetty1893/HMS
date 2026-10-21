@@ -63,6 +63,7 @@ from app.schemas.reports import (
     OrderReportItem,
     OrderStatusReportItem,
     PaymentMethodReportItem,
+    PaymentTransactionReportItem,
     PopularDishReportItem,
     RevenueTimeSeriesItem,
     TableUsageReportItem,
@@ -953,6 +954,17 @@ async def get_daily_sales_report(
 ) -> list[DailySalesSummary]:
     """Gross subtotal, discounts, CGST, SGST, net revenue, and average bill value."""
     return await ReportService.get_daily_sales(db, from_date=from_date, to_date=to_date)
+
+
+@router.get("/reports/payment-transactions", response_model=list[PaymentTransactionReportItem])
+async def get_payment_transactions_report(
+    _admin: AdminUser,
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    db: AsyncSession = Depends(get_db),
+) -> list[PaymentTransactionReportItem]:
+    """Settlement drill-down for a selected sales-report day or range."""
+    return await ReportService.get_payment_transactions(db, from_date=from_date, to_date=to_date)
 
 
 @router.get("/reports/orders", response_model=list[OrderReportItem])

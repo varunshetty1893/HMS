@@ -48,6 +48,20 @@ class BillItemResponse(ResponseModel):
     adjustment_reason: str | None = None
 
 
+class BillPaymentResponse(ResponseModel):
+    """Settlement data shown with a bill; tendered cash is never revenue."""
+
+    id: uuid.UUID
+    bill_id: uuid.UUID
+    payment_method: str
+    amount_paid: Decimal
+    amount_tendered: Decimal | None = None
+    change_returned: Decimal
+    status: str
+    reference_number: str | None = None
+    completed_at: datetime | None = None
+
+
 class BillResponse(ResponseModel):
     """Consolidated Bill representation with full tax and audit detail."""
 
@@ -78,6 +92,7 @@ class BillResponse(ResponseModel):
     voided_at: datetime | None = None
     void_reason: str | None = None
     line_items: list[BillItemResponse] = Field(default_factory=list)
+    payments: list[BillPaymentResponse] = Field(default_factory=list)
 
 
 class TableBillResponse(ResponseModel):

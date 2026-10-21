@@ -16,8 +16,6 @@ class OrderModificationBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (modifications.isEmpty) return const SizedBox.shrink();
-
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -47,9 +45,16 @@ class OrderModificationBadge extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          _section('Removed', modifications.where((m) => m.newQuantity == 0 || m.modificationType == 'ITEM_CANCELLED').toList(), Colors.red.shade300),
-          _section('Added', modifications.where((m) => m.previousQuantity == 0 || m.modificationType == 'ITEM_ADDED').toList(), Colors.green.shade300),
-          _section('Quantity or portion changes', modifications.where((m) => m.newQuantity > 0 && m.previousQuantity > 0 && m.modificationType != 'ITEM_ADDED').toList(), Colors.amber.shade200),
+          if (modifications.isEmpty)
+            const Text(
+              'Update details are being reconciled. Acknowledge to refresh this order safely.',
+              style: TextStyle(color: KdsTheme.textSecondary, fontSize: 12),
+            )
+          else ...[
+            _section('Removed', modifications.where((m) => m.newQuantity == 0 || m.modificationType == 'ITEM_CANCELLED').toList(), Colors.red.shade300),
+            _section('Added', modifications.where((m) => m.previousQuantity == 0 || m.modificationType == 'ITEM_ADDED').toList(), Colors.green.shade300),
+            _section('Quantity or portion changes', modifications.where((m) => m.newQuantity > 0 && m.previousQuantity > 0 && m.modificationType != 'ITEM_ADDED').toList(), Colors.amber.shade200),
+          ],
           const SizedBox(height: 6),
           const Text('Ready is disabled until these changes are acknowledged.', style: TextStyle(color: KdsTheme.textSecondary, fontSize: 11)),
           const SizedBox(height: 6),

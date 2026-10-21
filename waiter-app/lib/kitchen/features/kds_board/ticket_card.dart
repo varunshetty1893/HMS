@@ -113,7 +113,11 @@ class TicketCard extends StatelessWidget {
             const SizedBox(height: 10),
 
             // Modification Alert Banner (if any)
-            if (order.hasUnacknowledgedMods && order.unacknowledgedModifications.isNotEmpty)
+            // A stale flag with an empty event list can occur after a reconnect
+            // or an interrupted acknowledgement response.  Still present a
+            // recovery action; the server acknowledgement endpoint is
+            // idempotent and reconciles the flag from pending events.
+            if (order.hasUnacknowledgedMods)
               OrderModificationBadge(
                 modifications: order.unacknowledgedModifications,
                 onAcknowledge: onAcknowledgeModifications,

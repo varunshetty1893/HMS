@@ -234,9 +234,15 @@ async def test_mark_ready_order_success() -> None:
     db.scalar = AsyncMock(return_value=order)
 
     user_id = uuid.uuid4()
-    with patch(
-        "app.services.order_service.ws_manager.broadcast_to_room", new_callable=AsyncMock
-    ) as mock_ws:
+    with (
+        patch(
+            "app.services.order_service.ws_manager.broadcast_to_room", new_callable=AsyncMock
+        ) as mock_ws,
+        patch(
+            "app.services.order_service.NotificationService.persist_broadcast",
+            new_callable=AsyncMock,
+        ) as mock_notification,
+    ):
         ticket = await OrderService.mark_order_ready(
             db, order_id=order.id, user_id=user_id, expected_version=3
         )
@@ -246,6 +252,8 @@ async def test_mark_ready_order_success() -> None:
         assert order.ready_by_user_id == user_id
         assert ticket.status == "READY"
         db.commit.assert_awaited_once()
+        db.refresh.assert_not_awaited()
+        mock_notification.assert_awaited_once()
         mock_ws.assert_any_await(
             "channel:waiters",
             {

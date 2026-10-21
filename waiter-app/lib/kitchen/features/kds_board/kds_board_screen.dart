@@ -180,15 +180,15 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildTicketList(placedOrders, 'No new orders'),
+                        child: _buildTicketList(placedOrders, 'No new orders', state.acknowledgingOrderIds),
                       ),
                       const VerticalDivider(width: 1, color: KdsTheme.border),
                       Expanded(
-                        child: _buildTicketList(preparingOrders, 'No orders in prep'),
+                        child: _buildTicketList(preparingOrders, 'No orders in prep', state.acknowledgingOrderIds),
                       ),
                       const VerticalDivider(width: 1, color: KdsTheme.border),
                       Expanded(
-                        child: _buildTicketList(readyOrders, 'No orders ready'),
+                        child: _buildTicketList(readyOrders, 'No orders ready', state.acknowledgingOrderIds),
                       ),
                     ],
                   );
@@ -198,9 +198,9 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
                 return TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildTicketList(placedOrders, 'No new orders'),
-                    _buildTicketList(preparingOrders, 'No orders in prep'),
-                    _buildTicketList(readyOrders, 'No orders ready'),
+                    _buildTicketList(placedOrders, 'No new orders', state.acknowledgingOrderIds),
+                    _buildTicketList(preparingOrders, 'No orders in prep', state.acknowledgingOrderIds),
+                    _buildTicketList(readyOrders, 'No orders ready', state.acknowledgingOrderIds),
                   ],
                 );
               },
@@ -245,7 +245,11 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
     );
   }
 
-  Widget _buildTicketList(List<KitchenOrderModel> list, String emptyMessage) {
+  Widget _buildTicketList(
+    List<KitchenOrderModel> list,
+    String emptyMessage,
+    Set<String> acknowledgingOrderIds,
+  ) {
     if (list.isEmpty) {
       return Center(
         child: Text(
@@ -269,7 +273,7 @@ class _KdsBoardScreenState extends ConsumerState<KdsBoardScreen>
           onStartPreparing: () => controller.startPreparingOrder(order),
           onMarkReady: () => controller.markOrderReady(order),
           onAcknowledgeModifications: () => controller.acknowledgeModifications(order),
-          isAcknowledgingModifications: state.acknowledgingOrderIds.contains(order.id),
+          isAcknowledgingModifications: acknowledgingOrderIds.contains(order.id),
         );
       },
     );

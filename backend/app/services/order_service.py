@@ -80,6 +80,7 @@ from app.schemas.order import (
     WaiterTableSessionDetail,
 )
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 from app.services.table_hopping_guard import (
     find_open_session_on_other_table,
     other_table_message,
@@ -1419,7 +1420,6 @@ class OrderService:
         )
         db.add(history)
         await db.commit()
-        await db.refresh(order)
 
         # Broadcast order.accepted
         payload = {
@@ -1721,8 +1721,26 @@ class OrderService:
             changed_at=now,
         )
         db.add(history)
+        # Durable waiter alert: a reconnect must not lose a ready-for-pickup
+        # notification merely because its WebSocket was offline.
+        await NotificationService.persist_broadcast(
+            db,
+            room="channel:waiters",
+            message={
+                "event_type": "ORDER_READY",
+                "severity": "INFO",
+                "title": "Order ready for pickup",
+                "message": (
+                    f"{order.table.display_name if order.table else 'Table'} · {order.order_number}"
+                ),
+                "order_id": str(order.id),
+                "table_id": str(order.table_id),
+            },
+            table_id=order.table_id,
+            table_session_id=order.table_session_id,
+            order_id=order.id,
+        )
         await db.commit()
-        await db.refresh(order)
 
         items_summary = [
             {

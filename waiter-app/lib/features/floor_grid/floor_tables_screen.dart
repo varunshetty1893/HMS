@@ -6,6 +6,7 @@ import '../auth/auth_controller.dart';
 import '../order_confirmation/order_confirmation_controller.dart';
 import '../order_confirmation/order_confirmation_screen.dart';
 import '../pickup_queue/pickup_queue_screen.dart';
+import '../notifications/waiter_notifications_controller.dart';
 import '../table_detail/table_detail_screen.dart';
 import 'floor_grid_controller.dart';
 import 'table_card.dart';
@@ -19,6 +20,8 @@ class FloorTablesScreen extends ConsumerWidget {
     final controller = ref.read(floorGridControllerProvider.notifier);
     final authState = ref.watch(authControllerProvider);
     final confirmations = ref.watch(orderConfirmationControllerProvider);
+    final notifications = ref.watch(waiterNotificationsControllerProvider);
+    final notificationController = ref.read(waiterNotificationsControllerProvider.notifier);
 
     // New QR order request: alert the waiter even when this screen is in front.
     ref.listen<OrderConfirmationState>(orderConfirmationControllerProvider,
@@ -73,6 +76,36 @@ class FloorTablesScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Waiter notifications',
+                onPressed: () async {
+                  if (notifications.count == 0) return;
+                  await notificationController.acknowledgeAll();
+                  if (context.mounted) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const PickupQueueScreen(),
+                    ));
+                  }
+                },
+              ),
+              if (notifications.count > 0)
+                Positioned(
+                  top: 7,
+                  right: 7,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: const BoxDecoration(color: AppTheme.errorColor, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(notifications.badgeText, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh Floor',

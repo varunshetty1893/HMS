@@ -78,6 +78,35 @@ legacy code only: it was not changed, built, or included in the release.
 
 ## Notes
 
+## Follow-up: kitchen acknowledgement and waiter alerts
+
+**Source review and regression run:** 21 October 2026.
+
+- **Confirmed kitchen acknowledgement defect:** the acknowledgement service
+  committed and then refreshed an async SQLAlchemy `Order` before serialising
+  its preloaded relationships. That could force an illegal async lazy load and
+  surface as the generic server error seen by the waiter. The refresh was
+  removed; the ticket is built from the locked, preloaded order. Only events
+  that require a kitchen acknowledgement are now acknowledged.
+- **Kitchen mobile display:** the KDS card separates removed, added, and
+  quantity/portion changes; cancelled lines are excluded from the current
+  active-item summary. The ready lock now explains why acknowledgement is
+  necessary and suppresses duplicate taps while the request is in flight.
+- **Waiter notification badge:** an `ORDER_READY` notification is now saved in
+  the same transaction as the READY transition. The Waiter portal retrieves
+  unread `WAITERS_ALL` notifications on initial load/reconnect and when a
+  relevant WebSocket event arrives; it caps its visible badge at `99+` and
+  acknowledges records before opening the pickup queue. The counter is based
+  on durable server records, not local WebSocket event counts.
+- **Checks run:** `pytest tests/api/test_kitchen_workflow.py -q` (12 passed),
+  `ruff check app/services/order_service.py tests/api/test_kitchen_workflow.py`
+  (passed), and targeted Flutter analysis for the modified KDS and waiter
+  notification files (completed without reported errors).
+- **Still environment-blocked:** `TEST_DATABASE_URL` is not set, so destructive
+  PostgreSQL migration/integration verification was not run. It must target an
+  empty local database whose name ends in `_test`; production/Neon must never
+  be used. A live staged customer-to-payment workflow also remains required.
+
 - `flutter analyze` reported 89 non-fatal style/deprecation advisories in the
   staff app but no compile errors. They do not prevent the tested release APK
   from being produced; modernizing them can be planned separately.

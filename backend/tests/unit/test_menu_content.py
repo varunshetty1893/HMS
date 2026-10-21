@@ -1,4 +1,4 @@
-"""Menu content integrity: every dish has its own description and its own picture.
+"""Menu content integrity: every dish has a specific description and no cartoon fallback.
 
 Guards against the bug where Coca-Cola showed a Sprite photo and every dish said
 "Freshly prepared <name>." (the seed's image map used item codes that did not exist).
@@ -6,7 +6,6 @@ Guards against the bug where Coca-Cola showed a Sprite photo and every dish said
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import re
 from pathlib import Path
@@ -81,20 +80,6 @@ def test_dish_name_appears_in_its_own_description_when_it_is_a_brand_or_drink() 
         assert name.lower() in DESCRIPTIONS[code].lower()
 
 
-def test_every_item_has_its_own_illustration() -> None:
-    files = {p.stem for p in DISHES_DIR.glob("*.svg")}
-    assert files == CODES, f"missing={sorted(CODES - files)} extra={sorted(files - CODES)}"
-
-
-def test_no_two_items_share_the_same_illustration() -> None:
-    seen: dict[str, str] = {}
-    for path in sorted(DISHES_DIR.glob("*.svg")):
-        digest = hashlib.sha1(path.read_bytes()).hexdigest()
-        assert digest not in seen, f"{path.stem} is identical to {seen[digest]}"
-        seen[digest] = path.stem
-
-
-def test_illustration_title_matches_the_item_name() -> None:
-    for code, name, _ in ITEMS:
-        svg = (DISHES_DIR / f"{code}.svg").read_text(encoding="utf-8")
-        assert f"<title>{name}</title>" in svg, f"{code}: artwork is not labelled '{name}'"
+def test_retired_cartoon_fallback_assets_are_absent() -> None:
+    """Menu images must come from each item's stored real-photo URL, never SVG art."""
+    assert not DISHES_DIR.exists()

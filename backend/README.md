@@ -183,6 +183,8 @@ python scripts/seed_dev.py
 
 The script is safe to re-run at any time without duplicating records.
 
+> **Dev only.** It creates well-known logins (`admin / AdminPass123!`, ...). It refuses to run (exit code 1, before touching the database) unless `ENVIRONMENT` is `development` or `test`. `production`, `staging` and typos like `prod` are blocked and there is no override flag. For a real deployment use `scripts/init_production.py`.
+
 ## Cleaning up legacy menu items
 
 `scripts/retire_legacy_menu.py` removes every dish that is not part of the Spice Hub catalog

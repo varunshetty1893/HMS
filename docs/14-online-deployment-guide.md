@@ -97,6 +97,8 @@ DATABASE_URL="postgresql+asyncpg://..." ADMIN_USERNAME="admin" ADMIN_PASSWORD="Y
 ```
 This initializes the `restaurant_settings` singleton (id=1) with GST rates and ₹5,000 table safety limits and creates the initial administrator without installing demo/synthetic data.
 
+> **Never run `seed_dev.py` against this deployment.** It creates `admin / AdminPass123!` and other well-known staff logins. The script refuses (exit code 1, before any DB connection) unless `ENVIRONMENT` is `development` or `test`, so `production` **and `staging`** are blocked, as is any typo such as `prod`. There is no override: the old `FORCE_DEV_SEED_IN_PRODUCTION` switch was removed. Note `docker-compose.yml` defaults to `ENVIRONMENT=production`, so seeding inside that stack needs an explicit local `ENVIRONMENT=development`. The guard checks only the `ENVIRONMENT` value, not which database `DATABASE_URL` points at: keep your local `.env` away from the Neon production URL.
+
 ### Step 4: Deploy Frontends on Cloudflare Pages (or Vercel)
 #### Customer Web (`https://spicehub.pages.dev`)
 1. Create a project in Cloudflare Pages (connect to your GitHub repo).

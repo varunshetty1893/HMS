@@ -8,6 +8,12 @@ Populates:
 
 Usage:
     python backend/scripts/seed_dev.py
+
+SAFETY: this script creates well-known credentials (admin / AdminPass123!, ...). It runs ONLY
+when ENVIRONMENT is `development` or `test`; `production`, `staging` and any other value are
+refused with exit code 1 BEFORE any database connection is opened. There is deliberately no
+environment variable or CLI flag to bypass this (see app/core/seed_guard.py). To bootstrap a
+real deployment use backend/scripts/init_production.py.
 """
 
 # ruff: noqa: E402, E501
@@ -16,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import get_settings
 from app.core.security import hash_password
+from app.core.seed_guard import SeedBlockedError, assert_dev_seed_allowed, read_environment
 from app.models.enums import (
     PriceUnit,
     PricingStatus,
@@ -128,6 +134,9 @@ async def seed_settings(session: AsyncSession) -> None:
 
 async def seed_staff_users(session: AsyncSession) -> dict[str, User]:
     """Seed dev staff accounts with Argon2id passwords."""
+    # Defense in depth: the hardcoded credentials below must never reach a non-dev database,
+    # even if this function is imported and called directly instead of via run_seed().
+    assert_dev_seed_allowed(get_settings().environment)
     staff_specs = [
         ("admin", "AdminPass123!", "System Administrator", UserRole.ADMIN),
         ("waiter1", "WaiterPass123!", "Ramesh (Senior Waiter)", UserRole.WAITER),
@@ -401,20 +410,11 @@ async def seed_tables_and_qr(session: AsyncSession) -> None:
 
 async def run_seed() -> None:
     """Execute all seed tasks in a single database transaction."""
+    # Safety guard (fail-closed, no bypass): must run BEFORE anything else, i.e. before full
+    # settings validation (which can fail first in production) and any DB connection.
+    assert_dev_seed_allowed(read_environment())
     settings = get_settings()
-
-    # Safety guard: Prevent accidental seed data contamination in production
-    if (
-        settings.environment == "production"
-        and os.getenv("FORCE_DEV_SEED_IN_PRODUCTION", "").lower() != "true"
-    ):
-        print("=" * 65)
-        print("FATAL ERROR: seed_dev.py cannot be executed in ENVIRONMENT='production'!")
-        print("Development seed data contains synthetic staff accounts, demo tables,")
-        print("and hardcoded passwords that compromise production security.")
-        print("Use backend/scripts/init_production.py to bootstrap a production instance.")
-        print("=" * 65)
-        sys.exit(1)
+    assert_dev_seed_allowed(settings.environment)  # same source, re-checked on validated value
 
     engine = create_async_engine(settings.database_url, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -452,5 +452,17 @@ async def run_seed() -> None:
     print("=================================================================\n")
 
 
+def main() -> int:
+    """CLI entry point. Returns a process exit code (1 when the environment guard blocks)."""
+    try:
+        asyncio.run(run_seed())
+    except SeedBlockedError as exc:
+        print("=" * 65, file=sys.stderr)
+        print(f"FATAL ERROR: {exc}", file=sys.stderr)
+        print("=" * 65, file=sys.stderr)
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    asyncio.run(run_seed())
+    sys.exit(main())

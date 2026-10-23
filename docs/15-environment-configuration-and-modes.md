@@ -88,7 +88,7 @@ To operate securely and reliably in a live restaurant setting while retaining de
   - Prohibits SQLite connection strings in production.
   - Automatically disables Swagger UI (`/docs`, `/redoc`, `/openapi.json`) in production.
 - **Database Initialization & Seeding:**
-  - `backend/scripts/seed_dev.py` contains a strict runtime check: aborts immediately with exit code 1 if `ENVIRONMENT='production'`.
+  - `backend/scripts/seed_dev.py` is fail-closed (`app/core/seed_guard.py`): it runs only when `ENVIRONMENT` is `development` or `test`. `production`, `staging` and any other value abort with exit code 1 before any database connection. No env var or CLI flag can bypass it.
   - `backend/scripts/init_production.py` is the approved production bootstrapping script: initializes the singleton `restaurant_settings` row and creates the primary `ADMIN` staff account with custom credentials.
 
 ---

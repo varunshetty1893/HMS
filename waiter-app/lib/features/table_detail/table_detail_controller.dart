@@ -48,7 +48,14 @@ class TableDetailController extends StateNotifier<TableDetailState> {
       : super(const TableDetailState()) {
     _initWsListener();
     loadSessionDetail();
+    // Fallback: refresh periodically so a payment taken at admin shows up.
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => loadSessionDetail(silent: true),
+    );
   }
+
+  Timer? _pollTimer;
 
   void _initWsListener() {
     _wsSubscription = _wsClient.messages.listen((msg) {
@@ -67,6 +74,7 @@ class TableDetailController extends StateNotifier<TableDetailState> {
   @override
   void dispose() {
     _wsSubscription?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 

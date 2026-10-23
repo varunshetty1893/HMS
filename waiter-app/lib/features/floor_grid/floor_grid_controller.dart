@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/realtime/ws_client.dart';
@@ -76,10 +77,23 @@ class FloorGridController extends StateNotifier<FloorGridState> {
   final ApiClient _apiClient;
   final WsClient _wsClient;
 
+  Timer? _pollTimer;
+
   FloorGridController(this._apiClient, this._wsClient)
       : super(const FloorGridState()) {
     _initWsListener();
     loadTables();
+    // Fallback: keep floor in sync even if a WebSocket event is missed.
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => loadTables(silent: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   void _initWsListener() {
@@ -102,6 +116,7 @@ class FloorGridController extends StateNotifier<FloorGridState> {
     }
     try {
       final res = await _apiClient.get('/api/v1/waiter/tables');
+      if (!mounted) return;
       final list = (res as List)
           .map((item) => TableModel.fromJson(item as Map<String, dynamic>))
           .toList();

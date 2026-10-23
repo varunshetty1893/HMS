@@ -24,6 +24,21 @@ class TableDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(tableDetailControllerProvider(table.id));
+    // Payment collected elsewhere (admin) -> table is free; no waiter action needed.
+    ref.listen<TableDetailState>(tableDetailControllerProvider(table.id),
+        (prev, next) {
+      final wasOccupied = prev?.sessionDetail?.table.isOccupied ?? false;
+      final nowAvailable = next.sessionDetail?.table.isAvailable ?? false;
+      if (wasOccupied && nowAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Table ${table.tableNumber} paid — now available'),
+          ),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
     final controller =
         ref.read(tableDetailControllerProvider(table.id).notifier);
     final detail = state.sessionDetail;

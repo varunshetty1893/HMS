@@ -77,6 +77,13 @@ class WaiterWebSocketClient {
       _reconnectAttempt = 0;
       _startHeartbeat();
 
+      // Events may have been missed while the socket was down; ask every
+      // controller to refetch so tables never stay stale (e.g. paid by admin).
+      _messagesController.add({
+        'event': 'table.resync',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
       _subscription = _channel!.stream.listen(
         (data) {
           _handleMessage(data);

@@ -89,5 +89,11 @@ class TableResponse(StrictRequestModel):
     active_session_id: uuid.UUID | None = None
     active_qr_version: int | None = None
     active_qr_prefix: str | None = None
+    active_orders_count: int = 0
+    ready_orders_count: int = 0
+    bill_status: str | None = Field(
+        default=None,
+        description="Bill state of the active dining session: 'ISSUED' (billed, payment pending) or None",
+    )
     created_at: datetime
     updated_at: datetime

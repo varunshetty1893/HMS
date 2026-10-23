@@ -68,7 +68,7 @@ class TableCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    StatusBadge(status: table.status),
+                    StatusBadge(status: table.isBilled ? 'BILLED' : table.status),
                   ],
                 ),
                 Column(
@@ -115,7 +115,23 @@ class TableCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    if (table.isOccupied)
+                    if (table.isBilled)
+                      Row(
+                        children: const [
+                          Icon(Icons.receipt_long,
+                              size: 14, color: AppTheme.warningColor),
+                          SizedBox(width: 4),
+                          Text(
+                            'Billed · payment pending',
+                            style: TextStyle(
+                              color: AppTheme.warningColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (table.isOccupied)
                       Row(
                         children: [
                           Icon(

@@ -337,6 +337,34 @@ class TableService:
 
         current_occupancy = "OCCUPIED" if (active_session_id or has_active_order) else "AVAILABLE"
 
+        # Live order counters + bill state for the waiter floor grid
+        active_orders_count = 0
+        ready_orders_count = 0
+        bill_status: str | None = None
+        if active_session_id:
+            counts_stmt = (
+                select(Order.status, func.count(Order.id))
+                .where(
+                    Order.table_session_id == active_session_id,
+                    Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
+                )
+                .group_by(Order.status)
+            )
+            for status_value, count in (await db.execute(counts_stmt)).all():
+                active_orders_count += count
+                if status_value == "READY":
+                    ready_orders_count = count
+
+            bill_stmt = (
+                select(Bill.status)
+                .where(
+                    Bill.table_session_id == active_session_id,
+                    Bill.status == "ISSUED",
+                )
+                .limit(1)
+            )
+            bill_status = (await db.execute(bill_stmt)).scalar_one_or_none()
+
         # Latest active QR token info
         qr_stmt = select(TableQrToken).where(
             TableQrToken.table_id == table.id,
@@ -359,6 +387,9 @@ class TableService:
             active_session_id=active_session_id,
             active_qr_version=active_qr.token_version if active_qr else None,
             active_qr_prefix=active_qr.token_prefix if active_qr else None,
+            active_orders_count=active_orders_count,
+            ready_orders_count=ready_orders_count,
+            bill_status=bill_status,
             created_at=getattr(table, "created_at", None) or utc_now(),
             updated_at=getattr(table, "updated_at", None) or utc_now(),
         )

@@ -10,6 +10,7 @@ class TableModel {
   final String? activeSessionId;
   final int? activeOrdersCount;
   final int? readyOrdersCount;
+  final String? billStatus; // 'ISSUED' when billed but payment pending
 
   const TableModel({
     required this.id,
@@ -23,6 +24,7 @@ class TableModel {
     this.activeSessionId,
     this.activeOrdersCount,
     this.readyOrdersCount,
+    this.billStatus,
   });
 
   factory TableModel.fromJson(Map<String, dynamic> json) {
@@ -48,17 +50,20 @@ class TableModel {
           json['current_session_id']?.toString(),
       activeOrdersCount: json['active_orders_count'] as int?,
       readyOrdersCount: json['ready_orders_count'] as int?,
+      billStatus: json['bill_status']?.toString(),
     );
   }
 
   bool get isAvailable => status == 'AVAILABLE';
   bool get isOccupied => status == 'OCCUPIED';
+  bool get isBilled => isOccupied && billStatus == 'ISSUED';
 
   TableModel copyWith({
     String? status,
     String? activeSessionId,
     int? activeOrdersCount,
     int? readyOrdersCount,
+    String? billStatus,
   }) {
     return TableModel(
       id: id,
@@ -72,6 +77,7 @@ class TableModel {
       activeSessionId: activeSessionId ?? this.activeSessionId,
       activeOrdersCount: activeOrdersCount ?? this.activeOrdersCount,
       readyOrdersCount: readyOrdersCount ?? this.readyOrdersCount,
+      billStatus: billStatus ?? this.billStatus,
     );
   }
 }

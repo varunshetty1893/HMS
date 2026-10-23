@@ -28,6 +28,11 @@ class StatusBadge extends StatelessWidget {
         fg = WaiterTheme.occupiedBlue;
         label = 'OCCUPIED';
         break;
+      case 'BILLED':
+        bg = WaiterTheme.readyAmberBg;
+        fg = WaiterTheme.readyAmber;
+        label = 'BILLED';
+        break;
       case 'PLACED':
         bg = const Color(0xFFF1F5F9);
         fg = const Color(0xFF475569);

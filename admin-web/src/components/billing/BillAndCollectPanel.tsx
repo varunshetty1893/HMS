@@ -11,7 +11,8 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { Bill, TableBillCheck } from '@/types/api';
+import { Bill, Payment, TableBillCheck } from '@/types/api';
+import { PaperWidth, printReceipt, receiptPrefs } from '@/utils/receipt';
 import {
   MenuSearchItem,
   TableOrderSummary,
@@ -72,6 +73,8 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
   const [tendered, setTendered] = useState('');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [autoPrint, setAutoPrint] = useState<boolean>(receiptPrefs.getAutoPrint());
+  const [paper, setPaper] = useState<PaperWidth>(receiptPrefs.getPaper());
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MenuSearchItem[]>([]);
@@ -183,7 +186,6 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
   const tenderedNum = tendered.trim() ? num(tendered) : total;
   const change = method === 'CASH' ? Math.max(0, r2(tenderedNum - total)) : 0;
   const waiting = !!check && (check.has_unaccepted_placed_orders || check.has_unserved_orders);
-  const anyChange = lines.some((l) => l.changed) || extras.length > 0 || discount > 0;
 
   const setLineQty = (id: string, origPrice: number, current: Edit | undefined, qty: number) => {
     const next = Math.max(0, Math.min(999, qty));
@@ -236,7 +238,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
     const reason = changeReason.trim().length >= 3 ? changeReason.trim() : 'Adjusted at billing';
     return {
       discount_amount: discount.toFixed(2),
-      discount_reason: discount > 0 ? discountReason.trim() : null,
+      discount_reason: discount > 0 ? discountReason.trim() || 'Admin discount' : null,
       price_overrides: lines
         .filter((l) => l.changed)
         .map((l) => ({
@@ -260,7 +262,6 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
     if (!check) return 'Select a table first.';
     if (waiting) return 'All orders must be served before the bill can be generated.';
     if (total <= 0) return 'The bill total must be greater than zero.';
-    if (discount > 0 && discountReason.trim().length < 3) return 'Enter a reason for the discount.';
     if (lines.some((l) => num(l.price) < 0)) return 'Prices cannot be negative.';
     if (extras.some((e) => num(e.price) < 0.01)) return 'Every added item needs a price.';
     return null;
@@ -288,6 +289,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
     }
     if (!collect) {
       setBusy(null);
+      if (autoPrint) void printReceipt(bill, paper);
       onBillCreated(bill);
       return;
     }
@@ -301,6 +303,20 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
         reference_number: reference.trim() || null,
         notes: notes.trim() || null,
       });
+      if (autoPrint) {
+        const settled: Payment = {
+          id: 'local',
+          bill_id: bill.id,
+          payment_method: method,
+          amount_paid: amount.toFixed(2),
+          amount_tendered: method === 'CASH' ? received.toFixed(2) : null,
+          change_returned: method === 'CASH' ? r2(Math.max(0, received - amount)).toFixed(2) : '0.00',
+          status: 'COMPLETED',
+          reference_number: reference.trim() || null,
+          completed_at: new Date().toISOString(),
+        };
+        void printReceipt({ ...bill, status: 'PAID', payments: [settled] }, paper);
+      }
       const changeMsg =
         method === 'CASH' && received > amount ? ` Return ${inr(r2(received - amount))} change.` : '';
       onPaid(`Table ${check.table_number} settled · ${bill.bill_number} · ${inr(amount)}.${changeMsg}`);
@@ -324,7 +340,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
     <button
       key={m}
       onClick={() => setMethod(m)}
-      className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
+      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold cursor-pointer"
       style={
         method === m
           ? { backgroundColor: '#ea580c', color: '#fff', border: '1px solid #ea580c' }
@@ -349,9 +365,9 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-5 items-start">
+    <div className="grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)] gap-4 items-start">
       {/* Table list */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: sub }}>
           Tables ordering · {checks.length}
         </h2>
@@ -362,7 +378,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
             <button
               key={c.table_id}
               onClick={() => setSelectedId(c.table_id)}
-              className="w-full text-left rounded-2xl p-4 border-l-4 cursor-pointer transition"
+              className="w-full text-left rounded-xl p-3 border-l-4 cursor-pointer transition"
               style={{
                 ...card,
                 borderLeftColor: w ? '#f59e0b' : '#10b981',
@@ -378,7 +394,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
               <div className="text-[11px] mt-1 truncate" style={{ color: muted }}>
                 {c.preview_line_items.map((i) => `${i.quantity_billed}× ${i.item_name}`).join(' · ')}
               </div>
-              <div className="mt-2 text-xl font-black font-mono" style={{ color: heading }}>
+              <div className="mt-1 text-base font-black font-mono" style={{ color: heading }}>
                 {inr(num(c.preview_grand_total))}
               </div>
             </button>
@@ -388,11 +404,12 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
 
       {/* Editor */}
       {check && (
-        <div className="space-y-4 min-w-0">
-          <div className="rounded-3xl p-5" style={card}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-3 items-start min-w-0">
+        <div className="space-y-3 min-w-0">
+          <div className="rounded-2xl px-4 py-3" style={card}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black" style={{ color: heading }}>
+                <h2 className="text-lg font-black" style={{ color: heading }}>
                   Table {check.table_number} · Bill &amp; Collect
                 </h2>
                 <p className="text-xs" style={{ color: sub }}>
@@ -424,16 +441,16 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
           </div>
 
           {/* Lines */}
-          <div className="rounded-3xl overflow-hidden" style={card}>
+          <div className="rounded-2xl overflow-hidden" style={card}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead style={{ backgroundColor: L ? '#f1f5f9' : '#1e293b', color: muted }}>
                   <tr className="text-[11px] uppercase">
-                    <th className="py-3 px-4">Item</th>
-                    <th className="py-3 px-3 text-center">Qty</th>
-                    <th className="py-3 px-3 text-right">Rate (₹)</th>
-                    <th className="py-3 px-4 text-right">Total</th>
-                    <th className="py-3 px-3" />
+                    <th className="py-2 px-3">Item</th>
+                    <th className="py-2 px-2 text-center">Qty</th>
+                    <th className="py-2 px-2 text-right">Rate (₹)</th>
+                    <th className="py-2 px-3 text-right">Total</th>
+                    <th className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -441,7 +458,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
                     const removed = l.qty === 0;
                     return (
                       <tr key={l.id} className="border-t" style={{ borderColor: border, opacity: removed ? 0.5 : 1 }}>
-                        <td className="py-3 px-4">
+                        <td className="py-2 px-3">
                           <div className={`font-bold ${removed ? 'line-through' : ''}`} style={{ color: heading }}>
                             {l.item.item_name}
                             {l.item.variant_name && l.item.variant_name.toUpperCase() !== 'STANDARD' && (
@@ -453,14 +470,14 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
                             {l.changed && <span className="ml-2 font-bold text-amber-600">edited · was {l.origQty} × {inr(l.origPrice)}</span>}
                           </div>
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-2 px-2">
                           <div className="flex items-center justify-center gap-1.5">
                             <button onClick={() => setLineQty(l.id, l.origPrice, edits[l.id], l.qty - 1)} className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}><Minus className="w-3.5 h-3.5" /></button>
                             <span className="w-8 text-center font-mono font-bold" style={{ color: heading }}>{l.qty}</span>
                             <button onClick={() => setLineQty(l.id, l.origPrice, edits[l.id], l.qty + 1)} className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}><Plus className="w-3.5 h-3.5" /></button>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-2 px-2 text-right">
                           <input
                             type="number"
                             min="0"
@@ -471,8 +488,8 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
                             style={input}
                           />
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold" style={{ color: heading }}>{inr(r2(num(l.price) * l.qty))}</td>
-                        <td className="py-3 px-3">
+                        <td className="py-2 px-3 text-right font-mono font-bold" style={{ color: heading }}>{inr(r2(num(l.price) * l.qty))}</td>
+                        <td className="py-2 px-2">
                           {removed || l.changed ? (
                             <button title="Restore original" onClick={() => setEdits((p) => { const n = { ...p }; delete n[l.id]; return n; })} className="cursor-pointer" style={{ color: muted }}><RotateCcw className="w-4 h-4" /></button>
                           ) : (
@@ -484,22 +501,22 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
                   })}
                   {extras.map((e) => (
                     <tr key={e.key} className="border-t" style={{ borderColor: border, backgroundColor: L ? '#fffbeb' : 'rgba(120,53,15,0.12)' }}>
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-3">
                         <div className="font-bold" style={{ color: heading }}>{e.name}</div>
                         <div className="text-[11px] font-bold text-amber-600">Added at billing</div>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-2 px-2">
                         <div className="flex items-center justify-center gap-1.5">
                           <button onClick={() => setExtras((p) => p.flatMap((x) => (x.key === e.key ? (x.qty <= 1 ? [] : [{ ...x, qty: x.qty - 1 }]) : [x])))} className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}><Minus className="w-3.5 h-3.5" /></button>
                           <span className="w-8 text-center font-mono font-bold" style={{ color: heading }}>{e.qty}</span>
                           <button onClick={() => setExtras((p) => p.map((x) => (x.key === e.key ? { ...x, qty: Math.min(999, x.qty + 1) } : x)))} className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}><Plus className="w-3.5 h-3.5" /></button>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-2 px-2 text-right">
                         <input type="number" min="0" step="0.01" value={e.price} onChange={(ev) => setExtras((p) => p.map((x) => (x.key === e.key ? { ...x, price: ev.target.value } : x)))} className="w-24 px-2 py-1.5 rounded-lg text-right font-mono text-sm" style={input} />
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold" style={{ color: heading }}>{inr(r2(num(e.price) * e.qty))}</td>
-                      <td className="py-3 px-3"><button onClick={() => setExtras((p) => p.filter((x) => x.key !== e.key))} className="cursor-pointer text-rose-500"><Trash2 className="w-4 h-4" /></button></td>
+                      <td className="py-2 px-3 text-right font-mono font-bold" style={{ color: heading }}>{inr(r2(num(e.price) * e.qty))}</td>
+                      <td className="py-2 px-2"><button onClick={() => setExtras((p) => p.filter((x) => x.key !== e.key))} className="cursor-pointer text-rose-500"><Trash2 className="w-4 h-4" /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -514,7 +531,7 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
           </div>
 
           {/* Add items */}
-          <div className="rounded-3xl p-5 space-y-3" style={card}>
+          <div className="rounded-2xl px-4 py-3 space-y-2" style={card}>
             <h3 className="text-sm font-black" style={{ color: heading }}>Add items</h3>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: muted }} />
@@ -553,80 +570,95 @@ const BillAndCollectPanel: React.FC<Props> = ({ checks, theme, onRefresh, onPaid
             </p>
           </div>
 
-          {/* Discount + totals + payment */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-3xl p-5 space-y-3" style={card}>
-              <h3 className="text-sm font-black" style={{ color: heading }}>Discount</h3>
-              <div className="flex gap-2">
-                <div className="flex rounded-xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
-                  {(['AMOUNT', 'PERCENT'] as const).map((m) => (
-                    <button key={m} onClick={() => setDiscountMode(m)} className="px-3 py-2 text-xs font-bold cursor-pointer" style={discountMode === m ? { backgroundColor: '#ea580c', color: '#fff' } : { color: heading }}>
-                      {m === 'AMOUNT' ? '₹' : '%'}
-                    </button>
-                  ))}
-                </div>
-                <input type="number" min="0" step="0.01" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} placeholder={discountMode === 'AMOUNT' ? 'Amount off' : 'Percent off'} className="flex-1 px-3 py-2 rounded-xl text-sm" style={input} />
-              </div>
-              {discount > 0 && (
-                <input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Reason (required)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
-              )}
-              <div className="rounded-2xl border p-4 text-xs space-y-1.5" style={{ borderColor: border, color: sub }}>
-                <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{inr(subtotal)}</span></div>
-                {discount > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span className="font-mono">−{inr(discount)}</span></div>}
-                <div className="flex justify-between"><span>CGST ({cgstRate.toFixed(2)}%)</span><span className="font-mono">{inr(cgst)}</span></div>
-                <div className="flex justify-between"><span>SGST ({sgstRate.toFixed(2)}%)</span><span className="font-mono">{inr(sgst)}</span></div>
-                <div className="flex justify-between pt-2 border-t text-base font-black" style={{ borderColor: border, color: heading }}><span>Total</span><span className="font-mono">{inr(total)}</span></div>
-              </div>
-            </div>
+        </div>
 
-            <div className="rounded-3xl p-5 space-y-3" style={card}>
-              <h3 className="text-sm font-black" style={{ color: heading }}>Payment</h3>
-              <div className="flex gap-2">
-                {methodBtn('CASH', 'Cash', <Banknote className="w-4 h-4" />)}
-                {methodBtn('UPI', 'UPI', <QrCode className="w-4 h-4" />)}
-                {methodBtn('CARD', 'Card', <CreditCard className="w-4 h-4" />)}
-              </div>
-              {method === 'CASH' ? (
-                <div className="space-y-2">
-                  <input type="number" min="0" step="0.01" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder={`Cash received (default ${inr(total)})`} className="w-full px-3 py-2 rounded-xl text-sm font-mono" style={input} />
-                  <div className="flex gap-1.5 flex-wrap">
-                    {[total, Math.ceil(total / 10) * 10, Math.ceil(total / 100) * 100, Math.ceil(total / 500) * 500].filter((v, i, a) => v >= total && a.indexOf(v) === i).map((v) => (
-                      <button key={v} onClick={() => setTendered(String(v))} className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}>{inr(v)}</button>
-                    ))}
-                  </div>
-                  <div className="flex justify-between rounded-xl px-3 py-2 text-sm font-bold" style={{ backgroundColor: L ? '#fff7ed' : 'rgba(194,65,12,0.15)', color: '#c2410c' }}>
-                    <span>Return change</span><span className="font-mono">{inr(change)}</span>
-                  </div>
-                </div>
-              ) : (
-                <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={method === 'UPI' ? 'UPI reference (optional)' : 'Card slip / approval no. (optional)'} className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
-              )}
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
+        {/* Checkout column */}
+        <div className="rounded-2xl p-4 space-y-3 lg:sticky lg:top-3" style={card}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black" style={{ color: heading }}>Checkout</h3>
+            <span className="text-[11px]" style={{ color: muted }}>Table {check.table_number}</span>
+          </div>
+
+          {/* Discount */}
+          <div className="flex gap-2">
+            <div className="flex rounded-xl overflow-hidden shrink-0" style={{ border: `1px solid ${border}` }}>
+              {(['AMOUNT', 'PERCENT'] as const).map((m) => (
+                <button key={m} onClick={() => setDiscountMode(m)} className="px-3 py-1.5 text-xs font-bold cursor-pointer" style={discountMode === m ? { backgroundColor: '#ea580c', color: '#fff' } : { color: heading }}>
+                  {m === 'AMOUNT' ? '₹' : '%'}
+                </button>
+              ))}
             </div>
+            <input type="number" min="0" step="0.01" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} placeholder={discountMode === 'AMOUNT' ? 'Discount ₹' : 'Discount %'} className="flex-1 min-w-0 px-3 py-1.5 rounded-xl text-sm" style={input} />
+          </div>
+          {discount > 0 && (
+            <input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Reason (optional)" className="w-full px-3 py-1.5 rounded-xl text-sm" style={input} />
+          )}
+
+          {/* Totals */}
+          <div className="rounded-xl border px-3 py-2 text-xs space-y-1" style={{ borderColor: border, color: sub }}>
+            <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{inr(subtotal)}</span></div>
+            {discount > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span className="font-mono">−{inr(discount)}</span></div>}
+            <div className="flex justify-between"><span>CGST ({cgstRate.toFixed(2)}%)</span><span className="font-mono">{inr(cgst)}</span></div>
+            <div className="flex justify-between"><span>SGST ({sgstRate.toFixed(2)}%)</span><span className="font-mono">{inr(sgst)}</span></div>
+            <div className="flex justify-between pt-1.5 border-t text-base font-black" style={{ borderColor: border, color: heading }}><span>Total</span><span className="font-mono">{inr(total)}</span></div>
+          </div>
+
+          {/* Payment */}
+          <div className="flex gap-2">
+            {methodBtn('CASH', 'Cash', <Banknote className="w-4 h-4" />)}
+            {methodBtn('UPI', 'UPI', <QrCode className="w-4 h-4" />)}
+            {methodBtn('CARD', 'Card', <CreditCard className="w-4 h-4" />)}
+          </div>
+          {method === 'CASH' ? (
+            <div className="space-y-2">
+              <input type="number" min="0" step="0.01" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder={`Cash received (default ${inr(total)})`} className="w-full px-3 py-1.5 rounded-xl text-sm font-mono" style={input} />
+              <div className="flex gap-1.5 flex-wrap">
+                {[total, Math.ceil(total / 10) * 10, Math.ceil(total / 100) * 100, Math.ceil(total / 500) * 500].filter((v, i, a) => v >= total && a.indexOf(v) === i).map((v) => (
+                  <button key={v} onClick={() => setTendered(String(v))} className="px-2 py-0.5 rounded-lg text-[11px] font-bold cursor-pointer" style={{ border: `1px solid ${border}`, color: heading }}>{inr(v)}</button>
+                ))}
+              </div>
+              <div className="flex justify-between rounded-xl px-3 py-1.5 text-sm font-bold" style={{ backgroundColor: L ? '#fff7ed' : 'rgba(194,65,12,0.15)', color: '#c2410c' }}>
+                <span>Return change</span><span className="font-mono">{inr(change)}</span>
+              </div>
+            </div>
+          ) : (
+            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={method === 'UPI' ? 'UPI reference (optional)' : 'Card slip no. (optional)'} className="w-full px-3 py-1.5 rounded-xl text-sm" style={input} />
+          )}
+          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" className="w-full px-3 py-1.5 rounded-xl text-sm" style={input} />
+
+          {/* Receipt options */}
+          <div className="flex items-center justify-between gap-2 text-xs" style={{ color: sub }}>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={autoPrint} onChange={(e) => { setAutoPrint(e.target.checked); receiptPrefs.setAutoPrint(e.target.checked); }} />
+              Print receipt
+            </label>
+            <select value={paper} onChange={(e) => { const w = e.target.value as PaperWidth; setPaper(w); receiptPrefs.setPaper(w); }} className="px-2 py-1 rounded-lg text-xs" style={input}>
+              <option value="80">80 mm</option>
+              <option value="58">58 mm</option>
+            </select>
           </div>
 
           {error && (
-            <div className="rounded-xl px-4 py-3 text-sm font-semibold bg-rose-100 text-rose-700">{error}</div>
+            <div className="rounded-xl px-3 py-2 text-xs font-semibold bg-rose-100 text-rose-700">{error}</div>
           )}
 
-          <div className="flex flex-wrap gap-3 justify-end">
-            <button
-              disabled={busy !== null || waiting}
-              onClick={() => submit(false)}
-              className="px-5 py-3 rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ border: `1px solid ${border}`, color: heading }}
-            >
-              {busy === 'bill' ? 'Generating…' : anyChange ? 'Generate bill only' : 'Generate bill, collect later'}
-            </button>
-            <button
-              disabled={busy !== null || waiting}
-              onClick={() => submit(true)}
-              className="px-6 py-3 rounded-xl text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
-            >
-              {busy === 'pay' && <Loader2 className="w-4 h-4 animate-spin" />}
-              Generate bill &amp; collect {inr(total)}
-            </button>
-          </div>
+          <button
+            disabled={busy !== null || waiting}
+            onClick={() => submit(true)}
+            className="w-full px-4 py-3 rounded-xl text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+          >
+            {busy === 'pay' && <Loader2 className="w-4 h-4 animate-spin" />}
+            Bill &amp; collect {inr(total)}
+          </button>
+          <button
+            disabled={busy !== null || waiting}
+            onClick={() => submit(false)}
+            className="w-full px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ border: `1px solid ${border}`, color: heading }}
+          >
+            {busy === 'bill' ? 'Generating…' : 'Generate bill only (collect later)'}
+          </button>
+        </div>
         </div>
       )}
     </div>

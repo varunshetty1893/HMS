@@ -18,6 +18,7 @@ import {
 import { Bill, PaymentMethod, TableBillCheck } from '@/types/api';
 import { PaginationBar, usePagination } from '@/components/common/Pagination';
 import BillAndCollectPanel from '@/components/billing/BillAndCollectPanel';
+import { printReceipt } from '@/utils/receipt';
 
 const BILL_TABS: { label: string; value: string }[] = [
   { label: 'Bill & Collect', value: 'COLLECT' },
@@ -101,6 +102,18 @@ export const BillingAndPaymentsPage: React.FC = () => {
       window.clearInterval(refreshTimer);
     };
   }, [statusFilter]);
+
+  // Toasts disappear on their own.
+  useEffect(() => {
+    if (!successBanner) return;
+    const t = window.setTimeout(() => setSuccessBanner(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [successBanner]);
+  useEffect(() => {
+    if (!error) return;
+    const t = window.setTimeout(() => setError(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [error]);
 
   const handleApplyDiscount = async () => {
     if (!discountBill) return;
@@ -210,47 +223,37 @@ export const BillingAndPaymentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Success Banner */}
-      {successBanner && (
-        <div
-          className="p-4 rounded-2xl text-xs flex items-center justify-between animate-in fade-in"
-          style={{
-            backgroundColor: L ? '#dcfce7' : 'rgba(5,46,22,0.6)',
-            borderColor: L ? '#bbf7d0' : '#166534',
-            borderWidth: 1,
-            borderStyle: 'solid',
-            color: L ? '#15803d' : '#86efac',
-          }}
-        >
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successBanner}</span>
-          </div>
-          <button onClick={() => setSuccessBanner(null)} className="cursor-pointer opacity-80 hover:opacity-100">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Error Alert */}
-      {error && (
-        <div
-          className="p-4 rounded-2xl text-xs flex items-center justify-between"
-          style={{
-            backgroundColor: L ? '#fee2e2' : 'rgba(69,10,10,0.6)',
-            borderColor: L ? '#fecaca' : '#991b1b',
-            borderWidth: 1,
-            borderStyle: 'solid',
-            color: L ? '#b91c1c' : '#fca5a5',
-          }}
-        >
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-          <button onClick={() => setError(null)} className="cursor-pointer opacity-80 hover:opacity-100">
-            <X className="w-4 h-4" />
-          </button>
+      {/* Toasts: compact, top-right, auto-dismiss */}
+      {(successBanner || error) && (
+        <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-[min(92vw,22rem)]">
+          {successBanner && (
+            <div
+              className="px-3.5 py-2.5 rounded-xl text-xs shadow-lg flex items-start gap-2.5"
+              style={{
+                backgroundColor: L ? '#dcfce7' : '#052e16',
+                border: `1px solid ${L ? '#86efac' : '#166534'}`,
+                color: L ? '#166534' : '#86efac',
+              }}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-px" />
+              <span className="flex-1 font-semibold">{successBanner}</span>
+              <button onClick={() => setSuccessBanner(null)} className="cursor-pointer opacity-70 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
+          {error && (
+            <div
+              className="px-3.5 py-2.5 rounded-xl text-xs shadow-lg flex items-start gap-2.5"
+              style={{
+                backgroundColor: L ? '#fee2e2' : '#450a0a',
+                border: `1px solid ${L ? '#fca5a5' : '#991b1b'}`,
+                color: L ? '#b91c1c' : '#fca5a5',
+              }}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+              <span className="flex-1 font-semibold">{error}</span>
+              <button onClick={() => setError(null)} className="cursor-pointer opacity-70 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
         </div>
       )}
 
@@ -682,6 +685,14 @@ export const BillingAndPaymentsPage: React.FC = () => {
                     <span>Cancel for Correction</span>
                   </button>
                 </>
+              )}
+              {selectedBill.line_items && selectedBill.line_items.length > 0 && (
+                <button
+                  onClick={() => void printReceipt(selectedBill)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-brand-600 text-white"
+                >
+                  Print receipt
+                </button>
               )}
               <button
                 onClick={() => setSelectedBill(null)}

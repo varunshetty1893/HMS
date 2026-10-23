@@ -545,12 +545,17 @@ class BillingService:
 
         settings = settings or await cls._get_restaurant_settings(db)
 
+        discount_reason_text = (payload.discount_reason or "").strip() or None
         if discount_amount > Decimal("0.00"):
-            if not payload.discount_reason or not payload.discount_reason.strip():
-                raise DomainValidationError(
-                    code="DISCOUNT_REASON_REQUIRED",
-                    message="A discount reason is required when applying a discount.",
-                )
+            if not discount_reason_text:
+                if staff_user.role == UserRole.ADMIN.value:
+                    # Admins own the pricing decision; a reason is optional for them.
+                    discount_reason_text = "Admin discount"
+                else:
+                    raise DomainValidationError(
+                        code="DISCOUNT_REASON_REQUIRED",
+                        message="A discount reason is required when applying a discount.",
+                    )
             if staff_user.role != UserRole.ADMIN.value:
                 # Check waiter discount cap. 0 means "no cap set" = unlimited.
                 max_allowed_pct = settings.waiter_max_price_override_percentage
@@ -602,7 +607,7 @@ class BillingService:
             status=BillStatus.ISSUED.value,
             subtotal_amount=subtotal,
             discount_amount=discount_amount,
-            discount_reason=payload.discount_reason,
+            discount_reason=discount_reason_text,
             discount_approved_by_user_id=staff_user.id if discount_amount > 0 else None,
             taxable_amount=taxable_amount,
             cgst_rate_snapshot=cgst_rate,

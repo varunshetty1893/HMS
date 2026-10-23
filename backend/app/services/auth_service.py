@@ -7,20 +7,24 @@ Follows `docs/05-api-specification.md` (Section 3),
 
 from __future__ import annotations
 
+import hmac
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.exceptions import (
     AccountLockedError,
     AuthenticationError,
     AuthorizationError,
+    DomainValidationError,
 )
 from app.core.security import (
     DUMMY_PASSWORD_HASH,
     create_access_token,
     generate_refresh_token,
+    hash_password,
     hash_token,
     verify_password,
 )
@@ -28,6 +32,8 @@ from app.models.enums import UserRole, UserStatus
 from app.models.identity import StaffRefreshToken, User
 from app.realtime.manager import ws_manager
 from app.schemas.auth import (
+    AdminRecoveryResetRequest,
+    StaffChangePasswordRequest,
     StaffLoginRequest,
     StaffLogoutRequest,
     StaffRefreshTokenRequest,
@@ -367,3 +373,129 @@ class AuthService:
 
         # Disconnect any live WebSockets associated with the logging out user
         await ws_manager.disconnect_user(user.id, close_code=1000, reason="LOGGED_OUT")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Password change / recovery
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @classmethod
+    async def _apply_new_password(
+        cls,
+        db: AsyncSession,
+        user: User,
+        new_password: str,
+        *,
+        revoked_reason: str,
+    ) -> None:
+        """Set a new Argon2id hash, bump token_version and revoke every refresh token."""
+        now = datetime.now(timezone.utc)
+        user.password_hash = await hash_password(new_password)
+        user.password_changed_at = now
+        user.token_version += 1
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        if user.status == UserStatus.LOCKED.value:
+            user.status = UserStatus.ACTIVE.value
+        await db.execute(
+            update(StaffRefreshToken)
+            .where(
+                StaffRefreshToken.user_id == user.id,
+                StaffRefreshToken.is_revoked.is_(False),
+            )
+            .values(is_revoked=True, revoked_at=now, revoked_reason=revoked_reason)
+        )
+
+    @classmethod
+    async def change_password(
+        cls,
+        db: AsyncSession,
+        user: User,
+        request: StaffChangePasswordRequest,
+        client_ip: str | None = None,
+    ) -> None:
+        """Self-service password change; signs the user out of every session."""
+        if not await verify_password(request.current_password, user.password_hash):
+            # 422 (not 401) so the web client does not mistake this for an expired session.
+            raise DomainValidationError(
+                code="INVALID_CURRENT_PASSWORD",
+                message="Current password is incorrect.",
+            )
+        if request.new_password == request.current_password:
+            raise DomainValidationError(
+                code="PASSWORD_UNCHANGED",
+                message="New password must be different from the current password.",
+            )
+
+        await cls._apply_new_password(
+            db, user, request.new_password, revoked_reason="PASSWORD_CHANGED"
+        )
+        await AuditService.record_event(
+            db,
+            action_type="STAFF_PASSWORD_CHANGED",
+            entity_type="USER",
+            entity_id=str(user.id),
+            actor_user_id=user.id,
+            actor_role=user.role,
+            client_ip=client_ip,
+        )
+        await db.commit()
+        await ws_manager.disconnect_user(user.id, close_code=1008, reason="PASSWORD_CHANGED")
+
+    @classmethod
+    async def admin_recovery_reset(
+        cls,
+        db: AsyncSession,
+        request: AdminRecoveryResetRequest,
+        client_ip: str | None = None,
+    ) -> None:
+        """Break-glass reset for a locked-out ADMIN using the server-side recovery key.
+
+        Disabled unless ``ADMIN_RECOVERY_KEY`` (16+ chars) is configured. Every failure returns
+        the same generic error so usernames / roles / feature state cannot be probed.
+        """
+        configured = (get_settings().admin_recovery_key or "").strip()
+        enabled = len(configured) >= 16
+
+        stmt = select(User).where(func.lower(User.username) == func.lower(request.username.strip()))
+        user = (await db.execute(stmt)).scalar_one_or_none()
+
+        key_ok = hmac.compare_digest(
+            request.recovery_key.encode("utf-8"),
+            (configured if enabled else "x" * 16).encode("utf-8"),
+        )
+        eligible = (
+            enabled
+            and key_ok
+            and user is not None
+            and user.role == UserRole.ADMIN.value
+            and user.status != UserStatus.DISABLED.value
+        )
+        if not eligible or user is None:
+            await AuditService.record_event(
+                db,
+                action_type="ADMIN_RECOVERY_RESET_FAILED",
+                entity_type="USER",
+                entity_id=str(user.id) if user else "unknown",
+                client_ip=client_ip,
+            )
+            await db.commit()
+            raise AuthorizationError(
+                code="INVALID_RECOVERY",
+                message="Invalid username or recovery key.",
+            )
+
+        await cls._apply_new_password(
+            db, user, request.new_password, revoked_reason="ADMIN_RECOVERY_RESET"
+        )
+        await AuditService.record_event(
+            db,
+            action_type="ADMIN_RECOVERY_RESET",
+            entity_type="USER",
+            entity_id=str(user.id),
+            actor_user_id=user.id,
+            actor_role=user.role,
+            client_ip=client_ip,
+        )
+        await db.commit()
+        await ws_manager.disconnect_user(user.id, close_code=1008, reason="PASSWORD_RESET")
+

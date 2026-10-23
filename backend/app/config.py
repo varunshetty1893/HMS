@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     )
     access_token_expire_minutes: int = Field(default=15, ge=1, le=1440)
     refresh_token_expire_days: int = Field(default=7, ge=1, le=90)
+    # Optional break-glass key that lets a locked-out ADMIN reset their own password from the
+    # login page (no email infrastructure needed). Disabled unless set to 16+ characters.
+    admin_recovery_key: str | None = Field(default=None)
 
     # --- Browser refresh-token cookie (opt-in per request via `X-Auth-Transport: cookie`) ---
     # The admin web can keep the refresh token in an httpOnly cookie instead of localStorage.

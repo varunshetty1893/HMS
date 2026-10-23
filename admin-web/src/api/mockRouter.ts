@@ -61,6 +61,13 @@ export async function handleMockRequest<T>(
     return INITIAL_USER as unknown as T;
   }
 
+  if (
+    (path === '/auth/change-password' || path === '/auth/admin-recovery-reset') &&
+    method === 'POST'
+  ) {
+    return { status: 'OK' } as unknown as T;
+  }
+
   if (path === '/auth/logout') {
     return {} as unknown as T;
   }

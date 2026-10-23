@@ -28,6 +28,21 @@ class StaffLoginRequest(StrictRequestModel):
     )
 
 
+class StaffChangePasswordRequest(StrictRequestModel):
+    """Authenticated self-service password change (`POST /api/v1/auth/change-password`)."""
+
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class AdminRecoveryResetRequest(StrictRequestModel):
+    """Break-glass admin password reset (`POST /api/v1/auth/admin-recovery-reset`)."""
+
+    username: str = Field(min_length=3, max_length=64)
+    recovery_key: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class StaffRefreshTokenRequest(StrictRequestModel):
     """Token refresh payload (`POST /api/v1/auth/refresh`)."""
 

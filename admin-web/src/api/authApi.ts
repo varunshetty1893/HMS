@@ -20,6 +20,20 @@ export const authApi = {
     }
   },
 
+  changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
+    await apiClient<{ status: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  },
+
+  recoveryReset: async (username: string, recoveryKey: string, newPassword: string): Promise<void> => {
+    await apiClient<{ status: string }>('/auth/admin-recovery-reset', {
+      method: 'POST',
+      body: JSON.stringify({ username, recovery_key: recoveryKey, new_password: newPassword }),
+    });
+  },
+
   getMe: async (): Promise<User> => {
     return apiClient<User>('/auth/me');
   },

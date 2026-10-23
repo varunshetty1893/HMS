@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, User as UserIcon } from 'lucide-react';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { isDevDemoEnabled, purgeAdminMockStorageIfProduction } from '@/utils/env';
 
 interface LoginPageProps {
@@ -14,6 +15,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const [password, setPassword] = useState(() => (isDevDemoEnabled() ? 'AdminPass123!' : ''));
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     purgeAdminMockStorageIfProduction();
@@ -39,6 +42,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
     }
   };
 
+  if (showForgot) {
+    return (
+      <ForgotPasswordPage
+        onBack={(message) => {
+          setShowForgot(false);
+          if (message) {
+            setNotice(message);
+            setError(null);
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-50">
       <div className="w-full max-w-md rounded-2xl p-8 sm:p-10 shadow-lg bg-white border border-gray-200">
@@ -56,6 +73,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             Spice Hub Family Restaurant • Control Panel
           </p>
         </div>
+
+        {notice && (
+          <div className="mb-6 p-4 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {notice}
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (
@@ -110,6 +133,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           >
             {isLoading ? 'Authenticating...' : 'Sign In to Dashboard'}
           </button>
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setShowForgot(true)}
+              className="text-xs font-semibold text-brand-600 hover:text-brand-500 cursor-pointer"
+            >
+              Forgot password?
+            </button>
+          </div>
         </form>
 
         {/* Staff Credentials Helper Card (Omitted in Production) */}

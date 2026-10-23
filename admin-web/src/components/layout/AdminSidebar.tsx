@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   ShieldAlert,
+  KeyRound,
 } from 'lucide-react';
 
 export type AdminModule =
@@ -21,7 +22,8 @@ export type AdminModule =
   | 'staff'
   | 'reports'
   | 'settings'
-  | 'audit-logs';
+  | 'audit-logs'
+  | 'account';
 
 interface AdminSidebarProps {
   currentModule: AdminModule;
@@ -92,6 +94,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'audit-logs' as AdminModule,
       label: 'Activity & Audit Logs',
       icon: ShieldAlert,
+    },
+    {
+      id: 'account' as AdminModule,
+      label: 'Change Password',
+      icon: KeyRound,
     },
   ];
 

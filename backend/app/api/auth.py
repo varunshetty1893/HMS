@@ -23,6 +23,8 @@ from app.core.rate_limit import extract_client_ip, rate_limit_by_ip
 from app.models.enums import UserRole
 from app.models.identity import User
 from app.schemas.auth import (
+    AdminRecoveryResetRequest,
+    StaffChangePasswordRequest,
     StaffLoginRequest,
     StaffLogoutRequest,
     StaffMeResponse,
@@ -173,3 +175,47 @@ async def get_me(
         last_login_at=current_user.last_login_at,
         permissions=permissions,
     )
+
+
+@router.post(
+    "/change-password",
+    response_model=StatusSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change own password (signs out all sessions)",
+    dependencies=[Depends(rate_limit_by_ip(max_requests=5, window_seconds=60))],
+)
+async def change_password(
+    request: Request,
+    response: Response,
+    payload: StaffChangePasswordRequest,
+    current_user: User = Depends(get_current_staff_user),
+    db: AsyncSession = Depends(get_db),
+) -> StatusSuccessResponse:
+    """Verify the current password, set a new one and revoke every session of this user."""
+    cookie_mode = wants_cookie_transport(request)
+    if cookie_mode:
+        enforce_cookie_csrf(request)
+    await AuthService.change_password(
+        db, current_user, payload, client_ip=extract_client_ip(request)
+    )
+    if cookie_mode:
+        clear_refresh_cookie(response)
+    return StatusSuccessResponse(status="PASSWORD_CHANGED")
+
+
+@router.post(
+    "/admin-recovery-reset",
+    response_model=StatusSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Break-glass admin password reset using the server recovery key",
+    dependencies=[Depends(rate_limit_by_ip(max_requests=5, window_seconds=900))],
+)
+async def admin_recovery_reset(
+    request: Request,
+    payload: AdminRecoveryResetRequest,
+    db: AsyncSession = Depends(get_db),
+) -> StatusSuccessResponse:
+    """Reset a locked-out admin's password. Requires ADMIN_RECOVERY_KEY to be configured."""
+    await AuthService.admin_recovery_reset(db, payload, client_ip=extract_client_ip(request))
+    return StatusSuccessResponse(status="PASSWORD_RESET")
+

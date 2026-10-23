@@ -15,6 +15,7 @@ const BillingAndPaymentsPage = lazy(() => import('@/pages/BillingAndPaymentsPage
 const StaffManagementPage = lazy(() => import('@/pages/StaffManagementPage').then((m) => ({ default: m.StaffManagementPage })));
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage').then((m) => ({ default: m.ChangePasswordPage })));
 const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
 
 const ModuleFallback: React.FC = () => (
@@ -67,6 +68,7 @@ const AdminDashboard: React.FC = () => {
           {currentModule === 'reports' && <ReportsPage />}
           {currentModule === 'settings' && <SettingsPage />}
           {currentModule === 'audit-logs' && <AuditLogsPage />}
+          {currentModule === 'account' && <ChangePasswordPage />}
           </Suspense>
         </main>
       </div>

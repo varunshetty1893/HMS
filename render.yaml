@@ -3,10 +3,14 @@ services:
     name: hms-backend
     runtime: python
     rootDir: backend
+    # Free plan sleeps after 15 min without inbound HTTP / WebSocket messages and takes about
+    # a minute to wake (open sockets drop, clients reconnect). Mitigation without cost:
+    # docs/14 Step 2b (opening-hours pinger + scripts/warmup.ps1). Switching to a paid
+    # instance type removes sleeping entirely but is a recurring charge - needs owner approval.
     plan: free
     region: singapore
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --ws-ping-interval 25 --ws-ping-timeout 20
     healthCheckPath: /api/v1/health
     envVars:
       - key: PYTHON_VERSION
@@ -27,3 +31,12 @@ services:
         sync: false
       - key: PUBLIC_QR_BASE_URL
         sync: false
+      # Number of trusted proxies in front of the app (Render edge). Leave 0 until
+      # calibrated with GET /api/v1/admin/diagnostics/client-ip (see docs/14, step 2a).
+      # While 0, every client shares the proxy's IP (one rate-limit bucket) - safe but coarse.
+      - key: PROXY_HOPS
+        sync: false
+      # WebSocket auth: clients send the token as the first frame. Keep "true" until the
+      # web + Flutter clients are updated, then set to "false" (see FIX9 note).
+      - key: WS_ALLOW_QUERY_TOKEN
+        value: "true"

@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 FORBIDDEN_PRODUCTION_SECRET_PATTERNS: tuple[str, ...] = (
     "change_me",
@@ -97,12 +97,25 @@ class Settings(BaseSettings):
     # --- Realtime WebSockets ---
     ws_max_connections: int = Field(default=200, ge=10, le=5000)
     ws_heartbeat_interval_seconds: int = Field(default=30, ge=5, le=300)
+    # WebSocket auth: clients send {"type":"auth", ...} as their FIRST frame, so tokens never
+    # appear in the URL (proxy/access logs). The legacy ?token= / ?customer_token= query
+    # parameters stay accepted while WS_ALLOW_QUERY_TOKEN=true (rollout); set it to false once
+    # every client is updated.
+    ws_allow_query_token: bool = Field(default=True)
+    ws_auth_timeout_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
 
-    # --- Proxy Trust (Issue 2) ---
-    # Comma-separated or JSON list of peer IPs of trusted reverse proxies
-    # (Caddy container IP on Docker bridge, or Render's proxy range).
-    # When empty, forwarding headers are NEVER trusted (safe default).
-    trusted_proxy_ips: frozenset[str] = Field(default_factory=frozenset)
+    # --- Proxy Trust ---
+    # Two independent ways to learn the real client IP behind a reverse proxy.
+    # Both default to "off": forwarding headers are then NEVER trusted (safe default).
+    #
+    # TRUSTED_PROXY_IPS: comma-separated / JSON list of exact IPs or CIDR ranges of
+    #   proxies with a STABLE peer address (Caddy container / Docker bridge).
+    # PROXY_HOPS: number of trusted proxies in front of the app when their IPs are
+    #   not stable (Render). X-Forwarded-For is read from the right, so values a
+    #   client prepends cannot spoof its IP. Calibrate with
+    #   GET /api/v1/admin/diagnostics/client-ip (see docs/12 / FIX8 note).
+    trusted_proxy_ips: Annotated[frozenset[str], NoDecode] = Field(default_factory=frozenset)
+    proxy_hops: int = Field(default=0, ge=0, le=5)
 
     # --- Local File Storage ---
     upload_dir: Path = Field(default=Path("./uploads/menu"))
@@ -120,21 +133,30 @@ class Settings(BaseSettings):
     @field_validator("trusted_proxy_ips", mode="before")
     @classmethod
     def parse_trusted_proxy_ips(cls, value: str | list[str] | frozenset[str]) -> frozenset[str]:
+        entries: frozenset[str]
         if isinstance(value, frozenset):
-            return value
-        if isinstance(value, list | set):
-            return frozenset(ip.strip() for ip in value if ip.strip())
-        if isinstance(value, str):
+            entries = value
+        elif isinstance(value, list | set):
+            entries = frozenset(str(ip).strip() for ip in value if str(ip).strip())
+        elif isinstance(value, str):
             raw = value.strip()
             if not raw:
-                return frozenset()
-            if raw.startswith("["):
-                import json  # noqa: PLC0415
-
+                entries = frozenset()
+            elif raw.startswith("["):
                 parsed = json.loads(raw)
-                return frozenset(str(ip).strip() for ip in parsed if str(ip).strip())
-            return frozenset(ip.strip() for ip in raw.split(",") if ip.strip())
-        return frozenset()
+                entries = frozenset(str(ip).strip() for ip in parsed if str(ip).strip())
+            else:
+                entries = frozenset(ip.strip() for ip in raw.split(",") if ip.strip())
+        else:
+            entries = frozenset()
+        # Fail fast on typos: each entry must be an IP address or CIDR range.
+        from app.core.client_ip import parse_trusted_networks  # noqa: PLC0415
+
+        try:
+            parse_trusted_networks(entries)
+        except ValueError as exc:
+            raise ValueError(f"TRUSTED_PROXY_IPS contains an invalid IP/CIDR entry: {exc}") from exc
+        return entries
 
     @field_validator("auth_cookie_secure", mode="before")
     @classmethod

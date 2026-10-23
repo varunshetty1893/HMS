@@ -11,7 +11,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.dependencies import require_roles
 from app.core.exceptions import DomainValidationError, ResourceNotFoundError
+from app.core.rate_limit import describe_client_ip
 from app.models.billing import Bill, Payment
 from app.models.enums import UserRole
 from app.models.identity import User
@@ -436,6 +437,12 @@ async def delete_menu_item_image(
 # =============================================================================
 # Physical Table & QR Management (Section 12.3 & 12.4)
 # =============================================================================
+
+
+@router.get("/diagnostics/client-ip")
+async def client_ip_diagnostics(_admin: AdminUser, request: Request) -> dict[str, Any]:
+    """Show how this request's client IP is resolved (use it to calibrate PROXY_HOPS)."""
+    return describe_client_ip(request)
 
 
 @router.get("/tables", response_model=list[TableResponse])

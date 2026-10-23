@@ -46,6 +46,7 @@ class AdminWebSocketClient {
   private statusListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private eventListeners: Map<string, Set<EventHandler>> = new Map();
   private reconnectTimeout: any = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private currentStatus: ConnectionStatus = 'DISCONNECTED';
   private shouldReconnect = true;
   private isRefreshing = false;
@@ -124,15 +125,18 @@ class AdminWebSocketClient {
       return `${protocol}//${host}/api/v1/ws`;
     };
 
-    const baseWsUrl = resolveAdminWs();
-    const separator = baseWsUrl.includes('?') ? '&' : '?';
-    const wsUrl = `${baseWsUrl}${separator}token=${encodeURIComponent(token)}`;
+    // The token is NOT put in the URL (it would leak into proxy/access logs). It is sent as
+    // the first frame right after the socket opens; the backend closes with 4001 if invalid.
+    const wsUrl = resolveAdminWs();
+    const authToken: string = token;
 
     try {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
+        this.ws?.send(JSON.stringify({ type: 'auth', token: authToken }));
         this.setStatus('CONNECTED');
+        this.startHeartbeat();
         if (this.reconnectTimeout) {
           clearTimeout(this.reconnectTimeout);
           this.reconnectTimeout = null;
@@ -142,6 +146,8 @@ class AdminWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          // Heartbeat reply: never dispatch it (wildcard listeners would refetch every 30 s).
+          if (payload.type === 'pong') return;
           // Deduplicate using event_id (globally unique UUID, stable across reconnects).
           // Fall back to namespaced sequence so reconnects don't match old seq numbers.
           const dedupeId: string | undefined =
@@ -166,6 +172,7 @@ class AdminWebSocketClient {
       };
 
       this.ws.onclose = (ev) => {
+        this.stopHeartbeat();
         this.setStatus('DISCONNECTED');
         // Code 4001 = CLOSE_SESSION_REVOKED from backend (token rejected)
         // In this case force a refresh on next reconnect attempt.
@@ -187,6 +194,7 @@ class AdminWebSocketClient {
 
   public disconnect(): void {
     this.shouldReconnect = false;
+    this.stopHeartbeat();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -196,6 +204,27 @@ class AdminWebSocketClient {
       this.ws = null;
     }
     this.setStatus('DISCONNECTED');
+  }
+
+  /**
+   * 30 s application ping (same as the waiter, kitchen and customer clients). It keeps idle
+   * proxies from dropping the socket and counts as inbound WebSocket traffic, which delays
+   * the Render free-plan idle spin-down while an admin screen is open.
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30_000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private scheduleReconnect(): void {

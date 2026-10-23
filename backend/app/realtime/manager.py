@@ -89,8 +89,12 @@ class WebSocketManager:
         *,
         user_id: uuid.UUID,
         role: str,
+        already_accepted: bool = False,
     ) -> bool:
         """Accept an authenticated staff WebSocket and assign server-authoritative rooms.
+
+        ``already_accepted`` is True when the handshake was accepted earlier so the client
+        could send its first-message auth frame (the socket is then NOT accepted again).
 
         Returns True if accepted, or False if max connection limit is exceeded.
         """
@@ -108,7 +112,8 @@ class WebSocketManager:
                 )
                 return False
 
-            await websocket.accept()
+            if not already_accepted:
+                await websocket.accept()
 
             meta = ConnectionMeta(
                 websocket=websocket,
@@ -155,8 +160,11 @@ class WebSocketManager:
         *,
         customer_session_id: uuid.UUID,
         table_session_id: uuid.UUID,
+        already_accepted: bool = False,
     ) -> bool:
         """Accept an authenticated customer WebSocket scoped to a single table session.
+
+        ``already_accepted``: see :meth:`connect_staff`.
 
         Returns True if accepted, False if connection cap exceeded (docs/06 Section 16.3).
         """
@@ -174,7 +182,8 @@ class WebSocketManager:
                 )
                 return False
 
-            await websocket.accept()
+            if not already_accepted:
+                await websocket.accept()
 
             # Customers are scoped strictly to their own table_session room — no cross-table leakage
             room = f"table_session:{table_session_id}"

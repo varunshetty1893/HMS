@@ -277,7 +277,7 @@ All events include `"event_version": 1` in the envelope:
 ```
 
 ### 9.2 Customer Security & Lifecycle Rules
-1. **Authentication:** The customer authenticates the WebSocket using their opaque 256-bit `customer_session_token` (passed via initial auth handshake frame or query/header token during `WSS /api/v1/ws` upgrade).
+1. **Authentication:** The customer authenticates the WebSocket using their opaque 256-bit `customer_session_token` (sent as the **first frame** `{"type":"auth","customer_token":"<token>"}` after the socket opens; staff send `{"type":"auth","token":"<access JWT>"}`). The server waits `WS_AUTH_TIMEOUT_SECONDS` (default 5 s) for this frame and closes with `1008` if it is missing, oversized, malformed or ambiguous, or `4001` if the credential is invalid. The `Authorization: Bearer` header is also accepted for non-browser clients. **Deprecated:** `?token=` / `?customer_token=` URL query parameters (they leak into proxy/access logs) are accepted only while `WS_ALLOW_QUERY_TOKEN=true` (rollout default); set it to `false` once all clients send the auth frame.
 2. **Server-Derived Subscription (Zero IDOR Risk):**
    - The customer client **never sends a `table_id` or `table_session_id` to subscribe to**.
    - The backend looks up `SHA-256(customer_session_token)` in `customer_sessions`, verifies `status == 'ACTIVE'` and `expires_at > NOW()`, and binds the socket exclusively to the `table_session_id` stored in the database row.

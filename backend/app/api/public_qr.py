@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.rate_limit import rate_limit_by_ip
+from app.core.rate_limit import extract_client_ip, rate_limit_by_ip
 from app.schemas.qr import QrResolutionRequest, QrResolutionResponse
 from app.services.qr_service import QrService
 
@@ -28,7 +28,7 @@ async def resolve_qr_by_path(
     db: AsyncSession = Depends(get_db),
 ) -> QrResolutionResponse:
     """Resolve physical table QR code from URL path token and issue customer session."""
-    client_ip = request.client.host if request.client else None
+    client_ip = extract_client_ip(request)
     user_agent = request.headers.get("user-agent")
     existing_session_token = request.headers.get("x-customer-session-token")
     if not existing_session_token:
@@ -56,7 +56,7 @@ async def resolve_qr_by_body(
     db: AsyncSession = Depends(get_db),
 ) -> QrResolutionResponse:
     """Resolve physical table QR code from JSON payload and issue customer session."""
-    client_ip = request.client.host if request.client else None
+    client_ip = extract_client_ip(request)
     user_agent = request.headers.get("user-agent")
     existing_session_token = request.headers.get("x-customer-session-token")
     if not existing_session_token:

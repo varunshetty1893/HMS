@@ -3,9 +3,14 @@
 Follows `docs/08-realtime-and-event-specification.md` and
 `docs/06-security-specification.md` (Section 16).
 
-Two authentication modes (docs/08 Section 4.1):
-  1. Staff: Bearer JWT in `?token=` query param or `Authorization: Bearer` header.
-  2. Customer: raw session token in `?customer_token=` query param, verified by SHA-256 hash lookup.
+Authentication (docs/08 Section 4.1) - tokens must NOT travel in the URL (proxy logs):
+  1. Preferred (all clients): connect without credentials and send the FIRST frame within
+     `WS_AUTH_TIMEOUT_SECONDS`:
+       staff    -> {"type": "auth", "token": "<access JWT>"}
+       customer -> {"type": "auth", "customer_token": "<raw session token>"}
+  2. Staff `Authorization: Bearer` header (non-browser clients).
+  3. DEPRECATED, only while `WS_ALLOW_QUERY_TOKEN=true`: `?token=` (staff JWT) and
+     `?customer_token=` (customer session token, SHA-256 hash lookup).
 
 Security constraints enforced here (docs/08 Section 4 / docs/06 Section 16):
   - Max 4 KB per incoming client frame (close 1009 if exceeded).
@@ -18,7 +23,9 @@ Security constraints enforced here (docs/08 Section 4 / docs/06 Section 16):
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import json
 import uuid
 
 import jwt
@@ -26,6 +33,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.database import get_engine
 from app.core.logging import get_logger
 from app.core.security import decode_access_token
@@ -104,38 +112,117 @@ async def _authenticate_ws_customer(
         return cs, ts
 
 
+async def _safe_close(websocket: WebSocket, code: int, reason: str) -> None:
+    """Close a socket, ignoring errors when the peer already went away."""
+    try:
+        await websocket.close(code=code, reason=reason)
+    except RuntimeError:
+        pass
+
+
+# Max sockets allowed to sit in the "accepted, waiting for auth frame" state at once.
+MAX_PENDING_PRE_AUTH = 50
+_pending_pre_auth = 0
+_legacy_query_warned = False
+
+
+async def _receive_auth_frame(
+    websocket: WebSocket, timeout_seconds: float
+) -> tuple[str | None, str | None] | None:
+    """Wait for the first-message auth frame.
+
+    Returns ``(staff_token, customer_token)`` with exactly one value set, or ``None`` when the
+    frame is missing, late, oversized, malformed or ambiguous (the caller closes the socket).
+    """
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=timeout_seconds)
+    except (asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
+        return None
+    if len(raw.encode("utf-8")) > MAX_CLIENT_FRAME_BYTES:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or str(data.get("type", "")).lower() != "auth":
+        return None
+    staff = data.get("token")
+    customer = data.get("customer_token")
+    staff_token = staff.strip() if isinstance(staff, str) and staff.strip() else None
+    customer_token = customer.strip() if isinstance(customer, str) and customer.strip() else None
+    if bool(staff_token) == bool(customer_token):  # neither or both -> ambiguous
+        return None
+    return staff_token, customer_token
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Real-time WebSocket endpoint supporting staff JWT and customer session tokens.
 
     Flow:
-      1. Detect auth mode from query params.
-      2. Validate credentials before accept().
+      1. Credentials come from the first `{"type": "auth"}` frame (preferred), the
+         Authorization header, or - deprecated, flag-gated - URL query params.
+      2. Validate credentials before joining any room (first-message mode accepts the
+         handshake first, then closes with 4001/1008 on failure).
       3. Subscribe to server-authoritative rooms.
       4. Send `connection.ready` with current sequence = 0.
       5. Loop: receive frames, enforce 4 KB limit, respond to ping, reject commands.
       6. On disconnect: clean up rooms.
     """
     # ─── Authentication ───────────────────────────────────────────────────────
+    global _pending_pre_auth, _legacy_query_warned
+    settings = get_settings()
     token = websocket.query_params.get("token")
     customer_token = websocket.query_params.get("customer_token")
+    used_query_token = bool(token or customer_token)
+    accepted = False
+
+    if used_query_token:
+        if not settings.ws_allow_query_token:
+            await websocket.close(code=CLOSE_POLICY_VIOLATION, reason="QUERY_TOKEN_DISABLED")
+            return
+        # Never log the token itself - only that the deprecated path is still in use.
+        if not _legacy_query_warned:
+            _legacy_query_warned = True
+            logger.warning(
+                "WebSocket client authenticated via deprecated URL query token; "
+                "update the client to first-message auth and set WS_ALLOW_QUERY_TOKEN=false."
+            )
 
     if not token:
         auth_header = websocket.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
 
+    if not token and not customer_token:
+        # First-message auth: accept, then require an auth frame within the timeout.
+        if _pending_pre_auth >= MAX_PENDING_PRE_AUTH:
+            await websocket.close(code=CLOSE_POLICY_VIOLATION, reason="TOO_MANY_PENDING")
+            return
+        _pending_pre_auth += 1
+        try:
+            await websocket.accept()
+            accepted = True
+            creds = await _receive_auth_frame(websocket, settings.ws_auth_timeout_seconds)
+        finally:
+            _pending_pre_auth -= 1
+        if creds is None:
+            await _safe_close(websocket, CLOSE_POLICY_VIOLATION, "AUTH_REQUIRED")
+            return
+        token, customer_token = creds
+
     if token:
         # Staff auth path
         user = await _authenticate_ws_staff(token)
         if not user:
-            await websocket.close(code=CLOSE_SESSION_REVOKED, reason="UNAUTHORIZED")
+            await _safe_close(websocket, CLOSE_SESSION_REVOKED, "UNAUTHORIZED")
             return
 
         connected = await ws_manager.connect_staff(
             websocket,
             user_id=user.id,
             role=user.role,
+            already_accepted=accepted,
         )
         if not connected:
             return
@@ -155,7 +242,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         # Customer session auth path
         result = await _authenticate_ws_customer(customer_token)
         if not result:
-            await websocket.close(code=CLOSE_SESSION_REVOKED, reason="SESSION_INVALID")
+            await _safe_close(websocket, CLOSE_SESSION_REVOKED, "SESSION_INVALID")
             return
 
         cs, ts = result
@@ -166,6 +253,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             websocket,
             customer_session_id=cs.id,
             table_session_id=ts_id,
+            already_accepted=accepted,
         )
         if not connected:
             return
@@ -182,7 +270,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         )
 
     else:
-        await websocket.close(code=CLOSE_POLICY_VIOLATION, reason="UNAUTHORIZED")
+        await _safe_close(websocket, CLOSE_POLICY_VIOLATION, "UNAUTHORIZED")
         return
 
     # ─── Message Loop ─────────────────────────────────────────────────────────
@@ -196,8 +284,6 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 break
 
             try:
-                import json
-
                 data = json.loads(raw)
             except ValueError:
                 # Ignore malformed JSON frames

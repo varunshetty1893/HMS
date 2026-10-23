@@ -70,9 +70,10 @@ class WaiterWebSocketClient {
     if (_destroyed) return;
 
     try {
-      final wsUri = Uri.parse(
-          '${EnvConfig.wsUrl}?token=${Uri.encodeComponent(_token ?? '')}');
+      // Token goes in the first frame, not the URL (it would leak into proxy logs).
+      final wsUri = Uri.parse(EnvConfig.wsUrl);
       _channel = WebSocketChannel.connect(wsUri);
+      _channel!.sink.add(jsonEncode({'type': 'auth', 'token': _token ?? ''}));
       _connectionStateController.add(true);
       _reconnectAttempt = 0;
       _startHeartbeat();

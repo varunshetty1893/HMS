@@ -15,6 +15,7 @@ from typing import Any
 
 from fastapi import Request
 
+from app.core.client_ip import resolve_client_ip
 from app.core.exceptions import RateLimitExceededError
 
 
@@ -58,19 +59,20 @@ class SlidingWindowRateLimiter:
 
 
 # ─── Trusted proxy configuration ──────────────────────────────────────────────
-# Only accept X-Real-IP / X-Forwarded-For from these peer addresses.
-# In Docker, Caddy sits on the internal_net bridge; its peer IP as seen by
-# uvicorn/FastAPI will be the gateway of the docker bridge network (typically
-# 172.x.x.1) or the caddy container IP.  Set TRUSTED_PROXY_IPS in .env to
-# the actual Caddy container IP or CIDR range of the bridge network.
-# In production on Render, trusted proxies are Render's own infra; Render sets
-# X-Forwarded-For and X-Real-IP from its edge.
+# Resolution logic lives in `app.core.client_ip` (pure functions, unit tested).
 #
-# The value is loaded lazily from settings to avoid circular imports.
+# * TRUSTED_PROXY_IPS - exact IPs or CIDR ranges of proxies whose peer address is
+#   stable (Docker/Caddy). Their X-Real-IP / X-Forwarded-For is honoured.
+# * PROXY_HOPS        - number of trusted proxies in front of the app when their IPs
+#   are NOT stable (Render). X-Forwarded-For is read from the right, so values a
+#   client prepends can never spoof the IP.
+#
+# Both default to "off": forwarding headers are then ignored (safe default).
+# Values are loaded lazily from settings to avoid circular imports.
 
 
 def _get_trusted_proxy_ips() -> frozenset[str]:
-    """Return the frozenset of trusted proxy IPs from settings (lazy load)."""
+    """Return the frozenset of trusted proxy IPs/CIDRs from settings (lazy load)."""
     try:
         from app.config import get_settings  # noqa: PLC0415
 
@@ -80,38 +82,46 @@ def _get_trusted_proxy_ips() -> frozenset[str]:
         return frozenset()
 
 
+def _get_proxy_hops() -> int:
+    """Return the configured number of trusted proxy hops (lazy load, 0 = off)."""
+    try:
+        from app.config import get_settings  # noqa: PLC0415
+
+        return int(get_settings().proxy_hops)
+    except Exception:
+        return 0
+
+
 def extract_client_ip(request: Request) -> str:
-    """Extract the real client IP securely.
+    """Extract the real client IP securely (see `app.core.client_ip`).
 
-    Rules (in order of precedence):
-    1. If the connection's immediate peer IP is in the trusted_proxy_ips set,
-       honour X-Real-IP (single IP) or the *first* entry of X-Forwarded-For
-       (leftmost = original client, subsequent = proxy chain).
-       Caddy sets ``header_up X-Forwarded-For {remote_host}`` which *replaces*
-       the header with a single verified value, so first == only entry.
-    2. Otherwise, fall back to the raw TCP peer address reported by uvicorn.
-
-    This prevents a malicious client from spoofing X-Real-IP or prepending
-    fake IPs to X-Forwarded-For when there is no trusted proxy in front.
+    Forwarding headers are only used when ``PROXY_HOPS`` > 0 (read from the right)
+    or when the TCP peer is listed in ``TRUSTED_PROXY_IPS``. Otherwise the raw peer
+    address is returned, so a client can never spoof its IP via request headers.
     """
-    peer_ip = (request.client.host if request.client else None) or "unknown_client"
+    return resolve_client_ip(
+        request.client.host if request.client else None,
+        request.headers,
+        _get_trusted_proxy_ips(),
+        _get_proxy_hops(),
+    )
+
+
+def describe_client_ip(request: Request) -> dict[str, Any]:
+    """Diagnostics for calibrating PROXY_HOPS (admin-only endpoint).
+
+    Returns what the app sees for *this* request: TCP peer, raw forwarding headers,
+    the active proxy settings and the IP that rate limiting would use.
+    """
     trusted = _get_trusted_proxy_ips()
-
-    if peer_ip in trusted:
-        # Proxy is trusted — honour its forwarding headers.
-        x_real_ip = request.headers.get("X-Real-IP", "").strip()
-        if x_real_ip:
-            return x_real_ip
-
-        forwarded_for = request.headers.get("X-Forwarded-For", "")
-        if forwarded_for:
-            # First entry = original client IP (Caddy overwrites with {remote_host})
-            first = forwarded_for.split(",")[0].strip()
-            if first:
-                return first
-
-    # No trusted proxy or forwarding headers unavailable — use raw peer IP.
-    return peer_ip
+    return {
+        "peer_ip": request.client.host if request.client else None,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+        "x_real_ip": request.headers.get("X-Real-IP"),
+        "proxy_hops": _get_proxy_hops(),
+        "trusted_proxy_entries": len(trusted),
+        "resolved_client_ip": extract_client_ip(request),
+    }
 
 
 # Global in-memory instance

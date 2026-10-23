@@ -284,6 +284,12 @@ All rate limits are configurable in `restaurant_settings` / `.env` (**`RECOMMEND
 | **7. WebSocket Handshakes (`WSS /api/v1/ws`)** | `customer_session_id` / `user_id` | Max **10 connections / min**; max **3 concurrent sockets** per `CustomerSession` | Rejects excess handshakes (`1008 Policy Violation`). |
 | **8. Admin Sensitive Operations (QR rotate, password reset)** | `admin_user_id` | Max **30 operations / min** | Returns `429` and logs in `audit_logs`. |
 
+### 11.3 Client IP Behind Reverse Proxies (`TRUSTED_PROXY_IPS`, `PROXY_HOPS`)
+Per-IP limits (staff login, `change-password`, `admin-recovery-reset`, QR resolve) are only meaningful if the backend sees the *real* client IP. `app/core/client_ip.py` resolves it with two explicit, opt-in trust models; with neither configured, forwarding headers are **ignored** and the raw TCP peer is used (cannot be spoofed):
+- **`PROXY_HOPS=N` (Render / PaaS with unstable proxy IPs):** `X-Forwarded-For` is read **from the right**; entry `-N` is the client address seen by the first trusted proxy. Values a client prepends on the left are never used, so they cannot spoof the IP. `X-Real-IP` is ignored in this mode. Too small a value merges clients into one bucket; too large a value (or a directly reachable app) allows spoofing — calibrate with the admin-only `GET /api/v1/admin/diagnostics/client-ip`.
+- **`TRUSTED_PROXY_IPS` (Docker/Caddy):** exact IPs or CIDR ranges. Only when the TCP peer matches are `X-Real-IP` / the first `X-Forwarded-For` entry honoured.
+- Every address taken from a header is validated as an IP; invalid values fall back to the TCP peer. Malformed `TRUSTED_PROXY_IPS` entries fail startup.
+
 ---
 
 ## 12. IDEMPOTENCY AND DUPLICATE ORDERS
@@ -348,7 +354,7 @@ To enforce data minimization and prevent sensitive data leaks:
 
 ## 16. WEBSOCKET SECURITY (`WSS /api/v1/ws`)
 
-1. **Authenticated Handshake:** Connections require a valid staff JWT or `customer_session_token` passed at handshake. Unauthenticated or expired tokens are rejected immediately with WebSocket close code `1008 Policy Violation`.
+1. **Authenticated Handshake:** Connections require a valid staff JWT or `customer_session_token` passed at handshake. Unauthenticated or expired tokens are rejected immediately with WebSocket close code `1008 Policy Violation`. Credentials are sent in the first `{"type":"auth"}` frame (never in the URL, to keep tokens out of proxy logs); unauthenticated sockets are capped (`MAX_PENDING_PRE_AUTH`) and time out after `WS_AUTH_TIMEOUT_SECONDS`. Legacy `?token=` query auth is gated by `WS_ALLOW_QUERY_TOKEN` and must be switched off after rollout.
 2. **Server-Authoritative Room Subscription (Zero Cross-Table Snooping):**
    - Clients **cannot** send a message asking to subscribe to `"room:table_5"` or `"room:kitchen"`.
    - Instead, the backend inspects the authenticated token during handshake and assigns rooms strictly on the server:

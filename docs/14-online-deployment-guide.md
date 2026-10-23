@@ -58,6 +58,38 @@
 5. Deploy the service. Verify the build log runs `alembic upgrade head` successfully and Uvicorn starts.
 6. Verify healthcheck: `GET https://<your-render-app>.onrender.com/api/v1/health` returns `{"status":"ok"}`.
 
+#### Step 2a: Calibrate real client IP for rate limiting (`PROXY_HOPS`)
+Behind Render's proxy every client otherwise shares one IP, so login (10/min) and admin-recovery (5/15 min) limits are shared by everyone. After the first deploy:
+1. Log in as admin and call the diagnostics route with your access token (PowerShell):
+   ```powershell
+   $base = "https://<your-render-app>.onrender.com/api/v1"
+   $login = Invoke-RestMethod -Method Post -Uri "$base/auth/login" -ContentType "application/json" -Body '{"username":"admin","password":"<your-password>"}'
+   Invoke-RestMethod -Uri "$base/admin/diagnostics/client-ip" -Headers @{ Authorization = "Bearer $($login.access_token)" }
+   ```
+2. Look at `x_forwarded_for` (right-most entries are added by Render). Find the position from the right where YOUR real public IP (check https://ifconfig.me) sits: right-most = `1`, next = `2`, ...
+3. Set `PROXY_HOPS` in Render to that number, redeploy, call the route again: `resolved_client_ip` must now equal your public IP. Test once from mobile data too — the value must change.
+4. If `x_forwarded_for` does not contain your IP at all, leave `PROXY_HOPS=0`.
+
+#### Step 2b: Render free-plan sleep and WebSockets (what happens + zero-cost mitigation)
+**Facts (Render docs / changelog, checked Oct 2026):**
+- A Free web service spins down after **15 minutes without inbound traffic**. Since Feb 2026 an incoming message on an *existing* WebSocket counts as traffic (before, only HTTP did). Waking up takes roughly a minute.
+- When it spins down, every open WebSocket is dropped. A new HTTP request or new WebSocket connection wakes it.
+- Free instance hours: **750 per workspace per month**. One service running 24/7 uses ~744 h, so a second free service in the same workspace would get everything suspended at month end. Spun-down time is not counted.
+- The Neon free database also suspends itself when idle, so the first query after a quiet period is slower.
+
+**What the app already does (no action needed):** waiter, kitchen, customer and (since FIX10) admin clients send a `ping` every 30 s, reconnect with backoff (max 30 s) and refetch/resync after reconnecting (waiter: `table.resync`; admin screens refetch on `connection.ready`). So a wake-up shows "reconnecting" for about a minute and then recovers by itself. Caveat: phones pause timers when the app is in the background or the screen is locked, so heartbeats stop there and the service can still sleep.
+
+**Recommended mitigation (cost: Rs 0): opening-hours keep-alive**
+1. Create a free account on a cron/uptime service that lets you restrict the schedule (e.g. cron-job.org; UptimeRobot's free plan pings every 5 min but cannot limit hours - check current free-plan limits).
+2. Add a job: `GET https://<your-render-app>.onrender.com/api/v1/health/ready` every **10 minutes**, only during opening hours plus 30 min before opening (e.g. 10:00-23:30 IST). `/health/ready` also touches the database, so Neon stays warm too. `GET`/`HEAD /api/v1/health` (no DB) also work.
+3. Do NOT ping 24/7: it burns the 750 free hours for nothing and keeps the database awake all night. Outside the schedule the service sleeps, which is fine when the restaurant is closed.
+4. A ping that times out during a cold start (first one of the day) is normal; it still wakes the service.
+5. Before opening you can also run `scripts/warmup.ps1` (PowerShell): `.\scripts\warmup.ps1 -Base "https://<your-render-app>.onrender.com"` - it waits until backend + database answer and prints the wake-up time.
+
+**Not recommended:** GitHub Actions cron (private-repo minutes quota, scheduled runs are delayed/skipped, disabled after repo inactivity).
+
+**Only real fix (costs money - needs owner approval):** a paid Render instance type does not spin down, so sockets never drop from idling. Change `plan: free` in `render.yaml` (or the service's instance type in the dashboard). This is a recurring charge; the project is currently free-tier only.
+
 ### Step 3: Initialize Production Admin User
 Run the idempotent production bootstrapping script from your local machine targeting the remote Neon database:
 ```bash

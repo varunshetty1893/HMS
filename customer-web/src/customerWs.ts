@@ -58,15 +58,17 @@ class CustomerWebSocketClient {
   private _doConnect(): void {
     if (this.destroyed) return;
 
-    const url = `${WS_BASE}?customer_token=${encodeURIComponent(this.sessionToken ?? '')}`;
+    // The session token is sent as the first frame, not in the URL (proxy/access logs).
+    const authToken = this.sessionToken ?? '';
     try {
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(WS_BASE);
     } catch {
       this._scheduleReconnect();
       return;
     }
 
     this.ws.onopen = () => {
+      this.ws?.send(JSON.stringify({ type: 'auth', customer_token: authToken }));
       this.reconnectAttempt = 0;
       this._startHeartbeat();
     };

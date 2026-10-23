@@ -17,8 +17,10 @@ import {
 } from 'lucide-react';
 import { Bill, PaymentMethod, TableBillCheck } from '@/types/api';
 import { PaginationBar, usePagination } from '@/components/common/Pagination';
+import BillAndCollectPanel from '@/components/billing/BillAndCollectPanel';
 
 const BILL_TABS: { label: string; value: string }[] = [
+  { label: 'Bill & Collect', value: 'COLLECT' },
   { label: 'All Bills', value: 'ALL' },
   { label: 'Unpaid Bills', value: 'ISSUED' },
   { label: 'Paid Bills', value: 'PAID' },
@@ -31,7 +33,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const [bills, setBills] = useState<Bill[]>([]);
   // "Unpaid" used to make a fully settled restaurant look empty.  Show all
   // bills on entry; the cashier can still select the unpaid-only tab.
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('COLLECT');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,16 +41,12 @@ export const BillingAndPaymentsPage: React.FC = () => {
 
   // Tables that have ordered but have no generated bill yet (live running check).
   const [openChecks, setOpenChecks] = useState<TableBillCheck[]>([]);
-  const [selectedLiveTable, setSelectedLiveTable] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [isLoadingBillDetail, setIsLoadingBillDetail] = useState(false);
   const [discountBill, setDiscountBill] = useState<Bill | null>(null);
   const [discountAmount, setDiscountAmount] = useState('50.00');
   const [discountReason, setDiscountReason] = useState('Manager goodwill');
   const [voidBill, setVoidBill] = useState<Bill | null>(null);
-  const [isGenerateOpen, setIsGenerateOpen] = useState(false);
-  const [generateTableNumber, setGenerateTableNumber] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [cashTendered, setCashTendered] = useState('');
@@ -76,7 +74,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
     try {
       const [data, checks] = await Promise.all([
         ordersBillsApi.listBills({
-          status: statusFilter === 'ALL' ? undefined : statusFilter,
+          status: statusFilter === 'ALL' || statusFilter === 'COLLECT' ? undefined : statusFilter,
         }),
         ordersBillsApi.listOpenTableChecks().catch(() => [] as TableBillCheck[]),
       ]);
@@ -103,13 +101,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
       window.clearInterval(refreshTimer);
     };
   }, [statusFilter]);
-
-  // If a live check was billed from elsewhere, close its popup.
-  useEffect(() => {
-    if (selectedLiveTable && !openChecks.some((c) => c.table_id === selectedLiveTable)) {
-      setSelectedLiveTable(null);
-    }
-  }, [openChecks, selectedLiveTable]);
 
   const handleApplyDiscount = async () => {
     if (!discountBill) return;
@@ -149,36 +140,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  const handleGenerateBill = async (tableNumberOverride?: number, collectNow = false) => {
-    const tableNumber = tableNumberOverride ?? Number(generateTableNumber);
-    if (!Number.isInteger(tableNumber) || tableNumber < 1) {
-      setError('Enter a valid table number.');
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const bill = await ordersBillsApi.generateBill(tableNumber);
-      setSelectedLiveTable(null);
-      setIsGenerateOpen(false);
-      setGenerateTableNumber('');
-      setSuccessBanner(`Bill #${bill.bill_number} generated for Table ${tableNumber}.`);
-      await fetchBills();
-      if (collectNow) {
-        setPaymentBill(bill);
-        setPaymentMethod('CASH');
-        setCashTendered(bill.grand_total);
-        setPaymentReference('');
-        setPaymentNotes('');
-      } else {
-        await handleSelectBill(bill);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Could not generate the bill. Ensure all table orders are served.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   const handleRecordPayment = async () => {
     if (!paymentBill) return;
     const amountApplied = Number(paymentBill.grand_total);
@@ -211,21 +172,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  const showLive = statusFilter === 'ALL' || statusFilter === 'ISSUED';
   const query = searchQuery.toLowerCase().trim();
-
-  const filteredChecks = !showLive
-    ? []
-    : openChecks.filter((c) => {
-        if (!query) return true;
-        return [
-          `table ${c.table_number}`,
-          String(c.table_number),
-          c.table_display_name || '',
-          c.preview_grand_total || '',
-          ...c.preview_line_items.map((i) => i.item_name),
-        ].some((f) => f.toLowerCase().includes(query));
-      });
 
   const filteredRows = bills
     .filter((bill) => {
@@ -247,7 +194,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
   const paidBills = bills.filter((b) => b.status === 'PAID');
   const openTotal = openChecks.reduce((acc, c) => acc + Number(c.preview_grand_total || 0), 0);
   const billsPag = usePagination(filteredRows, 10);
-  const selectedLive = openChecks.find((c) => c.table_id === selectedLiveTable) ?? null;
 
   return (
     <div className="p-8 space-y-6">
@@ -262,12 +208,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
             Cashier settlement desk, table checks, GST tax calculation, and discounts
           </p>
         </div>
-        <button
-          onClick={() => { setError(null); setIsGenerateOpen(true); }}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-500 shadow-md cursor-pointer"
-        >
-          Generate Table Bill
-        </button>
       </div>
 
       {/* Success Banner */}
@@ -332,7 +272,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
           })}
         </div>
 
-        <div className="relative w-full sm:w-64">
+        {statusFilter !== 'COLLECT' && <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: muted }} />
           <input
             type="text"
@@ -342,7 +282,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
             className="w-full pl-10 pr-4 py-2 rounded-xl text-xs focus:outline-none"
             style={input}
           />
-        </div>
+        </div>}
       </div>
 
       {/* Summary strip */}
@@ -363,61 +303,36 @@ export const BillingAndPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tables waiting to be billed */}
-      {filteredChecks.length > 0 && (
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-wider mb-2.5" style={{ color: sub }}>
-            Tables ordering now · {filteredChecks.length}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredChecks.map((c) => {
-              const waiting = c.has_unaccepted_placed_orders || c.has_unserved_orders;
-              const qty = c.preview_line_items.reduce((n, i) => n + i.quantity_billed, 0);
-              return (
-                <div key={c.table_id} className="rounded-2xl p-4 border-l-4 shadow-sm" style={{ ...card, borderLeftColor: waiting ? '#f59e0b' : '#10b981' }}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-lg font-black" style={{ color: heading }}>Table {c.table_number}</div>
-                      <div className="text-[11px]" style={{ color: muted }}>{qty} item{qty === 1 ? '' : 's'} · {c.preview_line_items.length} line{c.preview_line_items.length === 1 ? '' : 's'}</div>
-                    </div>
-                    <span
-                      className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                      style={waiting
-                        ? { backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }
-                        : { backgroundColor: '#dcfce7', color: '#166534', borderColor: '#86efac' }}
-                    >
-                      {c.has_unaccepted_placed_orders ? 'Awaiting kitchen' : c.has_unserved_orders ? 'Being served' : 'Ready to bill'}
-                    </span>
-                  </div>
-                  <div className="mt-3 text-[11px] truncate" style={{ color: sub }}>
-                    {c.preview_line_items.slice(0, 3).map((i) => `${i.quantity_billed}× ${i.item_name}`).join(' · ')}
-                    {c.preview_line_items.length > 3 ? ` +${c.preview_line_items.length - 3} more` : ''}
-                  </div>
-                  <div className="mt-3 flex items-end justify-between">
-                    <div>
-                      <div className="text-[10px] uppercase font-bold" style={{ color: muted }}>Running total (incl. GST)</div>
-                      <div className="text-2xl font-black font-mono" style={{ color: heading }}>{formatInr(c.preview_grand_total ?? '0')}</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => setSelectedLiveTable(c.table_id)} className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style={{ color: heading, border: `1px solid ${border}` }}>View items</button>
-                    <button
-                      disabled={waiting || isGenerating}
-                      title={waiting ? 'All orders must be served first' : 'Generate the bill and take payment'}
-                      onClick={() => handleGenerateBill(c.table_number, true)}
-                      className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      Bill & Collect
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Bills Table */}
+      {statusFilter === 'COLLECT' ? (
+        isLoading && openChecks.length === 0 ? (
+          <div className="p-12 text-center text-sm" style={{ color: muted }}>Loading tables…</div>
+        ) : (
+          <BillAndCollectPanel
+            checks={openChecks}
+            theme={{ L, heading, sub, muted, border, card, input }}
+            onRefresh={fetchBills}
+            onPaid={(message) => {
+              setSuccessBanner(message);
+              fetchBills();
+            }}
+            onBillCreated={(bill, message) => {
+              fetchBills();
+              if (message) {
+                setError(message);
+                setPaymentBill(bill);
+                setPaymentMethod('CASH');
+                setCashTendered(bill.grand_total);
+                setPaymentReference('');
+                setPaymentNotes('');
+              } else {
+                setSuccessBanner(`Bill #${bill.bill_number} generated for Table ${bill.table_number ?? ''}.`);
+                handleSelectBill(bill);
+              }
+            }}
+          />
+        )
+      ) : (
+      <>
       {isLoading ? (
         <div
           className="p-16 text-center rounded-2xl"
@@ -426,7 +341,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
           <div className="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="mt-3 text-sm">Loading bills...</p>
         </div>
-      ) : filteredRows.length === 0 && filteredChecks.length > 0 ? null : filteredRows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div
           className="p-16 text-center rounded-2xl"
           style={{ ...card, color: sub }}
@@ -498,62 +413,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Live table check popup */}
-      {selectedLive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-          <div className="w-full max-w-2xl rounded-3xl p-6 shadow-2xl border" style={{ ...modalInner, borderColor: border }}>
-            <div className="flex items-start justify-between pb-4 border-b" style={{ borderBottomColor: border }}>
-              <div>
-                <h3 className="text-xl font-black" style={{ color: heading }}>Table {selectedLive.table_number} · Running check</h3>
-                <p className="text-xs mt-1" style={{ color: sub }}>Updates automatically as orders change. No bill has been generated yet.</p>
-              </div>
-              <button onClick={() => setSelectedLiveTable(null)} style={{ color: muted }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="mt-4 rounded-2xl border overflow-hidden" style={{ borderColor: border }}>
-              <div className="overflow-auto max-h-64">
-                <table className="w-full text-left text-xs">
-                  <thead style={{ backgroundColor: L ? '#f1f5f9' : '#1e293b', color: muted }}>
-                    <tr><th className="py-2.5 px-3.5">Item</th><th className="py-2.5 px-3 text-center">Qty</th><th className="py-2.5 px-3.5 text-right">Unit Rate</th><th className="py-2.5 px-4 text-right">Line Total</th></tr>
-                  </thead>
-                  <tbody>
-                    {selectedLive.preview_line_items.map((item, idx) => (
-                      <tr key={item.id || idx} className="border-t" style={{ borderColor: border }}>
-                        <td className="py-2.5 px-3.5 font-bold" style={{ color: heading }}>{item.item_name}{item.variant_name && item.variant_name.toUpperCase() !== 'STANDARD' ? <span className="font-normal" style={{ color: muted }}> ({item.variant_name})</span> : null}</td>
-                        <td className="py-2.5 px-3 text-center font-mono" style={{ color: heading }}>{item.quantity_billed}</td>
-                        <td className="py-2.5 px-3.5 text-right font-mono" style={{ color: sub }}>{formatInr(item.unit_price_snapshot)}</td>
-                        <td className="py-2.5 px-4 text-right font-mono font-bold" style={{ color: heading }}>{formatInr(item.line_total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="mt-4 rounded-2xl border p-4 text-xs space-y-1.5" style={{ borderColor: border, color: sub }}>
-              <div className="flex justify-between"><span>Subtotal (Items)</span><span className="font-mono">{formatInr(selectedLive.preview_subtotal ?? '0')}</span></div>
-              <div className="flex justify-between"><span>CGST</span><span className="font-mono">{formatInr(selectedLive.preview_cgst ?? '0')}</span></div>
-              <div className="flex justify-between"><span>SGST</span><span className="font-mono">{formatInr(selectedLive.preview_sgst ?? '0')}</span></div>
-              <div className="flex justify-between pt-2 border-t text-sm font-black" style={{ borderColor: border, color: heading }}><span>Running total</span><span className="font-mono">{formatInr(selectedLive.preview_grand_total ?? '0')}</span></div>
-            </div>
-            {(selectedLive.has_unaccepted_placed_orders || selectedLive.has_unserved_orders) && (
-              <p className="mt-3 text-xs" style={{ color: '#b45309' }}>
-                {selectedLive.has_unaccepted_placed_orders
-                  ? 'Some orders are not accepted by the kitchen yet.'
-                  : 'Some orders are not served yet.'}{' '}
-                The bill can be generated once all orders are served.
-              </p>
-            )}
-            <div className="mt-6 pt-4 border-t flex justify-end gap-3" style={{ borderTopColor: border }}>
-              <button onClick={() => setSelectedLiveTable(null)} className="px-4 py-2 rounded-xl text-xs font-semibold" style={{ color: heading, border: `1px solid ${border}` }}>Close</button>
-              <button
-                disabled={isGenerating || selectedLive.has_unaccepted_placed_orders || selectedLive.has_unserved_orders}
-                onClick={() => handleGenerateBill(selectedLive.table_number)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50 cursor-pointer"
-              >
-                {isGenerating ? 'Generating…' : 'Generate Bill'}
-              </button>
-            </div>
-          </div>
-        </div>
+      </>
       )}
 
       {/* Bill Detail Modal */}
@@ -889,42 +749,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
               >
                 Apply
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isGenerateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-4" style={modalInner}>
-            <div className="flex items-center justify-between pb-3 border-b" style={{ borderBottomColor: border }}>
-              <h3 className="font-bold text-base" style={{ color: heading }}>Generate Table Bill</h3>
-              <button onClick={() => setIsGenerateOpen(false)} style={{ color: muted }}><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-xs" style={{ color: sub }}>All orders for this table must be served before a final bill can be generated.</p>
-            {openChecks.filter((c) => !c.has_unaccepted_placed_orders && !c.has_unserved_orders).length > 0 && (
-              <div>
-                <div className="text-[11px] font-bold uppercase mb-1.5" style={{ color: muted }}>Ready to bill</div>
-                <div className="flex flex-wrap gap-2">
-                  {openChecks.filter((c) => !c.has_unaccepted_placed_orders && !c.has_unserved_orders).map((c) => (
-                    <button
-                      key={c.table_id}
-                      onClick={() => setGenerateTableNumber(String(c.table_number))}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
-                      style={String(c.table_number) === generateTableNumber
-                        ? { backgroundColor: '#ea580c', color: '#fff' }
-                        : { border: `1px solid ${border}`, color: heading }}
-                    >
-                      Table {c.table_number} · {formatInr(c.preview_grand_total ?? '0')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <input autoFocus type="number" min="1" value={generateTableNumber} onChange={(e) => setGenerateTableNumber(e.target.value)} placeholder="Table number" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setIsGenerateOpen(false)} className="px-3.5 py-2 rounded-xl text-xs font-semibold" style={{ color: heading }}>Cancel</button>
-              <button disabled={isGenerating} onClick={() => handleGenerateBill()} className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white disabled:opacity-50">{isGenerating ? 'Generating…' : 'Generate Bill'}</button>
             </div>
           </div>
         </div>

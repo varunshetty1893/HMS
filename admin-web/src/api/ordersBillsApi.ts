@@ -1,6 +1,29 @@
 import { apiClient } from './client';
 import { Bill, Order, TableBillCheck, OrderItemAdjustmentRequest, OrderReportItem, Payment } from '@/types/api';
 
+export interface MenuSearchVariant {
+  variant_id: string;
+  variant_code: string | null;
+  variant_name: string;
+  price: string | null;
+}
+
+export interface MenuSearchItem {
+  item_id: string;
+  item_code: string;
+  name: string;
+  category_name: string;
+  is_available: boolean;
+  variants: MenuSearchVariant[];
+}
+
+export interface TableOrderSummary {
+  id: string;
+  order_number: string;
+  status: string;
+  version: number;
+}
+
 export const ordersBillsApi = {
   listOrders: async (filters: {
     status?: string;
@@ -106,11 +129,51 @@ export const ordersBillsApi = {
     return apiClient<Bill>(`/bills/${billId}`);
   },
 
-  generateBill: async (tableNumber: number): Promise<Bill> => {
+  generateBill: async (
+    tableNumber: number,
+    options: {
+      discount_amount?: string;
+      discount_reason?: string | null;
+      price_overrides?: {
+        order_item_id: string;
+        unit_price: string;
+        quantity_billed: number;
+        reason: string;
+      }[];
+      custom_line_items?: {
+        item_name: string;
+        quantity: number;
+        unit_price: string;
+        reason?: string;
+      }[];
+    } = {}
+  ): Promise<Bill> => {
     return apiClient<Bill>('/bills/generate', {
       method: 'POST',
       headers: { 'Idempotency-Key': crypto.randomUUID() },
-      body: JSON.stringify({ table_number: tableNumber }),
+      body: JSON.stringify({ table_number: tableNumber, ...options }),
+    });
+  },
+
+  /** Menu lookup by short code or dish name (staff endpoint, admins allowed). */
+  searchMenu: async (q: string): Promise<MenuSearchItem[]> => {
+    const res = await apiClient<{ results: MenuSearchItem[] }>(
+      `/waiter/menu/search?q=${encodeURIComponent(q)}`
+    );
+    return res.results || [];
+  },
+
+  /** Orders of the table's active session, with status and version. */
+  getTableOrders: async (tableId: string): Promise<TableOrderSummary[]> => {
+    const res = await apiClient<{ orders?: TableOrderSummary[] }>(`/admin/tables/${tableId}/session`);
+    return res.orders || [];
+  },
+
+  /** READY -> SERVED (admins may serve on behalf of the waiter). */
+  serveOrder: async (orderId: string, expectedVersion: number): Promise<void> => {
+    await apiClient<unknown>(`/waiter/orders/${orderId}/serve`, {
+      method: 'POST',
+      body: JSON.stringify({ expected_version: expectedVersion }),
     });
   },
 

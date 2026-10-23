@@ -49,7 +49,7 @@ class TableService:
         stmt = stmt.order_by(RestaurantTable.display_order, RestaurantTable.table_number)
 
         tables = (await db.execute(stmt)).scalars().all()
-        return [await cls._build_table_response(db, t) for t in tables]
+        return await cls._build_table_responses(db, list(tables))
 
     @classmethod
     async def get_table(cls, db: AsyncSession, table_id: uuid.UUID) -> TableResponse:
@@ -316,83 +316,110 @@ class TableService:
 
     @classmethod
     async def _build_table_response(cls, db: AsyncSession, table: RestaurantTable) -> TableResponse:
-        """Derive occupancy and latest active QR token version for a table."""
-        # Derive occupancy from table_sessions
-        session_stmt = select(TableSession.id).where(
-            TableSession.table_id == table.id,
-            TableSession.status == "ACTIVE",
-        )
-        active_session_id = (await db.execute(session_stmt)).scalar_one_or_none()
+        """Derive occupancy, order counters, bill state and QR info for one table."""
+        return (await cls._build_table_responses(db, [table]))[0]
 
-        # Check for any active unserved or in-progress orders on this table
-        active_order_stmt = (
-            select(Order.id)
-            .where(
-                Order.table_id == table.id,
-                Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
-            )
-            .limit(1)
-        )
-        has_active_order = (await db.execute(active_order_stmt)).scalar_one_or_none() is not None
+    @classmethod
+    async def _build_table_responses(
+        cls, db: AsyncSession, tables: list[RestaurantTable]
+    ) -> list[TableResponse]:
+        """Batch version: a fixed handful of queries regardless of how many tables there are."""
+        if not tables:
+            return []
+        table_ids = [t.id for t in tables]
+        live_statuses = ["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]
 
-        current_occupancy = "OCCUPIED" if (active_session_id or has_active_order) else "AVAILABLE"
-
-        # Live order counters + bill state for the waiter floor grid
-        active_orders_count = 0
-        ready_orders_count = 0
-        bill_status: str | None = None
-        if active_session_id:
-            counts_stmt = (
-                select(Order.status, func.count(Order.id))
-                .where(
-                    Order.table_session_id == active_session_id,
-                    Order.status.in_(["PLACED", "ACCEPTED", "PREPARING", "READY", "SERVED"]),
+        # Active dining session per table (at most one: partial unique index)
+        session_rows = (
+            await db.execute(
+                select(TableSession.table_id, TableSession.id).where(
+                    TableSession.table_id.in_(table_ids),
+                    TableSession.status == "ACTIVE",
                 )
-                .group_by(Order.status)
             )
-            for status_value, count in (await db.execute(counts_stmt)).all():
-                active_orders_count += count
-                if status_value == "READY":
-                    ready_orders_count = count
+        ).all()
+        session_by_table = {tid: sid for tid, sid in session_rows}
 
-            bill_stmt = (
-                select(Bill.status)
-                .where(
-                    Bill.table_session_id == active_session_id,
-                    Bill.status == "ISSUED",
+        # Tables with any live order (even without an active session) + per-status counters
+        order_rows = (
+            await db.execute(
+                select(Order.table_id, Order.table_session_id, Order.status, func.count(Order.id))
+                .where(Order.table_id.in_(table_ids), Order.status.in_(live_statuses))
+                .group_by(Order.table_id, Order.table_session_id, Order.status)
+            )
+        ).all()
+        has_live_order: set[uuid.UUID] = set()
+        active_count: dict[uuid.UUID, int] = {}
+        ready_count: dict[uuid.UUID, int] = {}
+        for tid, sid, order_status, count in order_rows:
+            has_live_order.add(tid)
+            if sid is not None and session_by_table.get(tid) == sid:
+                active_count[tid] = active_count.get(tid, 0) + count
+                if order_status == "READY":
+                    ready_count[tid] = ready_count.get(tid, 0) + count
+
+        # Issued (unpaid) bill of the active session => "billed, payment pending"
+        session_ids = list(session_by_table.values())
+        billed_sessions: set[uuid.UUID] = set()
+        if session_ids:
+            billed_rows = (
+                (
+                    await db.execute(
+                        select(Bill.table_session_id).where(
+                            Bill.table_session_id.in_(session_ids),
+                            Bill.status == "ISSUED",
+                        )
+                    )
                 )
-                .limit(1)
+                .scalars()
+                .all()
             )
-            bill_status = (await db.execute(bill_stmt)).scalar_one_or_none()
+            billed_sessions = set(billed_rows)
 
-        # Latest active QR token info
-        qr_stmt = select(TableQrToken).where(
-            TableQrToken.table_id == table.id,
-            TableQrToken.status == "ACTIVE",
+        qr_rows = (
+            (
+                await db.execute(
+                    select(TableQrToken).where(
+                        TableQrToken.table_id.in_(table_ids),
+                        TableQrToken.status == "ACTIVE",
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        active_qr = (await db.execute(qr_stmt)).scalar_one_or_none()
+        qr_by_table = {q.table_id: q for q in qr_rows}
 
-        return TableResponse(
-            id=table.id,
-            table_number=table.table_number,
-            display_name=table.display_name,
-            seating_capacity=table.seating_capacity,
-            floor_or_zone=table.floor_or_zone,
-            operational_status=table.operational_status,
-            is_active=table.is_active,
-            display_order=table.display_order,
-            notes=table.notes,
-            current_occupancy=current_occupancy,
-            occupancy_status=current_occupancy,
-            active_session_id=active_session_id,
-            active_qr_version=active_qr.token_version if active_qr else None,
-            active_qr_prefix=active_qr.token_prefix if active_qr else None,
-            active_orders_count=active_orders_count,
-            ready_orders_count=ready_orders_count,
-            bill_status=bill_status,
-            created_at=getattr(table, "created_at", None) or utc_now(),
-            updated_at=getattr(table, "updated_at", None) or utc_now(),
-        )
+        responses: list[TableResponse] = []
+        for table in tables:
+            active_session_id = session_by_table.get(table.id)
+            occupied = active_session_id is not None or table.id in has_live_order
+            current_occupancy = "OCCUPIED" if occupied else "AVAILABLE"
+            active_qr = qr_by_table.get(table.id)
+            responses.append(
+                TableResponse(
+                    id=table.id,
+                    table_number=table.table_number,
+                    display_name=table.display_name,
+                    seating_capacity=table.seating_capacity,
+                    floor_or_zone=table.floor_or_zone,
+                    operational_status=table.operational_status,
+                    is_active=table.is_active,
+                    display_order=table.display_order,
+                    notes=table.notes,
+                    current_occupancy=current_occupancy,
+                    occupancy_status=current_occupancy,
+                    active_session_id=active_session_id,
+                    active_qr_version=active_qr.token_version if active_qr else None,
+                    active_qr_prefix=active_qr.token_prefix if active_qr else None,
+                    active_orders_count=active_count.get(table.id, 0),
+                    ready_orders_count=ready_count.get(table.id, 0),
+                    bill_status="ISSUED" if active_session_id in billed_sessions else None,
+                    created_at=getattr(table, "created_at", None) or utc_now(),
+                    updated_at=getattr(table, "updated_at", None) or utc_now(),
+                )
+            )
+        return responses
 
     @staticmethod
     async def _broadcast_table_update(table: RestaurantTable, occupancy: str) -> None:

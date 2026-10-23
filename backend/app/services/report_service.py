@@ -824,7 +824,11 @@ class ReportService:
                     pay.payment_method if pay else "CASH",
                     pay.reference_number if pay and pay.reference_number else "",
                     str(
-                        (pay.amount_tendered if pay.amount_tendered is not None else pay.amount_paid)
+                        (
+                            pay.amount_tendered
+                            if pay.amount_tendered is not None
+                            else pay.amount_paid
+                        )
                         if pay and pay.payment_method == "CASH"
                         else "0.00"
                     ),

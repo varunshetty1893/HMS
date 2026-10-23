@@ -90,7 +90,10 @@ class FakeTableSession:
         # Check active TableSession on table
         if "table_sessions" in stmt_str:
             for tid in self.active_session_table_ids:
-                return MockQueryResult(single=tid)
+                return MockQueryResult(
+                    single=tid,
+                    multiple=[(t, uuid.uuid4()) for t in self.active_session_table_ids],
+                )
             return MockQueryResult(single=None)
 
         # Query QR tokens

@@ -93,7 +93,7 @@ class TableResponse(StrictRequestModel):
     ready_orders_count: int = 0
     bill_status: str | None = Field(
         default=None,
-        description="Bill state of the active dining session: 'ISSUED' (billed, payment pending) or None",
+        description="Bill state of the active session: 'ISSUED' (payment pending) or None",
     )
     created_at: datetime
     updated_at: datetime

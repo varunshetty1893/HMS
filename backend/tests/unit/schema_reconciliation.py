@@ -22,6 +22,20 @@ class Reconciliation:
 
 KEPT_EXTRAS = (
     Reconciliation(
+        "payments",
+        "amount_tendered",
+        "migration 0016 (cash tendered and change)",
+        "Cash handed over by the guest; amount_paid stays the exact amount applied to the bill.",
+        "KEEP",
+    ),
+    Reconciliation(
+        "payments",
+        "change_returned",
+        "migration 0016 (cash tendered and change)",
+        "Change returned to the guest (amount_tendered - amount applied) for cash payments.",
+        "KEEP",
+    ),
+    Reconciliation(
         "users",
         "token_version",
         "docs/13 L635, L664, L880, L948",

@@ -149,7 +149,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  const handleGenerateBill = async (tableNumberOverride?: number) => {
+  const handleGenerateBill = async (tableNumberOverride?: number, collectNow = false) => {
     const tableNumber = tableNumberOverride ?? Number(generateTableNumber);
     if (!Number.isInteger(tableNumber) || tableNumber < 1) {
       setError('Enter a valid table number.');
@@ -163,7 +163,15 @@ export const BillingAndPaymentsPage: React.FC = () => {
       setGenerateTableNumber('');
       setSuccessBanner(`Bill #${bill.bill_number} generated for Table ${tableNumber}.`);
       await fetchBills();
-      await handleSelectBill(bill);
+      if (collectNow) {
+        setPaymentBill(bill);
+        setPaymentMethod('CASH');
+        setCashTendered(bill.grand_total);
+        setPaymentReference('');
+        setPaymentNotes('');
+      } else {
+        await handleSelectBill(bill);
+      }
     } catch (err: any) {
       setError(err?.message || 'Could not generate the bill. Ensure all table orders are served.');
     } finally {
@@ -203,38 +211,41 @@ export const BillingAndPaymentsPage: React.FC = () => {
     }
   };
 
-  type Row = { kind: 'live'; check: TableBillCheck } | { kind: 'bill'; bill: Bill };
-
-  // Live (not yet billed) tables appear first, in "All" and "Unpaid" views.
   const showLive = statusFilter === 'ALL' || statusFilter === 'ISSUED';
-  const rows: Row[] = [
-    ...(showLive ? openChecks.map((check) => ({ kind: 'live', check }) as Row) : []),
-    ...bills.map((bill) => ({ kind: 'bill', bill }) as Row),
-  ];
-
   const query = searchQuery.toLowerCase().trim();
-  const filteredRows = rows.filter((row) => {
-    if (!query) return true;
-    const fields: string[] =
-      row.kind === 'live'
-        ? [
-            'live running open',
-            `table ${row.check.table_number}`,
-            String(row.check.table_number),
-            row.check.table_display_name || '',
-            row.check.preview_grand_total || '',
-            ...row.check.preview_line_items.map((i) => i.item_name),
-          ]
-        : [
-            row.bill.bill_number,
-            row.bill.status,
-            `table ${row.bill.table_number ?? ''}`,
-            String(row.bill.table_number ?? ''),
-            row.bill.grand_total,
-            ...(row.bill.line_items || []).map((i) => i.item_name),
-          ];
-    return fields.some((f) => f.toLowerCase().includes(query));
-  });
+
+  const filteredChecks = !showLive
+    ? []
+    : openChecks.filter((c) => {
+        if (!query) return true;
+        return [
+          `table ${c.table_number}`,
+          String(c.table_number),
+          c.table_display_name || '',
+          c.preview_grand_total || '',
+          ...c.preview_line_items.map((i) => i.item_name),
+        ].some((f) => f.toLowerCase().includes(query));
+      });
+
+  const filteredRows = bills
+    .filter((bill) => {
+      if (!query) return true;
+      return [
+        bill.bill_number,
+        bill.status,
+        `table ${bill.table_number ?? ''}`,
+        String(bill.table_number ?? ''),
+        bill.grand_total,
+        ...(bill.line_items || []).map((i) => i.item_name),
+      ].some((f) => f.toLowerCase().includes(query));
+    })
+    .map((bill) => ({ kind: 'bill' as const, bill }));
+
+  // Summary strip (only meaningful on the "All Bills" tab, which loads everything)
+  const sumOf = (list: Bill[]) => list.reduce((acc, b) => acc + Number(b.grand_total || 0), 0);
+  const unpaidBills = bills.filter((b) => b.status === 'ISSUED');
+  const paidBills = bills.filter((b) => b.status === 'PAID');
+  const openTotal = openChecks.reduce((acc, c) => acc + Number(c.preview_grand_total || 0), 0);
   const billsPag = usePagination(filteredRows, 10);
   const selectedLive = openChecks.find((c) => c.table_id === selectedLiveTable) ?? null;
 
@@ -334,6 +345,78 @@ export const BillingAndPaymentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Summary strip */}
+      {statusFilter === 'ALL' && !isLoading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Running (not billed)', value: formatInr(openTotal), hint: `${openChecks.length} table${openChecks.length === 1 ? '' : 's'}`, color: '#d97706' },
+            { label: 'Awaiting payment', value: formatInr(sumOf(unpaidBills)), hint: `${unpaidBills.length} bill${unpaidBills.length === 1 ? '' : 's'}`, color: '#ea580c' },
+            { label: 'Collected', value: formatInr(sumOf(paidBills)), hint: `${paidBills.length} paid bill${paidBills.length === 1 ? '' : 's'}`, color: '#059669' },
+            { label: 'Total billed', value: formatInr(sumOf(bills.filter((b) => b.status !== 'VOIDED_FOR_REVISION'))), hint: `${bills.length} bills`, color: heading as string },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-2xl p-4" style={card}>
+              <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: muted }}>{stat.label}</div>
+              <div className="text-xl font-black font-mono mt-1" style={{ color: stat.color }}>{stat.value}</div>
+              <div className="text-[11px] mt-0.5" style={{ color: sub }}>{stat.hint}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tables waiting to be billed */}
+      {filteredChecks.length > 0 && (
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider mb-2.5" style={{ color: sub }}>
+            Tables ordering now · {filteredChecks.length}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredChecks.map((c) => {
+              const waiting = c.has_unaccepted_placed_orders || c.has_unserved_orders;
+              const qty = c.preview_line_items.reduce((n, i) => n + i.quantity_billed, 0);
+              return (
+                <div key={c.table_id} className="rounded-2xl p-4 border-l-4 shadow-sm" style={{ ...card, borderLeftColor: waiting ? '#f59e0b' : '#10b981' }}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-lg font-black" style={{ color: heading }}>Table {c.table_number}</div>
+                      <div className="text-[11px]" style={{ color: muted }}>{qty} item{qty === 1 ? '' : 's'} · {c.preview_line_items.length} line{c.preview_line_items.length === 1 ? '' : 's'}</div>
+                    </div>
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                      style={waiting
+                        ? { backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }
+                        : { backgroundColor: '#dcfce7', color: '#166534', borderColor: '#86efac' }}
+                    >
+                      {c.has_unaccepted_placed_orders ? 'Awaiting kitchen' : c.has_unserved_orders ? 'Being served' : 'Ready to bill'}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-[11px] truncate" style={{ color: sub }}>
+                    {c.preview_line_items.slice(0, 3).map((i) => `${i.quantity_billed}× ${i.item_name}`).join(' · ')}
+                    {c.preview_line_items.length > 3 ? ` +${c.preview_line_items.length - 3} more` : ''}
+                  </div>
+                  <div className="mt-3 flex items-end justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold" style={{ color: muted }}>Running total (incl. GST)</div>
+                      <div className="text-2xl font-black font-mono" style={{ color: heading }}>{formatInr(c.preview_grand_total ?? '0')}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => setSelectedLiveTable(c.table_id)} className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style={{ color: heading, border: `1px solid ${border}` }}>View items</button>
+                    <button
+                      disabled={waiting || isGenerating}
+                      title={waiting ? 'All orders must be served first' : 'Generate the bill and take payment'}
+                      onClick={() => handleGenerateBill(c.table_number, true)}
+                      className="flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Bill & Collect
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Bills Table */}
       {isLoading ? (
         <div
@@ -343,7 +426,7 @@ export const BillingAndPaymentsPage: React.FC = () => {
           <div className="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="mt-3 text-sm">Loading bills...</p>
         </div>
-      ) : filteredRows.length === 0 ? (
+      ) : filteredRows.length === 0 && filteredChecks.length > 0 ? null : filteredRows.length === 0 ? (
         <div
           className="p-16 text-center rounded-2xl"
           style={{ ...card, color: sub }}
@@ -369,31 +452,6 @@ export const BillingAndPaymentsPage: React.FC = () => {
               </thead>
               <tbody>
                 {billsPag.slice.map((row) => {
-                  if (row.kind === 'live') {
-                    const c = row.check;
-                    return (
-                      <tr
-                        key={`live-${c.table_id}`}
-                        onClick={() => setSelectedLiveTable(c.table_id)}
-                        className="transition cursor-pointer border-b"
-                        style={{ borderBottomColor: border, backgroundColor: L ? '#fffbeb' : 'rgba(120,53,15,0.15)' }}
-                      >
-                        <td className="px-6 py-4 font-mono font-bold" style={{ color: heading }}>
-                          <span className="flex items-center gap-2"><Receipt className="w-4 h-4 text-amber-500 shrink-0" />Running check</span>
-                        </td>
-                        <td className="px-6 py-4 font-semibold" style={{ color: heading }}>Table {c.table_number}</td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
-                            {c.has_unaccepted_placed_orders || c.has_unserved_orders ? 'LIVE · IN PROGRESS' : 'LIVE · READY TO BILL'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono" style={{ color: muted }}>Not billed yet</td>
-                        <td className="px-6 py-4 text-right font-mono" style={{ color: sub }}>{formatInr(c.preview_subtotal ?? '0')}</td>
-                        <td className="px-6 py-4 text-right font-mono font-semibold" style={{ color: '#d97706' }}>₹0.00</td>
-                        <td className="px-6 py-4 text-right font-mono font-black" style={{ color: heading }}>{formatInr(c.preview_grand_total ?? '0')}</td>
-                      </tr>
-                    );
-                  }
                   const b = row.bill;
                   return (
                   <tr
@@ -844,6 +902,25 @@ export const BillingAndPaymentsPage: React.FC = () => {
               <button onClick={() => setIsGenerateOpen(false)} style={{ color: muted }}><X className="w-4 h-4" /></button>
             </div>
             <p className="text-xs" style={{ color: sub }}>All orders for this table must be served before a final bill can be generated.</p>
+            {openChecks.filter((c) => !c.has_unaccepted_placed_orders && !c.has_unserved_orders).length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold uppercase mb-1.5" style={{ color: muted }}>Ready to bill</div>
+                <div className="flex flex-wrap gap-2">
+                  {openChecks.filter((c) => !c.has_unaccepted_placed_orders && !c.has_unserved_orders).map((c) => (
+                    <button
+                      key={c.table_id}
+                      onClick={() => setGenerateTableNumber(String(c.table_number))}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
+                      style={String(c.table_number) === generateTableNumber
+                        ? { backgroundColor: '#ea580c', color: '#fff' }
+                        : { border: `1px solid ${border}`, color: heading }}
+                    >
+                      Table {c.table_number} · {formatInr(c.preview_grand_total ?? '0')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <input autoFocus type="number" min="1" value={generateTableNumber} onChange={(e) => setGenerateTableNumber(e.target.value)} placeholder="Table number" className="w-full px-3 py-2 rounded-xl text-sm" style={input} />
             <div className="flex justify-end gap-2">
               <button onClick={() => setIsGenerateOpen(false)} className="px-3.5 py-2 rounded-xl text-xs font-semibold" style={{ color: heading }}>Cancel</button>

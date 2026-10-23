@@ -25,6 +25,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -209,7 +210,7 @@ class BillingService:
             # Check most recent bill on this table
             recent_bill_stmt = (
                 select(Bill)
-                .options(selectinload(Bill.items))
+                .options(selectinload(Bill.items), selectinload(Bill.payments))
                 .where(Bill.table_id == table.id)
                 .order_by(Bill.generated_at.desc())
             )
@@ -235,7 +236,7 @@ class BillingService:
         # 3. Check if an ISSUED or PAID bill already exists for this active session
         bill_stmt = (
             select(Bill)
-            .options(selectinload(Bill.items))
+            .options(selectinload(Bill.items), selectinload(Bill.payments))
             .where(
                 Bill.table_session_id == session.id,
                 Bill.status.in_([BillStatus.ISSUED.value, BillStatus.PAID.value]),
@@ -1319,6 +1320,16 @@ class BillingService:
                 return default
             return v if v is not None else default
 
+        # Never lazy-load inside async code (raises MissingGreenlet).  A freshly
+        # created bill, or one loaded without selectinload(Bill.payments), simply
+        # reports no payments here; list/detail endpoints load them explicitly.
+        _state = sa_inspect(bill, raiseerr=False)
+        payments_source = (
+            []
+            if _state is not None and "payments" in _state.unloaded
+            else (getattr(bill, "payments", None) or [])
+        )
+
         line_items = [
             BillItemResponse(
                 id=item.id,
@@ -1353,7 +1364,7 @@ class BillingService:
                 reference_number=payment.reference_number,
                 completed_at=payment.completed_at,
             )
-            for payment in (bill.payments or [])
+            for payment in payments_source
         ]
 
         return BillResponse(

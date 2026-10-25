@@ -37,16 +37,57 @@ export const receiptPrefs = {
   },
 };
 
+const KEY_SETTINGS_CACHE = 'hms.receipt.settingsCache';
+
+let inMemorySettings: RestaurantSettings | null = null;
+try {
+  const cached = localStorage.getItem(KEY_SETTINGS_CACHE);
+  if (cached) {
+    inMemorySettings = JSON.parse(cached);
+  }
+} catch {
+  // Ignore storage error
+}
+
 let settingsPromise: Promise<RestaurantSettings | null> | null = null;
-const loadSettings = () => {
+export const loadSettings = (): Promise<RestaurantSettings | null> => {
+  if (inMemorySettings) {
+    // Revalidate in background if not already fetching
+    if (!settingsPromise) {
+      settingsPromise = settingsAuditApi
+        .getSettings()
+        .then((s) => {
+          inMemorySettings = s;
+          try {
+            localStorage.setItem(KEY_SETTINGS_CACHE, JSON.stringify(s));
+          } catch {}
+          return s;
+        })
+        .catch(() => inMemorySettings);
+    }
+    return Promise.resolve(inMemorySettings);
+  }
+
   if (!settingsPromise) {
-    settingsPromise = settingsAuditApi.getSettings().catch(() => {
-      settingsPromise = null;
-      return null;
-    });
+    settingsPromise = settingsAuditApi
+      .getSettings()
+      .then((s) => {
+        inMemorySettings = s;
+        try {
+          localStorage.setItem(KEY_SETTINGS_CACHE, JSON.stringify(s));
+        } catch {}
+        return s;
+      })
+      .catch(() => {
+        settingsPromise = null;
+        return null;
+      });
   }
   return settingsPromise;
 };
+
+// Eagerly prefetch settings so they are warm in memory before the user clicks Generate Bill
+void loadSettings();
 
 const esc = (v: unknown) =>
   String(v ?? '')
@@ -149,22 +190,49 @@ export function buildReceiptHtml(
 </body></html>`;
 }
 
-/** Prints through a hidden iframe so the app screen never changes. */
+/** Prints through an off-screen iframe without changing the user's active page. */
 export async function printReceipt(bill: Bill, paper: PaperWidth = receiptPrefs.getPaper()) {
-  const settings = await loadSettings();
+  const settings = inMemorySettings || (await loadSettings());
   const html = buildReceiptHtml(bill, settings, paper);
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
-  document.body.appendChild(frame);
-  const cleanup = () => window.setTimeout(() => frame.remove(), 1500);
-  frame.onload = () => {
-    const w = frame.contentWindow;
-    if (!w) return cleanup();
-    w.onafterprint = cleanup;
-    w.focus();
-    w.print();
-    window.setTimeout(cleanup, 60_000);
+  // Use 1px with 0.01 opacity off-screen: ensures Chromium's layout compositor paints it immediately
+  // without throttle (visibility:hidden or 0x0 can delay layout/onload by 3-5 seconds in Chrome/Edge).
+  frame.style.cssText =
+    'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;border:0;';
+
+  let printed = false;
+  const cleanup = () => {
+    window.setTimeout(() => {
+      try {
+        frame.remove();
+      } catch {}
+    }, 1500);
   };
+
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    try {
+      const w = frame.contentWindow;
+      if (!w) return cleanup();
+      w.onafterprint = cleanup;
+      w.focus();
+      w.print();
+      window.setTimeout(cleanup, 60_000);
+    } catch {
+      cleanup();
+    }
+  };
+
+  frame.onload = () => {
+    // Quick microtask to allow iframe DOM to layout
+    window.setTimeout(doPrint, 40);
+  };
+
+  // Immediate fallback timer in case the browser does not fire onload for srcdoc
+  window.setTimeout(doPrint, 500);
+
   frame.srcdoc = html;
+  document.body.appendChild(frame);
 }

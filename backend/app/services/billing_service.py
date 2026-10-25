@@ -592,8 +592,11 @@ class BillingService:
         # 8. Generate sequential invoice number: INV-YYYYMMDD-####
         now = utc_now()
         date_str = now.strftime("%Y%m%d")
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = start_of_day + timedelta(days=1)
         count_stmt = select(func.count(Bill.id)).where(
-            func.to_char(Bill.generated_at, "YYYYMMDD") == date_str
+            Bill.generated_at >= start_of_day,
+            Bill.generated_at < end_of_day,
         )
         day_count = (await db.scalar(count_stmt)) or 0
         bill_number = f"INV-{date_str}-{day_count + 1:04d}"

@@ -336,7 +336,7 @@ class WebSocketManager:
         async with self._lock:
             sockets = list(self._rooms.get(room, set()))
 
-        for ws in sockets:
+        async def _send_one(ws: WebSocket) -> None:
             meta = self._connections.get(ws)
             if meta:
                 meta.sequence += 1
@@ -344,9 +344,13 @@ class WebSocketManager:
             else:
                 payload = {"event_id": event_id, **message}
             try:
-                await ws.send_json(payload)
+                await asyncio.wait_for(ws.send_json(payload), timeout=0.8)
             except Exception:
                 await self.disconnect(ws)
+
+        if sockets:
+            await asyncio.gather(*[_send_one(ws) for ws in sockets], return_exceptions=True)
+
 
     def get_connection_meta(self, websocket: WebSocket) -> ConnectionMeta | None:
         """Return metadata for the given WebSocket if it is still registered."""
